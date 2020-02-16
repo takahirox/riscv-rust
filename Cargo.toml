@@ -2,3 +2,6 @@
 name = "rust-riscv"
 version = "0.1.0"
 authors = ["Takahiro"]
+
+[dependencies]
+getopts = "0.2"
