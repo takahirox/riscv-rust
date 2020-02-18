@@ -46,6 +46,7 @@ enum Instruction {
 	LUI,
 	LW,
 	LWU,
+	MUL,
 	MRET,
 	OR,
 	ORI,
@@ -117,6 +118,7 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::LW => "LW",
 		Instruction::LWU => "LWU",
 		Instruction::MRET => "MRET",
+		Instruction::MUL => "MUL",
 		Instruction::OR => "OR",
 		Instruction::ORI => "ORI",
 		Instruction::SB => "SB",
@@ -185,6 +187,7 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::AND |
 		Instruction::ECALL |
 		Instruction::MRET |
+		Instruction::MUL |
 		Instruction::OR |
 		Instruction::SUB |
 		Instruction::SUBW |
@@ -414,6 +417,7 @@ impl Cpu {
 			0x33 => match funct3 {
 				0 => match funct7 {
 					0 => Instruction::ADD,
+					1 => Instruction::MUL,
 					0x20 => Instruction::SUB,
 					_ => {
 						println!("Unknown funct7: {:07b}", funct7);
@@ -751,6 +755,9 @@ impl Cpu {
 					},
 					Instruction::MRET => {
 						// @TODO: Implement
+					},
+					Instruction::MUL => {
+						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize].wrapping_mul(self.x[rs2 as usize]));
 					},
 					Instruction::OR => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] | self.x[rs2 as usize]);
