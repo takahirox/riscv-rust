@@ -47,6 +47,7 @@ enum Instruction {
 	LW,
 	LWU,
 	MUL,
+	MULH,
 	MRET,
 	OR,
 	ORI,
@@ -119,6 +120,7 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::LWU => "LWU",
 		Instruction::MRET => "MRET",
 		Instruction::MUL => "MUL",
+		Instruction::MULH => "MULH",
 		Instruction::OR => "OR",
 		Instruction::ORI => "ORI",
 		Instruction::SB => "SB",
@@ -188,6 +190,7 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::ECALL |
 		Instruction::MRET |
 		Instruction::MUL |
+		Instruction::MULH |
 		Instruction::OR |
 		Instruction::SUB |
 		Instruction::SUBW |
@@ -425,7 +428,15 @@ impl Cpu {
 						panic!();
 					}
 				},
-				1 => Instruction::SLL,
+				1 => match funct7 {
+					0 => Instruction::SLL,
+					1 => Instruction::MULH,
+					_ => {
+						println!("Unknown funct7: {:07b}", funct7);
+						self.dump_instruction(self.pc.wrapping_sub(4));
+						panic!();
+					}
+				},
 				2 => Instruction::SLT,
 				3 => Instruction::SLTU,
 				4 => Instruction::XOR,
@@ -758,6 +769,16 @@ impl Cpu {
 					},
 					Instruction::MUL => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize].wrapping_mul(self.x[rs2 as usize]));
+					},
+					Instruction::MULH => {
+						self.x[rd as usize] = match self.xlen {
+							Xlen::Bit32 => {
+								self.sign_extend((self.x[rs1 as usize] * self.x[rs2 as usize]) >> 32)
+							},
+							Xlen::Bit64 => {
+								((self.x[rs1 as usize] as i128) * (self.x[rs2 as usize] as i128) >> 64) as i64
+							}
+						};
 					},
 					Instruction::OR => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] | self.x[rs2 as usize]);
