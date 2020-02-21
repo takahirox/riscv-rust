@@ -49,6 +49,7 @@ enum Instruction {
 	MUL,
 	MULH,
 	MULHU,
+	MULHSU,
 	MRET,
 	OR,
 	ORI,
@@ -123,6 +124,7 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::MUL => "MUL",
 		Instruction::MULH => "MULH",
 		Instruction::MULHU => "MULHU",
+		Instruction::MULHSU => "MULHSU",
 		Instruction::OR => "OR",
 		Instruction::ORI => "ORI",
 		Instruction::SB => "SB",
@@ -194,6 +196,7 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::MUL |
 		Instruction::MULH |
 		Instruction::MULHU |
+		Instruction::MULHSU |
 		Instruction::OR |
 		Instruction::SUB |
 		Instruction::SUBW |
@@ -440,7 +443,15 @@ impl Cpu {
 						panic!();
 					}
 				},
-				2 => Instruction::SLT,
+				2 => match funct7 {
+					0 => Instruction::SLT,
+					1 => Instruction::MULHSU,
+					_ => {
+						println!("Unknown funct7: {:07b}", funct7);
+						self.dump_instruction(self.pc.wrapping_sub(4));
+						panic!();
+					}
+				},
 				3 => match funct7 {
 					0 => Instruction::SLTU,
 					1 => Instruction::MULHU,
@@ -798,6 +809,16 @@ impl Cpu {
 							},
 							Xlen::Bit64 => {
 								((self.x[rs1 as usize] as u64 as u128).wrapping_mul(self.x[rs2 as usize] as u64 as u128) >> 64) as i64
+							}
+						};
+					},
+					Instruction::MULHSU => {
+						self.x[rd as usize] = match self.xlen {
+							Xlen::Bit32 => {
+								self.sign_extend(((self.x[rs1 as usize] as i64).wrapping_mul(self.x[rs2 as usize] as u32 as i64) >> 32) as i64)
+							},
+							Xlen::Bit64 => {
+								((self.x[rs1 as usize] as u128).wrapping_mul(self.x[rs2 as usize] as u64 as u128) >> 64) as i64
 							}
 						};
 					},
