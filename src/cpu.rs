@@ -34,6 +34,8 @@ enum Instruction {
 	CSRRS,
 	CSRRW,
 	CSRRWI,
+	DIV,
+	DIVU,
 	ECALL,
 	FENCE,
 	JAL,
@@ -108,6 +110,8 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::CSRRS => "CSRRS",
 		Instruction::CSRRW => "CSRRW",
 		Instruction::CSRRWI => "CSRRWI",
+		Instruction::DIV => "DIV",
+		Instruction::DIVU => "DIVU",
 		Instruction::ECALL => "ECALL",
 		Instruction::FENCE => "FENCE",
 		Instruction::JAL => "JAL",
@@ -191,6 +195,8 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::ADD |
 		Instruction::ADDW |
 		Instruction::AND |
+		Instruction::DIV |
+		Instruction::DIVU |
 		Instruction::ECALL |
 		Instruction::MRET |
 		Instruction::MUL |
@@ -461,9 +467,18 @@ impl Cpu {
 						panic!();
 					}
 				},
-				4 => Instruction::XOR,
+				4 => match funct7 {
+					0 => Instruction::XOR,
+					1 => Instruction::DIV,
+					_ => {
+						println!("Unknown funct7: {:07b}", funct7);
+						self.dump_instruction(self.pc.wrapping_sub(4));
+						panic!();
+					}
+				},
 				5 => match funct7 {
 					0 => Instruction::SRL,
+					1 => Instruction::DIVU,
 					0x20 => Instruction::SRA,
 					_ => {
 						println!("Unknown funct7: {:07b}", funct7);
@@ -782,6 +797,18 @@ impl Cpu {
 					},
 					Instruction::AND => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] & self.x[rs2 as usize]);
+					},
+					Instruction::DIV => {
+						self.x[rd as usize] = match self.x[rs2 as usize] {
+							0 => -1,
+							_ => self.sign_extend(self.x[rs1 as usize].wrapping_div(self.x[rs2 as usize]))
+						};
+					},
+					Instruction::DIVU => {
+						self.x[rd as usize] = match self.x[rs2 as usize] {
+							0 => -1,
+							_ => self.sign_extend(self.unsigned_data(self.x[rs1 as usize]).wrapping_div(self.unsigned_data(self.x[rs2 as usize])) as i64)
+						};
 					},
 					Instruction::ECALL => {
 						// @TODO: Implement
