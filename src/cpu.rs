@@ -36,6 +36,8 @@ enum Instruction {
 	CSRRWI,
 	DIV,
 	DIVU,
+	DIVUW,
+	DIVW,
 	ECALL,
 	FENCE,
 	JAL,
@@ -52,11 +54,14 @@ enum Instruction {
 	MULH,
 	MULHU,
 	MULHSU,
+	MULW,
 	MRET,
 	OR,
 	ORI,
 	REM,
 	REMU,
+	REMUW,
+	REMW,
 	SB,
 	SD,
 	SH,
@@ -114,6 +119,8 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::CSRRWI => "CSRRWI",
 		Instruction::DIV => "DIV",
 		Instruction::DIVU => "DIVU",
+		Instruction::DIVUW => "DIVUW",
+		Instruction::DIVW => "DIVW",
 		Instruction::ECALL => "ECALL",
 		Instruction::FENCE => "FENCE",
 		Instruction::JAL => "JAL",
@@ -131,10 +138,13 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::MULH => "MULH",
 		Instruction::MULHU => "MULHU",
 		Instruction::MULHSU => "MULHSU",
+		Instruction::MULW => "MULW",
 		Instruction::OR => "OR",
 		Instruction::ORI => "ORI",
 		Instruction::REM => "REM",
 		Instruction::REMU => "REMU",
+		Instruction::REMUW => "REMUW",
+		Instruction::REMW => "REMW",
 		Instruction::SB => "SB",
 		Instruction::SD => "SD",
 		Instruction::SH => "SH",
@@ -201,15 +211,20 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::AND |
 		Instruction::DIV |
 		Instruction::DIVU |
+		Instruction::DIVUW |
+		Instruction::DIVW |
 		Instruction::ECALL |
 		Instruction::MRET |
 		Instruction::MUL |
 		Instruction::MULH |
 		Instruction::MULHU |
 		Instruction::MULHSU |
+		Instruction::MULW |
 		Instruction::OR |
 		Instruction::REM |
 		Instruction::REMU |
+		Instruction::REMUW |
+		Instruction::REMW |
 		Instruction::SUB |
 		Instruction::SUBW |
 		Instruction::SLL |
@@ -520,6 +535,7 @@ impl Cpu {
 			0x3b => match funct3 {
 				0 => match funct7 {
 					0 => Instruction::ADDW,
+					1 => Instruction::MULW,
 					0x20 => Instruction::SUBW,
 					_ => {
 						println!("Unknown funct7: {:07b}", funct7);
@@ -528,8 +544,10 @@ impl Cpu {
 					}
 				},
 				1 => Instruction::SLLW,
+				4 => Instruction::DIVW,
 				5 => match funct7 {
 					0 => Instruction::SRLW,
+					1 => Instruction::DIVUW,
 					0x20 => Instruction::SRAW,
 					_ => {
 						println!("Unknown funct7: {:07b}", funct7);
@@ -537,6 +555,8 @@ impl Cpu {
 						panic!();
 					}
 				},
+				6 => Instruction::REMW,
+				7 => Instruction::REMUW,
 				_ => {
 					println!("funct3: {:03b} is not supported yet", funct3);
 					self.dump_instruction(self.pc.wrapping_sub(4));
@@ -832,6 +852,18 @@ impl Cpu {
 							_ => self.sign_extend(self.unsigned_data(self.x[rs1 as usize]).wrapping_div(self.unsigned_data(self.x[rs2 as usize])) as i64)
 						};
 					},
+					Instruction::DIVUW => {
+						self.x[rd as usize] = match self.x[rs2 as usize] {
+							0 => -1,
+							_ => (self.x[rs1 as usize] as u32).wrapping_div(self.x[rs2 as usize] as u32) as i32 as i64
+						};
+					},
+					Instruction::DIVW => {
+						self.x[rd as usize] = match self.x[rs2 as usize] {
+							0 => -1,
+							_ => self.sign_extend((self.x[rs1 as usize] as i32).wrapping_div(self.x[rs2 as usize] as i32) as i64)
+						};
+					},
 					Instruction::ECALL => {
 						// @TODO: Implement
 					},
@@ -871,6 +903,9 @@ impl Cpu {
 							}
 						};
 					},
+					Instruction::MULW => {
+						self.x[rd as usize] = self.sign_extend((self.x[rs1 as usize] as i32).wrapping_mul(self.x[rs2 as usize] as i32) as i64);
+					},
 					Instruction::OR => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] | self.x[rs2 as usize]);
 					},
@@ -884,6 +919,18 @@ impl Cpu {
 						self.x[rd as usize] = match self.x[rs2 as usize] {
 							0 => self.x[rs1 as usize],
 							_ => self.sign_extend(self.unsigned_data(self.x[rs1 as usize]).wrapping_rem(self.unsigned_data(self.x[rs2 as usize])) as i64)
+						};
+					},
+					Instruction::REMUW => {
+						self.x[rd as usize] = match self.x[rs2 as usize] {
+							0 => self.x[rs1 as usize],
+							_ => self.sign_extend((self.x[rs1 as usize] as u32).wrapping_rem(self.x[rs2 as usize] as u32) as i32 as i64)
+						};
+					},
+					Instruction::REMW => {
+						self.x[rd as usize] = match self.x[rs2 as usize] {
+							0 => self.x[rs1 as usize],
+							_ => self.sign_extend((self.x[rs1 as usize] as i32).wrapping_rem((self.x[rs2 as usize]) as i32) as i64)
 						};
 					},
 					Instruction::SUB => {
