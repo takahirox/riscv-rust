@@ -5,7 +5,7 @@ riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written 
 ## Instruction support status
 
 - [x] RV32/64I
-- [ ] RV32/64M
+- [x] RV32/64M
 - [ ] RV32/64F
 - [ ] RV32/64D
 - [ ] RV32/64Q
