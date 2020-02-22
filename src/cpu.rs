@@ -55,6 +55,8 @@ enum Instruction {
 	MRET,
 	OR,
 	ORI,
+	REM,
+	REMU,
 	SB,
 	SD,
 	SH,
@@ -131,6 +133,8 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::MULHSU => "MULHSU",
 		Instruction::OR => "OR",
 		Instruction::ORI => "ORI",
+		Instruction::REM => "REM",
+		Instruction::REMU => "REMU",
 		Instruction::SB => "SB",
 		Instruction::SD => "SD",
 		Instruction::SH => "SH",
@@ -204,6 +208,8 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::MULHU |
 		Instruction::MULHSU |
 		Instruction::OR |
+		Instruction::REM |
+		Instruction::REMU |
 		Instruction::SUB |
 		Instruction::SUBW |
 		Instruction::SLL |
@@ -486,8 +492,24 @@ impl Cpu {
 						panic!();
 					}
 				},
-				6 => Instruction::OR,
-				7 => Instruction::AND,
+				6 => match funct7 {
+					0 => Instruction::OR,
+					1 => Instruction::REM,
+					_ => {
+						println!("Unknown funct7: {:07b}", funct7);
+						self.dump_instruction(self.pc.wrapping_sub(4));
+						panic!();
+					}
+				},
+				7 => match funct7 {
+					0 => Instruction::AND,
+					1 => Instruction::REMU,
+					_ => {
+						println!("Unknown funct7: {:07b}", funct7);
+						self.dump_instruction(self.pc.wrapping_sub(4));
+						panic!();
+					}
+				},
 				_ => {
 					println!("Unknown funct3: {:03b}", funct3);
 					self.dump_instruction(self.pc.wrapping_sub(4));
@@ -851,6 +873,18 @@ impl Cpu {
 					},
 					Instruction::OR => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] | self.x[rs2 as usize]);
+					},
+					Instruction::REM => {
+						self.x[rd as usize] = match self.x[rs2 as usize] {
+							0 => self.x[rs1 as usize],
+							_ => self.sign_extend(self.x[rs1 as usize].wrapping_rem(self.x[rs2 as usize]))
+						};
+					},
+					Instruction::REMU => {
+						self.x[rd as usize] = match self.x[rs2 as usize] {
+							0 => self.x[rs1 as usize],
+							_ => self.sign_extend(self.unsigned_data(self.x[rs1 as usize]).wrapping_rem(self.unsigned_data(self.x[rs2 as usize])) as i64)
+						};
 					},
 					Instruction::SUB => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize].wrapping_sub(self.x[rs2 as usize]));
