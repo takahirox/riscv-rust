@@ -1,20 +1,74 @@
-const MEMORY_CAPACITY: usize = 1024 * 16; // @TODO: temporal
+const MEMORY_CAPACITY: usize = 1024 * 512; // @TODO: temporal
 const CSR_CAPACITY: usize = 4096;
+const DRAM_BASE: usize = 0x80000000;
+const TOHOST_ADDRESS: usize = 0x80001000;
+
+const CSR_UEPC_ADDRESS: u16 = 0x41;
+const CSR_SSTATUS_ADDRESS: u16 = 0x100;
+const CSR_STVEC_ADDRESS: u16 = 0x105;
+const CSR_SSCRATCH_ADDRESS: u16 = 0x140;
+const CSR_SEPC_ADDRESS: u16 = 0x141;
+const CSR_SCAUSE_ADDRESS: u16 = 0x142;
+const CSR_STVAL_ADDRESS: u16 = 0x143;
+const CSR_SATP_ADDRESS: u16 = 0x180;
+const CSR_MSTATUS_ADDRESS: u16 = 0x300;
+const CSR_MEDELEG_ADDRESS: u16 = 0x302;
+const CSR_MIE_ADDRESS: u16 = 0x304;
+const CSR_MTVEC_ADDRESS: u16 = 0x305;
+const CSR_MSCRATCH_ADDRESS: u16 = 0x340;
+const CSR_MEPC_ADDRESS: u16 = 0x341;
+const CSR_MCAUSE_ADDRESS: u16 = 0x342;
+const CSR_MTVAL_ADDRESS: u16 = 0x343;
+const CSR_PMPCFG0_ADDRESS: u16 = 0x3a0;
+const CSR_PMPADDR0_ADDRESS: u16 = 0x3b0;
+const CSR_MHARTID_ADDRESS: u16 = 0xf14;
 
 pub struct Cpu {
 	xlen: Xlen,
-	// using only lower 32bits of x and pc registers
+	privilege_mode: PrivilegeMode,
+	addressing_mode: AddressingMode,
+	ppn: u64,
+	// using only lower 32bits of x, pc, and csr registers
 	// for 32-bit mode
 	x: [i64; 32],
 	pc: u64,
-	csr: [u64; CSR_CAPACITY], // @TODO: Check the width of csr
-	memory: [u8; MEMORY_CAPACITY]
+	csr: [u64; CSR_CAPACITY],
+	memory: Vec<u8>
 }
 
 pub enum Xlen {
 	Bit32,
 	Bit64
 	// @TODO: Support Bit128
+}
+
+enum AddressingMode {
+	None,
+	SV32,
+	SV39,
+	SV48
+}
+
+enum PrivilegeMode {
+	User,
+	Supervisor,
+	Reserved,
+	Machine
+}
+
+enum Exception {
+	EnvironmentCallFromMMode,
+	EnvironmentCallFromUMode,
+	EnvironmentCallFromSMode,
+	IllegalInstruction,
+	InstructionPageFault,
+	LoadPageFault,
+	StorePageFault,
+}
+
+enum MemoryAccessType {
+	Read,
+	Write
 }
 
 enum Instruction {
@@ -64,6 +118,7 @@ enum Instruction {
 	REMW,
 	SB,
 	SD,
+	SFENCE_VMA,
 	SH,
 	SLL,
 	SLLI,
@@ -77,6 +132,7 @@ enum Instruction {
 	SRAI,
 	SRAIW,
 	SRAW,
+	SRET,
 	SRL,
 	SRLI,
 	SRLIW,
@@ -97,6 +153,46 @@ enum InstructionFormat {
 	R,
 	S,
 	U
+}
+
+fn get_addressing_mode_name(mode: &AddressingMode) -> &'static str {
+	match mode {
+		AddressingMode::None => "None",
+		AddressingMode::SV32 => "SV32",
+		AddressingMode::SV39 => "SV39",
+		AddressingMode::SV48 => "SV48"
+	}
+}
+
+fn get_privilege_mode_name(mode: &PrivilegeMode) -> &'static str {
+	match mode {
+		PrivilegeMode::User => "User",
+		PrivilegeMode::Supervisor => "Supervisor",
+		PrivilegeMode::Reserved => "Reserved",
+		PrivilegeMode::Machine => "Machine"
+	}
+}
+
+// bigger number is higher privilege level
+fn get_privilege_encoding(mode: &PrivilegeMode) -> u8 {
+	match mode {
+		PrivilegeMode::User => 0,
+		PrivilegeMode::Supervisor => 1,
+		PrivilegeMode::Reserved => panic!(),
+		PrivilegeMode::Machine => 3
+	}
+}
+
+fn get_exception_cause(exception: &Exception) -> u64 {
+	match exception {
+		Exception::IllegalInstruction => 2,
+		Exception::EnvironmentCallFromUMode => 8,
+		Exception::EnvironmentCallFromSMode => 9,
+		Exception::EnvironmentCallFromMMode => 11,
+		Exception::InstructionPageFault => 12,
+		Exception::LoadPageFault => 13,
+		Exception::StorePageFault => 15,
+	}
 }
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
@@ -147,6 +243,7 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::REMW => "REMW",
 		Instruction::SB => "SB",
 		Instruction::SD => "SD",
+		Instruction::SFENCE_VMA => "SFENCE_VMA",
 		Instruction::SH => "SH",
 		Instruction::SLL => "SLL",
 		Instruction::SLLI => "SLLI",
@@ -160,6 +257,7 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::SRAI => "SRAI",
 		Instruction::SRAIW => "SRAIW",
 		Instruction::SRAW => "SRAW",
+		Instruction::SRET => "SRET",
 		Instruction::SRL => "SRL",
 		Instruction::SRLI => "SRLI",
 		Instruction::SRLIW => "SRLIW",
@@ -227,12 +325,14 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::REMW |
 		Instruction::SUB |
 		Instruction::SUBW |
+		Instruction::SFENCE_VMA |
 		Instruction::SLL |
 		Instruction::SLLW |
 		Instruction::SLT |
 		Instruction::SLTU |
 		Instruction::SRA |
 		Instruction::SRAW |
+		Instruction::SRET |
 		Instruction::SRL |
 		Instruction::SRLW |
 		Instruction::XOR => InstructionFormat::R,
@@ -249,31 +349,42 @@ impl Cpu {
 	pub fn new(xlen: Xlen) -> Self {
 		Cpu {
 			xlen: xlen,
+			privilege_mode: PrivilegeMode::Machine,
+			addressing_mode: AddressingMode::None,
+			ppn: 0,
 			x: [0; 32],
 			pc: 0,
 			csr: [0; CSR_CAPACITY],
-			memory: [0; MEMORY_CAPACITY]
+			memory: Vec::with_capacity(MEMORY_CAPACITY)
 		}
 	}
 
 	pub fn run_test(&mut self, data: Vec<u8>) {
+		for _i in 0..MEMORY_CAPACITY {
+			self.memory.push(0);
+		}
 		for i in 0..data.len() {
 			self.memory[i] = data[i];
 		}
-		self.pc = 0;
+		self.pc = DRAM_BASE as u64;
 		loop {
-			// @TODO: Temporal termination check, ends at ECALL instruction.
-			// I should check more properly.
-			let terminate = match self.load_word(self.pc) {
-				0x00000073 => true,
-				_ => false
-			};
 			self.tick();
-			if terminate {
-				// @TODO: Check if this condition is true
-				match self.x[10] {
-					0 => println!("Test Passed"),
-					_ => println!("Test Failed")
+
+			// It seems in riscv-tests ends with end code
+			// written to a certain physical memory address
+			// (0x80001000 in mose test cases) so checking
+			// the data in the address and terminating the test
+			// if non-zero data is written.
+			// End code 1 seems to mean pass.
+			let endcode =
+				(self.memory[TOHOST_ADDRESS - DRAM_BASE] as u32) |
+				((self.memory[TOHOST_ADDRESS - DRAM_BASE + 1] as u32) << 8) |
+				((self.memory[TOHOST_ADDRESS - DRAM_BASE + 2] as u32) << 16) |
+				((self.memory[TOHOST_ADDRESS - DRAM_BASE + 3] as u32) << 24);
+			if endcode != 0 {
+				match endcode {
+					1 => println!("Test Passed with {:X}", endcode),
+					_ => println!("Test Failed with {:X}", endcode)
 				};
 				break;
 			}
@@ -281,80 +392,320 @@ impl Cpu {
 	}
 
 	pub fn tick(&mut self) {
-		let word = self.fetch();
+		match self.tick_operate() {
+			Ok(()) => {},
+			Err(e) => self.handle_trap(e)
+		}
+	}
+
+	// @TODO: Rename
+	fn tick_operate(&mut self) -> Result<(), Exception> {
+		let word = match self.fetch() {
+			Ok(word) => word,
+			Err(e) => return Err(e)
+		};
 		let instruction = self.decode(word);
 		// @TODO: Remove if the emulator becomes stable
 		println!("PC:{:08x}, Word:{:08x}, Inst:{}",
-			self.pc.wrapping_sub(4), word, get_instruction_name(&instruction));
-		self.operate(word, instruction);
+			self.unsigned_data(self.pc.wrapping_sub(4) as i64),
+			word, get_instruction_name(&instruction));
+		self.operate(word, instruction)
 	}
 
-	fn fetch(&mut self) -> u32 {
-		let word = self.load_word(self.pc);
+	fn handle_trap(&mut self, exception: Exception) {
+		let current_privilege_encoding = get_privilege_encoding(&self.privilege_mode) as u64;
+		self.privilege_mode = match ((self.csr[CSR_MEDELEG_ADDRESS as usize] >> get_exception_cause(&exception)) & 1) == 1 {
+			true => PrivilegeMode::Supervisor,
+			false => PrivilegeMode::Machine
+		};
+		match self.privilege_mode {
+			PrivilegeMode::Supervisor => {
+				self.csr[CSR_SCAUSE_ADDRESS as usize] = get_exception_cause(&exception);
+				self.csr[CSR_STVAL_ADDRESS as usize] = self.pc;
+				self.pc = self.csr[CSR_STVEC_ADDRESS as usize];
+
+				// Override SPP bit[8] with the current privilege mode encoding
+				self.csr[CSR_SSTATUS_ADDRESS as usize] =
+					(self.csr[CSR_SSTATUS_ADDRESS as usize] & !0x100) |
+					((current_privilege_encoding & 1) << 8);
+			},
+			PrivilegeMode::Machine => {
+				self.csr[CSR_MCAUSE_ADDRESS as usize] = get_exception_cause(&exception);
+				self.csr[CSR_MTVAL_ADDRESS as usize] = self.pc;
+				self.pc = self.csr[CSR_MTVEC_ADDRESS as usize];
+
+				// Override MPP bits[12:11] with the current privilege mode encoding
+				self.csr[CSR_MSTATUS_ADDRESS as usize] = 
+					(self.csr[CSR_MSTATUS_ADDRESS as usize] & !0x1800) |
+					(current_privilege_encoding << 11);
+			},
+			_ => panic!() // shouldn't happen
+		};
+	}
+
+	fn fetch(&mut self) -> Result<u32, Exception> {
+		let word = match self.load_word(self.pc, true) {
+			Ok(word) => word,
+			Err(_e) => {
+				self.pc = self.pc.wrapping_add(4);
+				return Err(Exception::InstructionPageFault)
+			}
+		};
 		// @TODO: Should I increment pc after operating an instruction because
 		// some of the instruction operations need the address of the instruction?
 		self.pc = self.pc.wrapping_add(4);
-		word
+		Ok(word)
 	}
 
-	fn load_doubleword(&self, address: u64) -> u64 {
-		((self.load_byte(address.wrapping_add(7)) as u64) << 56) |
-		((self.load_byte(address.wrapping_add(6)) as u64) << 48) |
-		((self.load_byte(address.wrapping_add(5)) as u64) << 40) |
-		((self.load_byte(address.wrapping_add(4)) as u64) << 32) |
-		((self.load_byte(address.wrapping_add(3)) as u64) << 24) |
-		((self.load_byte(address.wrapping_add(2)) as u64) << 16) |
-		((self.load_byte(address.wrapping_add(1)) as u64) << 8) |
-		(self.load_byte(address) as u64)
+	fn load_doubleword(&self, address: u64, translation: bool) -> Result<u64, Exception> {
+		let mut data = 0 as u64;
+		for i in 0..8 {
+			match self.load_byte(address.wrapping_add(i), translation) {
+				Ok(byte) => {
+					data |= (byte as u64) << (i * 8)
+				},
+				Err(e) => return Err(e)
+			};
+		}
+		Ok(data)
 	}
 
-	fn load_word(&self, address: u64) -> u32 {
-		((self.load_byte(address.wrapping_add(3)) as u32) << 24) |
-		((self.load_byte(address.wrapping_add(2)) as u32) << 16) |
-		((self.load_byte(address.wrapping_add(1)) as u32) << 8) |
-		(self.load_byte(address) as u32)
+	fn load_word(&self, address: u64, translation: bool) -> Result<u32, Exception> {
+		let mut data = 0 as u32;
+		for i in 0..4 {
+			match self.load_byte(address.wrapping_add(i), translation) {
+				Ok(byte) => {
+					data |= (byte as u32) << (i * 8)
+				},
+				Err(e) => return Err(e)
+			};
+		}
+		Ok(data)
 	}
 
-	fn load_halfword(&self, address: u64) -> u16 {
-		((self.load_byte(address.wrapping_add(1)) as u16) << 8) |
-		(self.load_byte(address) as u16)
+	fn load_halfword(&self, address: u64, translation: bool) -> Result<u16, Exception> {
+		let mut data = 0 as u16;
+		for i in 0..2 {
+			match self.load_byte(address.wrapping_add(i), translation) {
+				Ok(byte) => {
+					data |= (byte as u16) << (i * 8)
+				},
+				Err(e) => return Err(e)
+			};
+		}
+		Ok(data)
 	}
 
-	fn load_byte(&self, address: u64) -> u8 {
-		self.memory[match self.xlen {
-			Xlen::Bit32 => address & 0xffffffff,
-			Xlen::Bit64 => address
-		} as usize]
+	fn load_byte(&self, address: u64, translation: bool) -> Result<u8, Exception> {
+		let p_address = match translation {
+			true => match self.translate_address(address, MemoryAccessType::Read) {
+				Ok(address) => address,
+				Err(_e) => return Err(Exception::LoadPageFault)
+			},
+			false => address
+		};
+		Ok(self.load_memory(match self.xlen {
+			Xlen::Bit32 => p_address & 0xffffffff,
+			Xlen::Bit64 => p_address
+		}))
 	}
 
-	fn store_doubleword(&mut self, address: u64, value: u64) {
-		self.store_byte(address, (value & 0xff) as u8);
-		self.store_byte(address.wrapping_add(1), ((value >> 8) & 0xff) as u8);
-		self.store_byte(address.wrapping_add(2), ((value >> 16) & 0xff) as u8);
-		self.store_byte(address.wrapping_add(3), ((value >> 24) & 0xff) as u8);
-		self.store_byte(address.wrapping_add(4), ((value >> 32) & 0xff) as u8);
-		self.store_byte(address.wrapping_add(5), ((value >> 40) & 0xff) as u8);
-		self.store_byte(address.wrapping_add(6), ((value >> 48) & 0xff) as u8);
-		self.store_byte(address.wrapping_add(7), ((value >> 56) & 0xff) as u8);
+	fn load_memory(&self, address: u64) -> u8 {
+		if (address as usize) < DRAM_BASE {
+			println!("Accessing out of address, {:X}", address);
+			panic!();
+		}
+		self.memory[address as usize - DRAM_BASE]
 	}
 
-	fn store_word(&mut self, address: u64, value: u32) {
-		self.store_byte(address, (value & 0xff) as u8);
-		self.store_byte(address.wrapping_add(1), ((value >> 8) & 0xff) as u8);
-		self.store_byte(address.wrapping_add(2), ((value >> 16) & 0xff) as u8);
-		self.store_byte(address.wrapping_add(3), ((value >> 24) & 0xff) as u8);
+	fn store_doubleword(&mut self, address: u64, value: u64, translation: bool) -> Result<(), Exception> {
+		for i in 0..8 {
+			match self.store_byte(address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8, translation) {
+				Ok(()) => {},
+				Err(e) => return Err(e)
+			}
+		}
+		Ok(())
 	}
 
-	fn store_halfword(&mut self, address: u64, value: u16) {
-		self.store_byte(address, (value & 0xff) as u8);
-		self.store_byte(address.wrapping_add(1), ((value >> 8) & 0xff) as u8);
+	fn store_word(&mut self, address: u64, value: u32, translation: bool) -> Result<(), Exception> {
+		for i in 0..4 {
+			match self.store_byte(address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8, translation) {
+				Ok(()) => {},
+				Err(e) => return Err(e)
+			}
+		}
+		Ok(())
 	}
 
-	fn store_byte(&mut self, address: u64, value: u8) {
-		self.memory[match self.xlen {
-			Xlen::Bit32 => address & 0xffffffff,
-			Xlen::Bit64 => address
-		} as usize] = value;
+	fn store_halfword(&mut self, address: u64, value: u16, translation: bool) -> Result<(), Exception> {
+		for i in 0..2 {
+			match self.store_byte(address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8, translation) {
+				Ok(()) => {},
+				Err(e) => return Err(e)
+			}
+		}
+		Ok(())
+	}
+
+	fn store_byte(&mut self, address: u64, value: u8, translation: bool) -> Result<(), Exception> {
+		let p_address = match translation {
+			true => match self.translate_address(address, MemoryAccessType::Write) {
+				Ok(address) => address,
+				Err(_e) => return Err(Exception::StorePageFault)
+			},
+			false => address
+		};
+		self.store_memory(match self.xlen {
+			Xlen::Bit32 => p_address & 0xffffffff,
+			Xlen::Bit64 => p_address
+		}, value);
+		Ok(())
+	}
+
+	fn store_memory(&mut self, address: u64, value: u8) {
+		if (address as usize) < DRAM_BASE {
+			println!("Accessing out of address, {:X}", address);
+			panic!();
+		}
+		// println!("Store PA:{:X} value:{:X}", address, value);
+		self.memory[address as usize - DRAM_BASE] = value;
+	}
+
+	fn translate_address(&self, address: u64, access_type: MemoryAccessType) -> Result<u64, ()> {
+		match self.addressing_mode {
+			AddressingMode::None => Ok(address),
+			AddressingMode::SV32 => match self.privilege_mode {
+				PrivilegeMode::User | PrivilegeMode::Supervisor => {
+					let vpns = [(address >> 12) & 0x3ff, (address >> 22) & 0x3ff];
+					self.traverse_page(address, 2 - 1, self.ppn, &vpns, access_type)
+				},
+				_ => Ok(address)
+			},
+			_ => {
+				println!("{} addressing_mode is not supported yet", get_addressing_mode_name(&self.addressing_mode));
+				panic!();
+			}
+		}
+	}
+
+	// @TODO: Take access type (read, write, execute) to check permitted
+	fn traverse_page(&self, v_address: u64, level: u8, parent_ppn: u64,
+		vpns: &[u64], access_type: MemoryAccessType) -> Result<u64, ()> {
+		let pagesize = 4096;
+		let ptesize = 4;
+		let pte_address = parent_ppn * pagesize + vpns[level as usize] * ptesize;
+		let pte = match self.load_word(pte_address, false) {
+			Ok(data) => data,
+			Err(_e) => panic!()
+		} as u64;
+		let ppn = (pte >> 10) & 0x3fffff;
+		let ppns = [(pte >> 10) & 0x3ff, (pte >> 20) & 0xfff];
+		let _rsw = (pte >> 8) & 0x3;
+		let d = (pte >> 7) & 1;
+		let a = (pte >> 6) & 1;
+		let _g = (pte >> 5) & 1;
+		let _u = (pte >> 4) & 1;
+		let x = (pte >> 3) & 1;
+		let w = (pte >> 2) & 1;
+		let r = (pte >> 1) & 1;
+		let v = pte & 1;
+
+		// println!("VA:{:X} Level:{:X} PTE_AD:{:X} PTE:{:X} PPN:{:X} PPN1:{:X} PPN0:{:X}", v_address, level, pte_address, pte, ppn, ppns[1], ppns[0]);
+
+		if v == 0 || (r == 0 && w == 1) {
+			return Err({});
+		}
+
+		if r == 0 && x == 0 {
+			return match level {
+				0 => Err(()),
+				_ => self.traverse_page(v_address, level - 1, ppn, vpns, access_type)
+			};
+		}
+
+		if a == 0 {
+			return Err(());
+		}
+
+		match access_type {
+			MemoryAccessType::Read => {},
+			MemoryAccessType::Write => {
+				if d == 0 {
+					return Err(());
+				}
+			}
+		};
+
+		let offset = v_address & 0xfff; // [11:0]
+		// @TODO: Here is SV32 specific. Fix me.
+		let p_address = match level {
+			1 => {
+				if ppns[0] != 0 {
+					return Err(());
+				}
+				((ppns[1]) << 22) | (vpns[0] << 12) | offset
+			},
+			0 => ((ppn) << 12) | offset,
+			_ => panic!()
+		};
+		// println!("PA:{:X}", p_address);
+		Ok(p_address)
+	}
+
+	fn has_csr_access_privilege(&self, address: u16) -> bool {
+		let privilege = (address >> 8) & 0x3; // the lowest privilege level that can access the CSR
+		privilege as u8 <= get_privilege_encoding(&self.privilege_mode)
+	}
+
+	fn read_csr(&mut self, address: u16) -> Result<u64, Exception> {
+		match self.has_csr_access_privilege(address) {
+			true => Ok(self.csr[address as usize]),
+			false => Err(Exception::IllegalInstruction)
+		}
+	}
+
+	fn write_csr(&mut self, address: u16, value: u64) -> Result<(), Exception> {
+		// println!("CSR:{:X} Value:{:X}", address, value);
+		match self.has_csr_access_privilege(address) {
+			true => {
+				/*
+				// Checking writability fails some tests so disabling so far
+				let read_only = ((address >> 10) & 0x3) == 0x3;
+				if read_only {
+					return Err(Exception::IllegalInstruction);
+				}
+				*/
+				self.csr[address as usize] = value;
+				if address == CSR_SATP_ADDRESS {
+					self.update_addressing_mode(value);
+				}
+				Ok(())
+			},
+			false => Err(Exception::IllegalInstruction)
+		}
+	}
+
+	fn update_addressing_mode(&mut self, value: u64) {
+		self.addressing_mode = match self.xlen {
+			Xlen::Bit32 => match value & 0x80000000 {
+				0 => AddressingMode::None,
+				_ => AddressingMode::SV32
+			},
+			Xlen::Bit64 => match value & 0xf000000000000000 {
+				0 => AddressingMode::None,
+				8 => AddressingMode::SV39,
+				9 => AddressingMode::SV48,
+				_ => {
+					println!("Unknown addressing_mode {:X}", value & 0xf000000000000000);
+					panic!();
+				}
+			}
+		};
+		self.ppn = match self.xlen {
+			Xlen::Bit32 => value & 0x3fffff,
+			Xlen::Bit64 => value & 0xfffffffffff
+		}
 	}
 
 	// @TODO: Rename to better name?
@@ -580,13 +931,17 @@ impl Cpu {
 			0x6f => Instruction::JAL,
 			0x73 => match funct3 {
 				0 => {
-					match word {
-						0x00000073 => Instruction::ECALL,
-						0x30200073 => Instruction::MRET,
-						_ => {
-							println!("Priviledged instruction 0x{:08x} is not supported yet", word);
-							self.dump_instruction(self.pc.wrapping_sub(4));
-							panic!();
+					match funct7 {
+						9 => Instruction::SFENCE_VMA,
+						_ => match word {
+							0x00000073 => Instruction::ECALL,
+							0x10200073 => Instruction::SRET,
+							0x30200073 => Instruction::MRET,
+							_ => {
+								println!("Priviledged instruction 0x{:08x} is not supported yet", word);
+								self.dump_instruction(self.pc.wrapping_sub(4));
+								panic!();
+							}
 						}
 					}
 				}
@@ -607,7 +962,7 @@ impl Cpu {
 		}
 	}
 
-	fn operate(&mut self, word: u32, instruction: Instruction) {
+	fn operate(&mut self, word: u32, instruction: Instruction) -> Result<(), Exception> {
 		let instruction_format = get_instruction_format(&instruction);
 		match instruction_format {
 			InstructionFormat::B => {
@@ -622,6 +977,7 @@ impl Cpu {
 					((word & 0x7e000000) >> 20) | // imm[10:5] = [30:25]
 					((word & 0x00000f00) >> 7) // imm[4:1] = [11:8]
 				) as i32 as i64 as u64;
+				// println!("Compare {:X} {:X}", self.x[rs1 as usize], self.x[rs2 as usize]);
 				match instruction {
 					Instruction::BEQ => {
 						if self.sign_extend(self.x[rs1 as usize]) == self.sign_extend(self.x[rs2 as usize]) {
@@ -661,25 +1017,46 @@ impl Cpu {
 				};
 			},
 			InstructionFormat::C => {
-				let csr = (word >> 20) & 0xfff; // [31:20];
+				let csr = ((word >> 20) & 0xfff) as u16; // [31:20];
 				let rs = (word >> 15) & 0x1f; // [19:15];
 				let rd = (word >> 7) & 0x1f; // [11:7];
 				// @TODO: Don't write if csr bits aren't writable
 				match instruction {
 					Instruction::CSRRS => {
-						self.x[rd as usize] = self.sign_extend(self.csr[csr as usize] as i64);
+						let data = match self.read_csr(csr) {
+							Ok(data) => data,
+							Err(e) => return Err(e)
+						};
+						self.x[rd as usize] = self.sign_extend(data as i64);
 						self.x[0] = 0; // hard-wired zero
-						self.csr[csr as usize] = self.unsigned_data(self.x[rd as usize] | self.x[rs as usize]);
+						match self.write_csr(csr, self.unsigned_data(self.x[rd as usize] | self.x[rs as usize])) {
+							Ok(()) => {},
+							Err(e) => return Err(e)
+						};
 					},
 					Instruction::CSRRW => {
-						self.x[rd as usize] = self.sign_extend(self.csr[csr as usize] as i64);
+						let data = match self.read_csr(csr) {
+							Ok(data) => data,
+							Err(e) => return Err(e)
+						};
+						self.x[rd as usize] = self.sign_extend(data as i64);
 						self.x[0] = 0; // hard-wired zero
-						self.csr[csr as usize] = self.unsigned_data(self.x[rs as usize]);
+						match self.write_csr(csr, self.unsigned_data(self.x[rs as usize])) {
+							Ok(()) => {},
+							Err(e) => return Err(e)
+						};
 					},
 					Instruction::CSRRWI => {
-						self.x[rd as usize] = self.sign_extend(self.csr[csr as usize] as i64);
+						let data = match self.read_csr(csr) {
+							Ok(data) => data,
+							Err(e) => return Err(e)
+						};
+						self.x[rd as usize] = self.sign_extend(data as i64);
 						self.x[0] = 0; // hard-wired zero
-						self.csr[csr as usize] = rs as u64;
+						match self.write_csr(csr, rs as u64) {
+							Ok(()) => {},
+							Err(e) => return Err(e)
+						};
 					},
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
@@ -713,25 +1090,46 @@ impl Cpu {
 						self.pc = (self.x[rs1 as usize] as u64).wrapping_add(imm as u64);
 					},
 					Instruction::LB => {
-						self.x[rd as usize] = self.load_byte(self.x[rs1 as usize].wrapping_add(imm) as u64) as i8 as i64;
+						self.x[rd as usize] = match self.load_byte(self.x[rs1 as usize].wrapping_add(imm) as u64, true) {
+							Ok(data) => data as i8 as i64,
+							Err(e) => return Err(e)
+						};
 					},
 					Instruction::LBU => {
-						self.x[rd as usize] = self.load_byte(self.x[rs1 as usize].wrapping_add(imm) as u64) as i64;
+						self.x[rd as usize] = match self.load_byte(self.x[rs1 as usize].wrapping_add(imm) as u64, true) {
+							Ok(data) => data as i64,
+							Err(e) => return Err(e)
+						};
 					},
 					Instruction::LD => {
-						self.x[rd as usize] = self.load_doubleword(self.x[rs1 as usize].wrapping_add(imm) as u64) as i64;
+						self.x[rd as usize] = match self.load_doubleword(self.x[rs1 as usize].wrapping_add(imm) as u64, true) {
+							Ok(data) => data as i64,
+							Err(e) => return Err(e)
+						};
 					},
 					Instruction::LH => {
-						self.x[rd as usize] = self.load_halfword(self.x[rs1 as usize].wrapping_add(imm) as u64) as i16 as i64;
+						self.x[rd as usize] = match self.load_halfword(self.x[rs1 as usize].wrapping_add(imm) as u64, true) {
+							Ok(data) => data as i16 as i64,
+							Err(e) => return Err(e)
+						};
 					},
 					Instruction::LHU => {
-						self.x[rd as usize] = self.load_halfword(self.x[rs1 as usize].wrapping_add(imm) as u64) as i64;
+						self.x[rd as usize] = match self.load_halfword(self.x[rs1 as usize].wrapping_add(imm) as u64, true) {
+							Ok(data) => data as i64,
+							Err(e) => return Err(e)
+						};
 					},
 					Instruction::LW => {
-						self.x[rd as usize] = self.load_word(self.x[rs1 as usize].wrapping_add(imm) as u64) as i32 as i64;
+						self.x[rd as usize] = match self.load_word(self.x[rs1 as usize].wrapping_add(imm) as u64, true) {
+							Ok(data) => data as i32 as i64,
+							Err(e) => return Err(e)
+						};
 					},
 					Instruction::LWU => {
-						self.x[rd as usize] = self.load_word(self.x[rs1 as usize].wrapping_add(imm) as u64) as i64;
+						self.x[rd as usize] = match self.load_word(self.x[rs1 as usize].wrapping_add(imm) as u64, true) {
+							Ok(data) => data as i64,
+							Err(e) => return Err(e)
+						};
 					},
 					Instruction::ORI => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] | imm);
@@ -865,10 +1263,32 @@ impl Cpu {
 						};
 					},
 					Instruction::ECALL => {
-						// @TODO: Implement
+						let csr = match self.privilege_mode {
+							PrivilegeMode::User => CSR_UEPC_ADDRESS,
+							PrivilegeMode::Supervisor => CSR_SEPC_ADDRESS,
+							PrivilegeMode::Machine => CSR_MEPC_ADDRESS,
+							PrivilegeMode::Reserved => panic!()
+						};
+						self.csr[csr as usize] = self.pc.wrapping_sub(4);
+						return match self.privilege_mode {
+							PrivilegeMode::User => Err(Exception::EnvironmentCallFromUMode),
+							PrivilegeMode::Supervisor => Err(Exception::EnvironmentCallFromSMode),
+							PrivilegeMode::Machine => Err(Exception::EnvironmentCallFromMMode),
+							PrivilegeMode::Reserved => panic!()
+						};
 					},
 					Instruction::MRET => {
-						// @TODO: Implement
+						self.pc = match self.read_csr(CSR_MEPC_ADDRESS) {
+							Ok(data) => data,
+							Err(e) => return Err(e)
+						};
+						// @TODO: Implement properly
+						self.privilege_mode = match (self.csr[CSR_MSTATUS_ADDRESS as usize] >> 11) & 0x3 {
+							0 => PrivilegeMode::User,
+							1 => PrivilegeMode::Supervisor,
+							3 => PrivilegeMode::Machine,
+							_ => panic!()
+						};
 					},
 					Instruction::MUL => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize].wrapping_mul(self.x[rs2 as usize]));
@@ -933,6 +1353,9 @@ impl Cpu {
 							_ => self.sign_extend((self.x[rs1 as usize] as i32).wrapping_rem((self.x[rs2 as usize]) as i32) as i64)
 						};
 					},
+					Instruction::SFENCE_VMA => {
+						// @TODO: Implement
+					},
 					Instruction::SUB => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize].wrapping_sub(self.x[rs2 as usize]));
 					},
@@ -963,6 +1386,22 @@ impl Cpu {
 					Instruction::SRAW => {
 						self.x[rd as usize] = (self.x[rs1 as usize] as i32).wrapping_shr(self.x[rs2 as usize] as u32) as i32 as i64;
 					},
+					Instruction::SRET => {
+						// @TODO: Implement propertly
+						self.pc = match self.read_csr(CSR_SEPC_ADDRESS) {
+							Ok(data) => data,
+							Err(e) => return Err(e)
+						};
+						// Set privilege mode depending on SPP bit[8] in csr sstatis
+						self.privilege_mode = match self.csr[CSR_SSTATUS_ADDRESS as usize] & 0x100 {
+							0 => PrivilegeMode::User,
+							_ => {
+								// clear SPP bit
+								self.csr[CSR_SSTATUS_ADDRESS as usize] &= !0x100;
+								PrivilegeMode::Supervisor
+							}
+						};
+					},
 					Instruction::SRL => {
 						self.x[rd as usize] = self.sign_extend(self.unsigned_data(self.x[rs1 as usize]).wrapping_shr(self.x[rs2 as usize] as u32) as i64);
 					},
@@ -992,16 +1431,28 @@ impl Cpu {
 				) as i32 as i64;
 				match instruction {
 					Instruction::SB => {
-						self.store_byte(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u8);
+						match self.store_byte(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u8, true) {
+							Ok(()) => {},
+							Err(e) => return Err(e)
+						};
 					},
 					Instruction::SH => {
-						self.store_halfword(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u16);
+						match self.store_halfword(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u16, true) {
+							Ok(()) => {},
+							Err(e) => return Err(e)
+						};
 					},
 					Instruction::SW => {
-						self.store_word(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u32);
+						match self.store_word(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u32, true) {
+							Ok(()) => {},
+							Err(e) => return Err(e)
+						};
 					},
 					Instruction::SD => {
-						self.store_doubleword(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u64);
+						match self.store_doubleword(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u64, true) {
+							Ok(()) => {},
+							Err(e) => return Err(e)
+						};
 					},
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
@@ -1017,7 +1468,8 @@ impl Cpu {
 				) as u64;
 				match instruction {
 					Instruction::AUIPC => {
-						self.x[rd as usize] = self.pc.wrapping_sub(4).wrapping_add(imm) as i32 as i64;
+						// @TODO: Should we sign extend in 64-bit mode?
+						self.x[rd as usize] = self.sign_extend(self.pc.wrapping_sub(4).wrapping_add(imm) as i64);
 					},
 					Instruction::LUI => {
 						self.x[rd as usize] = imm as i32 as i64;
@@ -1031,10 +1483,14 @@ impl Cpu {
 			}
 		}
 		self.x[0] = 0; // hard-wired zero
+		Ok(())
 	}
 
 	fn dump_instruction(&self, address: u64) {
-		let word = self.load_word(address);
+		let word = match self.load_word(address, true) {
+			Ok(word) => word,
+			Err(_e) => return // @TODO: What should here do?
+		};
 		let pc = self.unsigned_data(address as i64);
 		let opcode = word & 0x7f; // [6:0]
 		println!("Pc: {:08x}, Opcode: {:07b}, Word: {:08x}", pc, opcode, word);
