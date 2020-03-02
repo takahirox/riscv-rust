@@ -407,7 +407,7 @@ impl Cpu {
 		};
 		let instruction = self.decode(word);
 		// @TODO: Remove if the emulator becomes stable
-		println!("PC:{:08x}, Word:{:08x}, Inst:{}",
+		println!("PC:{:016x}, Word:{:016x}, Inst:{}",
 			self.unsigned_data(self.pc.wrapping_sub(4) as i64),
 			word, get_instruction_name(&instruction));
 		self.operate(word, instruction)
@@ -612,6 +612,13 @@ impl Cpu {
 				},
 				_ => Ok(address)
 			},
+			AddressingMode::SV39 => match self.privilege_mode {
+				PrivilegeMode::User | PrivilegeMode::Supervisor => {
+					let vpns = [(address >> 12) & 0x1ff, (address >> 21) & 0x1ff, (address >> 30) & 0x1ff];
+					self.traverse_page(address, 3 - 1, self.ppn, &vpns, access_type)
+				},
+				_ => Ok(address)
+			},
 			_ => {
 				println!("{} addressing_mode is not supported yet", get_addressing_mode_name(&self.addressing_mode));
 				panic!();
@@ -622,14 +629,30 @@ impl Cpu {
 	fn traverse_page(&self, v_address: u64, level: u8, parent_ppn: u64,
 		vpns: &[u64], access_type: MemoryAccessType) -> Result<u64, ()> {
 		let pagesize = 4096;
-		let ptesize = 4;
+		let ptesize = match self.addressing_mode {
+			AddressingMode::SV32 => 4,
+			_ => 8
+		};
 		let pte_address = parent_ppn * pagesize + vpns[level as usize] * ptesize;
-		let pte = match self.load_word(pte_address, false) {
-			Ok(data) => data,
-			Err(_e) => panic!()
-		} as u64;
-		let ppn = (pte >> 10) & 0x3fffff;
-		let ppns = [(pte >> 10) & 0x3ff, (pte >> 20) & 0xfff];
+		let pte = match self.addressing_mode {
+			AddressingMode::SV32 => match self.load_word(pte_address, false) {
+				Ok(data) => data as u64,
+				Err(_e) => panic!() // Shouldn't happen
+			},
+			_ => match self.load_doubleword(pte_address, false) {
+				Ok(data) => data,
+				Err(_e) => panic!() // Shouldn't happen
+			},
+		};
+		let ppn = match self.addressing_mode {
+			AddressingMode::SV32 => (pte >> 10) & 0x3fffff,
+			_ => (pte >> 10) & 0xfffffffffff
+		};
+		let ppns = match self.addressing_mode {
+			AddressingMode::SV32 => [(pte >> 10) & 0x3ff, (pte >> 20) & 0xfff, 0 /*dummy*/],
+			AddressingMode::SV39 => [(pte >> 10) & 0x1ff, (pte >> 19) & 0x1ff, (pte >> 28) & 0x3ffffff],
+			_ => panic!() // Shouldn't happen
+		};
 		let _rsw = (pte >> 8) & 0x3;
 		let d = (pte >> 7) & 1;
 		let a = (pte >> 6) & 1;
@@ -640,7 +663,7 @@ impl Cpu {
 		let r = (pte >> 1) & 1;
 		let v = pte & 1;
 
-		// println!("VA:{:X} Level:{:X} PTE_AD:{:X} PTE:{:X} PPN:{:X} PPN1:{:X} PPN0:{:X}", v_address, level, pte_address, pte, ppn, ppns[1], ppns[0]);
+		// println!("VA:{:X} Level:{:X} PTE_AD:{:X} PTE:{:X} PPPN:{:X} PPN:{:X} PPN1:{:X} PPN0:{:X}", v_address, level, pte_address, pte, parent_ppn, ppn, ppns[1], ppns[0]);
 
 		if v == 0 || (r == 0 && w == 1) {
 			return Err({});
@@ -678,16 +701,34 @@ impl Cpu {
 		};
 
 		let offset = v_address & 0xfff; // [11:0]
-		// @TODO: Here is SV32 specific. Fix me.
-		let p_address = match level {
-			1 => {
-				if ppns[0] != 0 {
-					return Err(());
-				}
-				((ppns[1]) << 22) | (vpns[0] << 12) | offset
+		// @TODO: Optimize
+		let p_address = match self.addressing_mode {
+			AddressingMode::SV32 => match level {
+				1 => {
+					if ppns[0] != 0 {
+						return Err(());
+					}
+					(ppns[1] << 22) | (vpns[0] << 12) | offset
+				},
+				0 => (ppn << 12) | offset,
+				_ => panic!() // Shouldn't happen
 			},
-			0 => ((ppn) << 12) | offset,
-			_ => panic!()
+			_ => match level {
+				2 => {
+					if ppns[1] != 0 || ppns[0] != 0 {
+						return Err(());
+					}
+					(ppns[2] << 30) | (vpns[1] << 21) | (vpns[0] << 12) | offset
+				},
+				1 => {
+					if ppns[0] != 0 {
+						return Err(());
+					}
+					(ppns[2] << 30) | (ppns[1] << 21) | (vpns[0] << 12) | offset
+				},
+				0 => (ppn << 12) | offset,
+				_ => panic!() // Shouldn't happen
+			},
 		};
 		// println!("PA:{:X}", p_address);
 		Ok(p_address)
@@ -1504,15 +1545,18 @@ impl Cpu {
 			InstructionFormat::U => {
 				let rd = (word >> 7) & 0x1f; // [11:7]
 				let imm = (
-					word & 0xfffff000 // imm[31:12] = [31:12]
+					match word & 0x80000000 {
+						0x80000000 => 0xffffffff00000000,
+						_ => 0
+					} | // imm[63:32] = [31]
+					((word as u64) & 0xfffff000) // imm[31:12] = [31:12]
 				) as u64;
 				match instruction {
 					Instruction::AUIPC => {
-						// @TODO: Should we sign extend in 64-bit mode?
 						self.x[rd as usize] = self.sign_extend(self.pc.wrapping_sub(4).wrapping_add(imm) as i64);
 					},
 					Instruction::LUI => {
-						self.x[rd as usize] = imm as i32 as i64;
+						self.x[rd as usize] = imm as i64;
 					}
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
@@ -1533,6 +1577,6 @@ impl Cpu {
 		};
 		let pc = self.unsigned_data(address as i64);
 		let opcode = word & 0x7f; // [6:0]
-		println!("Pc: {:08x}, Opcode: {:07b}, Word: {:08x}", pc, opcode, word);
+		println!("Pc:{:016x}, Opcode:{:07b}, Word:{:016x}", pc, opcode, word);
 	}
 }
