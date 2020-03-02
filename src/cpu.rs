@@ -67,6 +67,7 @@ enum Exception {
 }
 
 enum MemoryAccessType {
+	Execute,
 	Read,
 	Write
 }
@@ -444,7 +445,7 @@ impl Cpu {
 	}
 
 	fn fetch(&mut self) -> Result<u32, Exception> {
-		let word = match self.load_word(self.pc, true) {
+		let word = match self.fetch_word(self.pc, true) {
 			Ok(word) => word,
 			Err(_e) => {
 				self.pc = self.pc.wrapping_add(4);
@@ -455,6 +456,35 @@ impl Cpu {
 		// some of the instruction operations need the address of the instruction?
 		self.pc = self.pc.wrapping_add(4);
 		Ok(word)
+	}
+
+	// @TOD: Can we combile with load_word?
+	fn fetch_word(&self, address: u64, translation: bool) -> Result<u32, Exception> {
+		let mut data = 0 as u32;
+		for i in 0..4 {
+			match self.fetch_byte(address.wrapping_add(i), translation) {
+				Ok(byte) => {
+					data |= (byte as u32) << (i * 8)
+				},
+				Err(e) => return Err(e)
+			};
+		}
+		Ok(data)
+	}
+
+	// @TOD: Can we combile with load_byte?
+	fn fetch_byte(&self, address: u64, translation: bool) -> Result<u8, Exception> {
+		let p_address = match translation {
+			true => match self.translate_address(address, MemoryAccessType::Execute) {
+				Ok(address) => address,
+				Err(_e) => return Err(Exception::InstructionPageFault)
+			},
+			false => address
+		};
+		Ok(self.load_memory(match self.xlen {
+			Xlen::Bit32 => p_address & 0xffffffff,
+			Xlen::Bit64 => p_address
+		}))
 	}
 
 	fn load_doubleword(&self, address: u64, translation: bool) -> Result<u64, Exception> {
@@ -589,7 +619,6 @@ impl Cpu {
 		}
 	}
 
-	// @TODO: Take access type (read, write, execute) to check permitted
 	fn traverse_page(&self, v_address: u64, level: u8, parent_ppn: u64,
 		vpns: &[u64], access_type: MemoryAccessType) -> Result<u64, ()> {
 		let pagesize = 4096;
@@ -624,14 +653,25 @@ impl Cpu {
 			};
 		}
 
+		// Leaf page found
+
 		if a == 0 {
 			return Err(());
 		}
 
 		match access_type {
-			MemoryAccessType::Read => {},
+			MemoryAccessType::Execute => {
+				if x == 0 {
+					return Err(());
+				}
+			},
+			MemoryAccessType::Read => {
+				if r == 0 {
+					return Err(());
+				}
+			},
 			MemoryAccessType::Write => {
-				if d == 0 {
+				if d == 0 || w == 0 {
 					return Err(());
 				}
 			}
