@@ -692,12 +692,12 @@ impl Cpu {
 				0 => AddressingMode::None,
 				_ => AddressingMode::SV32
 			},
-			Xlen::Bit64 => match value & 0xf000000000000000 {
+			Xlen::Bit64 => match value >> 60 {
 				0 => AddressingMode::None,
 				8 => AddressingMode::SV39,
 				9 => AddressingMode::SV48,
 				_ => {
-					println!("Unknown addressing_mode {:X}", value & 0xf000000000000000);
+					println!("Unknown addressing_mode {:X}", value >> 60);
 					panic!();
 				}
 			}
