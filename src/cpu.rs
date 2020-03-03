@@ -56,7 +56,7 @@ enum PrivilegeMode {
 	Machine
 }
 
-enum Exception {
+enum ExceptionType {
 	EnvironmentCallFromMMode,
 	EnvironmentCallFromUMode,
 	EnvironmentCallFromSMode,
@@ -64,6 +64,11 @@ enum Exception {
 	InstructionPageFault,
 	LoadPageFault,
 	StorePageFault,
+}
+
+struct Exception {
+	exception_type: ExceptionType,
+	address: u64
 }
 
 enum MemoryAccessType {
@@ -185,14 +190,14 @@ fn get_privilege_encoding(mode: &PrivilegeMode) -> u8 {
 }
 
 fn get_exception_cause(exception: &Exception) -> u64 {
-	match exception {
-		Exception::IllegalInstruction => 2,
-		Exception::EnvironmentCallFromUMode => 8,
-		Exception::EnvironmentCallFromSMode => 9,
-		Exception::EnvironmentCallFromMMode => 11,
-		Exception::InstructionPageFault => 12,
-		Exception::LoadPageFault => 13,
-		Exception::StorePageFault => 15,
+	match exception.exception_type {
+		ExceptionType::IllegalInstruction => 2,
+		ExceptionType::EnvironmentCallFromUMode => 8,
+		ExceptionType::EnvironmentCallFromSMode => 9,
+		ExceptionType::EnvironmentCallFromMMode => 11,
+		ExceptionType::InstructionPageFault => 12,
+		ExceptionType::LoadPageFault => 13,
+		ExceptionType::StorePageFault => 15,
 	}
 }
 
@@ -348,7 +353,7 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 
 impl Cpu {
 	pub fn new(xlen: Xlen) -> Self {
-		Cpu {
+		let mut cpu = Cpu {
 			xlen: xlen,
 			privilege_mode: PrivilegeMode::Machine,
 			addressing_mode: AddressingMode::None,
@@ -357,13 +362,14 @@ impl Cpu {
 			pc: 0,
 			csr: [0; CSR_CAPACITY],
 			memory: Vec::with_capacity(MEMORY_CAPACITY)
+		};
+		for _i in 0..MEMORY_CAPACITY {
+			cpu.memory.push(0);
 		}
+		cpu
 	}
 
 	pub fn run_test(&mut self, data: Vec<u8>) {
-		for _i in 0..MEMORY_CAPACITY {
-			self.memory.push(0);
-		}
 		for i in 0..data.len() {
 			self.memory[i] = data[i];
 		}
@@ -422,7 +428,7 @@ impl Cpu {
 		match self.privilege_mode {
 			PrivilegeMode::Supervisor => {
 				self.csr[CSR_SCAUSE_ADDRESS as usize] = get_exception_cause(&exception);
-				self.csr[CSR_STVAL_ADDRESS as usize] = self.pc;
+				self.csr[CSR_STVAL_ADDRESS as usize] = exception.address;
 				self.pc = self.csr[CSR_STVEC_ADDRESS as usize];
 
 				// Override SPP bit[8] with the current privilege mode encoding
@@ -432,7 +438,7 @@ impl Cpu {
 			},
 			PrivilegeMode::Machine => {
 				self.csr[CSR_MCAUSE_ADDRESS as usize] = get_exception_cause(&exception);
-				self.csr[CSR_MTVAL_ADDRESS as usize] = self.pc;
+				self.csr[CSR_MTVAL_ADDRESS as usize] = exception.address;
 				self.pc = self.csr[CSR_MTVEC_ADDRESS as usize];
 
 				// Override MPP bits[12:11] with the current privilege mode encoding
@@ -448,8 +454,12 @@ impl Cpu {
 		let word = match self.fetch_word(self.pc, true) {
 			Ok(word) => word,
 			Err(_e) => {
+				let address = self.pc;
 				self.pc = self.pc.wrapping_add(4);
-				return Err(Exception::InstructionPageFault)
+				return Err(Exception {
+					exception_type: ExceptionType::InstructionPageFault,
+					address: address
+				})
 			}
 		};
 		// @TODO: Should I increment pc after operating an instruction because
@@ -477,7 +487,10 @@ impl Cpu {
 		let p_address = match translation {
 			true => match self.translate_address(address, MemoryAccessType::Execute) {
 				Ok(address) => address,
-				Err(_e) => return Err(Exception::InstructionPageFault)
+				Err(_e) => return Err(Exception {
+					exception_type: ExceptionType::InstructionPageFault,
+					address: address
+				})
 			},
 			false => address
 		};
@@ -530,7 +543,10 @@ impl Cpu {
 		let p_address = match translation {
 			true => match self.translate_address(address, MemoryAccessType::Read) {
 				Ok(address) => address,
-				Err(_e) => return Err(Exception::LoadPageFault)
+				Err(_e) => return Err(Exception {
+					exception_type: ExceptionType::LoadPageFault,
+					address: address
+				})
 			},
 			false => address
 		};
@@ -582,7 +598,10 @@ impl Cpu {
 		let p_address = match translation {
 			true => match self.translate_address(address, MemoryAccessType::Write) {
 				Ok(address) => address,
-				Err(_e) => return Err(Exception::StorePageFault)
+				Err(_e) => return Err(Exception {
+					exception_type: ExceptionType::StorePageFault,
+					address: address
+				})
 			},
 			false => address
 		};
@@ -742,7 +761,10 @@ impl Cpu {
 	fn read_csr(&mut self, address: u16) -> Result<u64, Exception> {
 		match self.has_csr_access_privilege(address) {
 			true => Ok(self.csr[address as usize]),
-			false => Err(Exception::IllegalInstruction)
+			false => Err(Exception {
+				exception_type: ExceptionType::IllegalInstruction,
+				address: self.pc.wrapping_sub(4) // @TODO: Is this always correct?
+			})
 		}
 	}
 
@@ -763,7 +785,10 @@ impl Cpu {
 				}
 				Ok(())
 			},
-			false => Err(Exception::IllegalInstruction)
+			false => Err(Exception {
+				exception_type: ExceptionType::IllegalInstruction,
+				address: self.pc.wrapping_sub(4) // @TODO: Is this always correct?
+			})
 		}
 	}
 
@@ -1058,7 +1083,6 @@ impl Cpu {
 					((word & 0x7e000000) >> 20) | // imm[10:5] = [30:25]
 					((word & 0x00000f00) >> 7) // imm[4:1] = [11:8]
 				) as i32 as i64 as u64;
-				// println!("Compare {:X} {:X}", self.x[rs1 as usize], self.x[rs2 as usize]);
 				match instruction {
 					Instruction::BEQ => {
 						if self.sign_extend(self.x[rs1 as usize]) == self.sign_extend(self.x[rs2 as usize]) {
@@ -1351,12 +1375,16 @@ impl Cpu {
 							PrivilegeMode::Reserved => panic!()
 						};
 						self.csr[csr as usize] = self.pc.wrapping_sub(4);
-						return match self.privilege_mode {
-							PrivilegeMode::User => Err(Exception::EnvironmentCallFromUMode),
-							PrivilegeMode::Supervisor => Err(Exception::EnvironmentCallFromSMode),
-							PrivilegeMode::Machine => Err(Exception::EnvironmentCallFromMMode),
+						let exception_type = match self.privilege_mode {
+							PrivilegeMode::User => ExceptionType::EnvironmentCallFromUMode,
+							PrivilegeMode::Supervisor => ExceptionType::EnvironmentCallFromSMode,
+							PrivilegeMode::Machine => ExceptionType::EnvironmentCallFromMMode,
 							PrivilegeMode::Reserved => panic!()
 						};
+						return Err(Exception {
+							exception_type: exception_type,
+							address: self.pc.wrapping_sub(4)
+						});
 					},
 					Instruction::MRET => {
 						self.pc = match self.read_csr(CSR_MEPC_ADDRESS) {
