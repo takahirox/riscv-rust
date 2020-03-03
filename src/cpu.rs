@@ -420,6 +420,7 @@ impl Cpu {
 	}
 
 	fn handle_trap(&mut self, exception: Exception) {
+		// println!("Trap!");
 		let current_privilege_encoding = get_privilege_encoding(&self.privilege_mode) as u64;
 		self.privilege_mode = match ((self.csr[CSR_MEDELEG_ADDRESS as usize] >> get_exception_cause(&exception)) & 1) == 1 {
 			true => PrivilegeMode::Supervisor,
@@ -427,6 +428,7 @@ impl Cpu {
 		};
 		match self.privilege_mode {
 			PrivilegeMode::Supervisor => {
+				self.csr[CSR_SEPC_ADDRESS as usize] = self.pc.wrapping_sub(4);
 				self.csr[CSR_SCAUSE_ADDRESS as usize] = get_exception_cause(&exception);
 				self.csr[CSR_STVAL_ADDRESS as usize] = exception.address;
 				self.pc = self.csr[CSR_STVEC_ADDRESS as usize];
@@ -437,6 +439,7 @@ impl Cpu {
 					((current_privilege_encoding & 1) << 8);
 			},
 			PrivilegeMode::Machine => {
+				self.csr[CSR_MEPC_ADDRESS as usize] = self.pc.wrapping_sub(4);
 				self.csr[CSR_MCAUSE_ADDRESS as usize] = get_exception_cause(&exception);
 				self.csr[CSR_MTVAL_ADDRESS as usize] = exception.address;
 				self.pc = self.csr[CSR_MTVEC_ADDRESS as usize];
@@ -1083,6 +1086,7 @@ impl Cpu {
 					((word & 0x7e000000) >> 20) | // imm[10:5] = [30:25]
 					((word & 0x00000f00) >> 7) // imm[4:1] = [11:8]
 				) as i32 as i64 as u64;
+				// println!("Compare {:X} {:X}", self.x[rs1 as usize], self.x[rs2 as usize]);
 				match instruction {
 					Instruction::BEQ => {
 						if self.sign_extend(self.x[rs1 as usize]) == self.sign_extend(self.x[rs2 as usize]) {
@@ -1144,9 +1148,10 @@ impl Cpu {
 							Ok(data) => data,
 							Err(e) => return Err(e)
 						};
+						let tmp = self.x[rs as usize];
 						self.x[rd as usize] = self.sign_extend(data as i64);
 						self.x[0] = 0; // hard-wired zero
-						match self.write_csr(csr, self.unsigned_data(self.x[rs as usize])) {
+						match self.write_csr(csr, self.unsigned_data(tmp)) {
 							Ok(()) => {},
 							Err(e) => return Err(e)
 						};
