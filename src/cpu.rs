@@ -369,11 +369,290 @@ impl Cpu {
 		cpu
 	}
 
+	// @TODO: Move out from cpu.rs
 	pub fn run_test(&mut self, data: Vec<u8>) {
-		for i in 0..data.len() {
-			self.memory[i] = data[i];
+		// analyze elf header
+		// check ELF magic number
+		if data[0] != 0x7f || data[1] != 0x45 || data[2] != 0x4c || data[3] != 0x46 {
+			panic!("This file does not seem ELF file");
 		}
-		self.pc = DRAM_BASE as u64;
+
+		let e_class = data[4];
+
+		let e_width = match e_class {
+			1 => 32,
+			2 => 64,
+			_ => panic!("Unknown e_class:{:X}", e_class)
+		};
+
+		let e_endian = data[5];
+		let e_elf_version = data[6];
+		let e_osabi = data[7];
+		let e_abi_version = data[8];
+
+		let mut offset = 0x10;
+
+		let mut e_type = 0 as u64;
+		for i in 0..2 {
+			e_type |= (data[offset] as u64) << (8 * i);
+			offset += 1;
+		}
+
+		let mut e_machine = 0 as u64;
+		for i in 0..2 {
+			e_machine |= (data[offset] as u64) << (8 * i);
+			offset += 1;
+		}
+
+		let mut e_version = 0 as u64;
+		for i in 0..4 {
+			e_version |= (data[offset] as u64) << (8 * i);
+			offset += 1;
+		}
+
+		let mut e_entry = 0 as u64;
+		for i in 0..e_width / 8 {
+			e_entry |= (data[offset] as u64) << (8 * i);
+			offset += 1;
+		}
+
+		let mut e_phoff = 0 as u64;
+		for i in 0..e_width / 8 {
+			e_phoff |= (data[offset] as u64) << (8 * i);
+			offset += 1;
+		}
+
+		let mut e_shoff = 0 as u64;
+		for i in 0..e_width / 8 {
+			e_shoff |= (data[offset] as u64) << (8 * i);
+			offset += 1;
+		}
+
+		let mut e_flags = 0 as u64;
+		for i in 0..4 {
+			e_flags |= (data[offset] as u64) << (8 * i);
+			offset += 1;
+		}
+
+		let mut e_ehsize = 0 as u64;
+		for i in 0..2 {
+			e_ehsize |= (data[offset] as u64) << (8 * i);
+			offset += 1;
+		}
+
+		let mut e_phentsize = 0 as u64;
+		for i in 0..2 {
+			e_phentsize |= (data[offset] as u64) << (8 * i);
+			offset += 1;
+		}
+
+		let mut e_phnum = 0 as u64;
+		for i in 0..2 {
+			e_phnum |= (data[offset] as u64) << (8 * i);
+			offset += 1;
+		}
+
+		let mut e_shentsize = 0 as u64;
+		for i in 0..2 {
+			e_shentsize |= (data[offset] as u64) << (8 * i);
+			offset += 1;
+		}
+
+		let mut e_shnum = 0 as u64;
+		for i in 0..2 {
+			e_shnum |= (data[offset] as u64) << (8 * i);
+			offset += 1;
+		}
+
+		let mut e_shstrndx = 0 as u64;
+		for i in 0..2 {
+			e_shstrndx |= (data[offset] as u64) << (8 * i);
+			offset += 1;
+		}
+
+		/*
+		println!("ELF:{}", e_width);
+		println!("e_endian:{:X}", e_endian);
+		println!("e_elf_version:{:X}", e_elf_version);
+		println!("e_osabi:{:X}", e_osabi);
+		println!("e_abi_version:{:X}", e_abi_version);
+		println!("e_type:{:X}", e_type);
+		println!("e_machine:{:X}", e_machine);
+		println!("e_version:{:X}", e_version);
+		println!("e_entry:{:X}", e_entry);
+		println!("e_phoff:{:X}", e_phoff);
+		println!("e_shoff:{:X}", e_shoff);
+		println!("e_flags:{:X}", e_flags);
+		println!("e_ehsize:{:X}", e_ehsize);
+		println!("e_phentsize:{:X}", e_phentsize);
+		println!("e_phnum:{:X}", e_phnum);
+		println!("e_shentsize:{:X}", e_shentsize);
+		println!("e_shnum:{:X}", e_shnum);
+		println!("e_shstrndx:{:X}", e_shstrndx);
+		*/
+
+		// analyze program headers
+		offset = e_phoff as usize;
+		for i in 0..e_phnum {
+			let mut p_type = 0 as u64;
+			for i in 0..4 {
+				p_type |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			let mut p_flags = 0 as u64;
+			if (e_width == 64) {
+				for i in 0..4 {
+					p_flags |= (data[offset] as u64) << (8 * i);
+					offset += 1;
+				}
+			}
+
+			let mut p_offset = 0 as u64;
+			for i in 0..e_width / 8 {
+				p_offset |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			let mut p_vaddr = 0 as u64;
+			for i in 0..e_width / 8 {
+				p_vaddr |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			let mut p_paddr = 0 as u64;
+			for i in 0..e_width / 8 {
+				p_paddr |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			let mut p_filesz = 0 as u64;
+			for i in 0..e_width / 8 {
+				p_filesz |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			let mut p_memsz = 0 as u64;
+			for i in 0..e_width / 8 {
+				p_memsz |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			if (e_width == 32) {
+				for i in 0..4 {
+					p_flags |= (data[offset] as u64) << (8 * i);
+					offset += 1;
+				}
+			}
+
+			let mut p_align = 0 as u64;
+			for i in 0..e_width / 8 {
+				p_align |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			/*
+			println!("");
+			println!("Program:{:X}", i);
+			println!("p_type:{:X}", p_type);
+			println!("p_flags:{:X}", p_flags);
+			println!("p_offset:{:X}", p_offset);
+			println!("p_vaddr:{:X}", p_vaddr);
+			println!("p_paddr:{:X}", p_paddr);
+			println!("p_filesz:{:X}", p_filesz);
+			println!("p_memsz:{:X}", p_memsz);
+			println!("p_align:{:X}", p_align);
+			println!("p_align:{:X}", p_align);
+			*/
+
+			for j in 0..p_filesz as usize {
+				self.memory[p_paddr as usize + j - DRAM_BASE] = data[p_offset as usize + j];
+			}
+		}
+
+		// analyze section headers
+
+		offset = e_shoff as usize;
+		for i in 0..e_shnum {
+			let mut sh_name = 0 as u64;
+			for i in 0..4 {
+				sh_name |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			let mut sh_type = 0 as u64;
+			for i in 0..4 {
+				sh_type |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			let mut sh_flags = 0 as u64;
+			for i in 0..e_width / 8 {
+				sh_flags |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			let mut sh_addr = 0 as u64;
+			for i in 0..e_width / 8 {
+				sh_addr |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			let mut sh_offset = 0 as u64;
+			for i in 0..e_width / 8 {
+				sh_offset |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			let mut sh_size = 0 as u64;
+			for i in 0..e_width / 8 {
+				sh_size |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			let mut sh_link = 0 as u64;
+			for i in 0..4 {
+				sh_link |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			let mut sh_info = 0 as u64;
+			for i in 0..4 {
+				sh_info |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			let mut sh_addralign = 0 as u64;
+			for i in 0..e_width / 8 {
+				sh_addralign |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			let mut sh_entsize = 0 as u64;
+			for i in 0..e_width / 8 {
+				sh_entsize |= (data[offset] as u64) << (8 * i);
+				offset += 1;
+			}
+
+			/*
+			println!("");
+			println!("Section:{:X}", i);
+			println!("sh_name:{:X}", sh_name);
+			println!("sh_type:{:X}", sh_type);
+			println!("sh_flags:{:X}", sh_flags);
+			println!("sh_addr:{:X}", sh_addr);
+			println!("sh_offset:{:X}", sh_offset);
+			println!("sh_size:{:X}", sh_size);
+			println!("sh_link:{:X}", sh_link);
+			println!("sh_info:{:X}", sh_info);
+			println!("sh_addralign:{:X}", sh_addralign);
+			println!("sh_entsize:{:X}", sh_entsize);
+			*/
+		}
+
+		//
+
+		self.pc = e_entry;
 		loop {
 			self.tick();
 
