@@ -30,7 +30,7 @@ Prerequirements
 ```sh
 $ git clone https://github.com/takahirox/riscv-rust.git
 $ cd riscv-rust
-$ vi build_tests.sh # edit the paths to the installed toolchain and riscv-tests
+$ vi build_tests.sh # edit the path to the installed riscv-tests
 $ bash build_test.sh
 $ cargo run ./tests/rv32ui-p-add -x 32
 $ cargo run ./tests/rv64ui-p-add -x 64
