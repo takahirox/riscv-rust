@@ -1475,8 +1475,9 @@ impl Cpu {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] & imm);
 					},
 					Instruction::JALR => {
-						self.x[rd as usize] = self.sign_extend(self.pc as i64);
+						let tmp = self.sign_extend(self.pc as i64);
 						self.pc = (self.x[rs1 as usize] as u64).wrapping_add(imm as u64);
+						self.x[rd as usize] = tmp;
 					},
 					Instruction::LB => {
 						self.x[rd as usize] = match self.load_byte(self.x[rs1 as usize].wrapping_add(imm) as u64, true) {
