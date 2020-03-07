@@ -82,6 +82,7 @@ enum Instruction {
 	ADDI,
 	ADDIW,
 	ADDW,
+	AMOSWAP_W,
 	AND,
 	ANDI,
 	AUIPC,
@@ -207,6 +208,7 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::ADDI => "ADDI",
 		Instruction::ADDIW => "ADDIW",
 		Instruction::ADDW => "ADDW",
+		Instruction::AMOSWAP_W => "AMOSWAP.W",
 		Instruction::AND => "AND",
 		Instruction::ANDI => "ANDI",
 		Instruction::AUIPC => "AUIPC",
@@ -312,6 +314,7 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::FENCE => InstructionFormat::O,
 		Instruction::ADD |
 		Instruction::ADDW |
+		Instruction::AMOSWAP_W |
 		Instruction::AND |
 		Instruction::DIV |
 		Instruction::DIVU |
@@ -1189,6 +1192,23 @@ impl Cpu {
 					panic!();
 				}
 			},
+			0x2f => match funct3 {
+				2 => {
+					match funct7 >> 2 {
+						1 => Instruction::AMOSWAP_W,
+						_ => {
+							println!("Unknown funct7: {:07b}", funct7);
+							self.dump_instruction(self.pc.wrapping_sub(4));
+							panic!();
+						}
+					}
+				},
+				_ => {
+					println!("Unknown funct3: {:03b}", funct3);
+					self.dump_instruction(self.pc.wrapping_sub(4));
+					panic!();
+				}
+			}
 			0x33 => match funct3 {
 				0 => match funct7 {
 					0 => Instruction::ADD,
@@ -1624,6 +1644,17 @@ impl Cpu {
 					},
 					Instruction::ADDW => {
 						self.x[rd as usize] = self.x[rs1 as usize].wrapping_add(self.x[rs2 as usize]) as i32 as i64;
+					},
+					Instruction::AMOSWAP_W => {
+						let tmp = match self.load_word(self.unsigned_data(self.x[rs1 as usize]), true) {
+							Ok(data) => data,
+							Err(e) => return Err(e)
+						};
+						match self.store_word(self.unsigned_data(self.x[rs1 as usize]), self.x[rs2 as usize] as u32, true) {
+							Ok(()) => {},
+							Err(e) => return Err(e)
+						};
+						self.x[rd as usize] = tmp as i32 as i64;
 					},
 					Instruction::AND => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] & self.x[rs2 as usize]);
