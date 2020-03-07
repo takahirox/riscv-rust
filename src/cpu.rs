@@ -82,6 +82,7 @@ enum Instruction {
 	ADDI,
 	ADDIW,
 	ADDW,
+	AMOSWAP_W,
 	AND,
 	ANDI,
 	AUIPC,
@@ -207,6 +208,7 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::ADDI => "ADDI",
 		Instruction::ADDIW => "ADDIW",
 		Instruction::ADDW => "ADDW",
+		Instruction::AMOSWAP_W => "AMOSWAP.W",
 		Instruction::AND => "AND",
 		Instruction::ANDI => "ANDI",
 		Instruction::AUIPC => "AUIPC",
@@ -312,6 +314,7 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::FENCE => InstructionFormat::O,
 		Instruction::ADD |
 		Instruction::ADDW |
+		Instruction::AMOSWAP_W |
 		Instruction::AND |
 		Instruction::DIV |
 		Instruction::DIVU |
@@ -667,6 +670,7 @@ impl Cpu {
 				((self.memory[TOHOST_ADDRESS - DRAM_BASE + 1] as u32) << 8) |
 				((self.memory[TOHOST_ADDRESS - DRAM_BASE + 2] as u32) << 16) |
 				((self.memory[TOHOST_ADDRESS - DRAM_BASE + 3] as u32) << 24);
+			/*
 			if endcode != 0 {
 				match endcode {
 					1 => println!("Test Passed with {:X}", endcode),
@@ -674,6 +678,7 @@ impl Cpu {
 				};
 				break;
 			}
+			*/
 		}
 	}
 
@@ -839,11 +844,25 @@ impl Cpu {
 	}
 
 	fn load_memory(&self, address: u64) -> u8 {
+		// @TODO: Implement properly
+		// 0x02000000 - 0xXXXXXXXX CLINT
+		// 0x10000000 - 0xXXXXXXXX UART0
+		// 0x10001000 - 0xXXXXXXXX VIRTIO disk
+		if (address as usize) < DRAM_BASE {
+			return self.load_from_device(address);
+		}
 		if (address as usize) < DRAM_BASE {
 			println!("Accessing out of address, {:X}", address);
 			panic!();
 		}
 		self.memory[address as usize - DRAM_BASE]
+	}
+
+	fn load_from_device(&self, address: u64) -> u8 {
+		// @TODO: implement
+		// 0x200bff8: CLINT Timer register (mtime)
+		println!("Device IO load? PA:{:X}", address);
+		0 // dummy
 	}
 
 	fn store_doubleword(&mut self, address: u64, value: u64, translation: bool) -> Result<(), Exception> {
@@ -895,12 +914,21 @@ impl Cpu {
 	}
 
 	fn store_memory(&mut self, address: u64, value: u8) {
+		// @TODO: Implement properly
+		if (address as usize) < DRAM_BASE {
+			return self.store_to_device(address, value);
+		}
 		if (address as usize) < DRAM_BASE {
 			println!("Accessing out of address, {:X}", address);
 			panic!();
 		}
 		// println!("Store PA:{:X} value:{:X}", address, value);
 		self.memory[address as usize - DRAM_BASE] = value;
+	}
+
+	fn store_to_device(&mut self, address: u64, value: u8) {
+		println!("Device IO store? PA:{:X} Value:{:X}", address, value);
+		// @TODO: implement
 	}
 
 	fn translate_address(&self, address: u64, access_type: MemoryAccessType) -> Result<u64, ()> {
@@ -1051,7 +1079,7 @@ impl Cpu {
 	}
 
 	fn write_csr(&mut self, address: u16, value: u64) -> Result<(), Exception> {
-		// println!("CSR:{:X} Value:{:X}", address, value);
+		println!("CSR:{:X} Value:{:X}", address, value);
 		match self.has_csr_access_privilege(address) {
 			true => {
 				/*
@@ -1189,6 +1217,23 @@ impl Cpu {
 					panic!();
 				}
 			},
+			0x2f => match funct3 {
+				2 => {
+					match funct7 >> 2 {
+						1 => Instruction::AMOSWAP_W,
+						_ => {
+							println!("Unknown funct7: {:07b}", funct7);
+							self.dump_instruction(self.pc.wrapping_sub(4));
+							panic!();
+						}
+					}
+				},
+				_ => {
+					println!("Unknown funct3: {:03b}", funct3);
+					self.dump_instruction(self.pc.wrapping_sub(4));
+					panic!();
+				}
+			}
 			0x33 => match funct3 {
 				0 => match funct7 {
 					0 => Instruction::ADD,
@@ -1624,6 +1669,17 @@ impl Cpu {
 					},
 					Instruction::ADDW => {
 						self.x[rd as usize] = self.x[rs1 as usize].wrapping_add(self.x[rs2 as usize]) as i32 as i64;
+					},
+					Instruction::AMOSWAP_W => {
+						let tmp = match self.load_word(self.unsigned_data(self.x[rs1 as usize]), true) {
+							Ok(data) => data,
+							Err(e) => return Err(e)
+						};
+						match self.store_word(self.unsigned_data(self.x[rs1 as usize]), self.x[rs2 as usize] as u32, true) {
+							Ok(()) => {},
+							Err(e) => return Err(e)
+						};
+						self.x[rd as usize] = tmp as i32 as i64;
 					},
 					Instruction::AND => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] & self.x[rs2 as usize]);
