@@ -1,10 +1,26 @@
-const MEMORY_CAPACITY: usize = 1024 * 512; // @TODO: temporal
+use display::Display;
+use std::fs::File;
+use std::io::Read;
+
+const XV6: bool = true; // @TODO: Remove this flag
+// @TODO: temporal
+const TEST_MEMORY_CAPACITY: usize = 1024 * 512;
+const XV6_MEMORY_CAPACITY: usize = 1024 * 1024 * 128;
 const CSR_CAPACITY: usize = 4096;
 const DRAM_BASE: usize = 0x80000000;
 const TOHOST_ADDRESS: usize = 0x80001000;
 
-const CSR_UEPC_ADDRESS: u16 = 0x41;
+const CSR_USTATUS_ADDRESS: u16 = 0x000;
+const CSR_UIR_ADDRESS: u16 = 0x004;
+const CSR_UTVEC_ADDRESS: u16 = 0x005;
+const CSR_USCRATCH_ADDRESS: u16 = 0x040;
+const CSR_UEPC_ADDRESS: u16 = 0x041;
+const CSR_UCAUSE_ADDRESS: u16 = 0x042;
+const CSR_UTVAL_ADDRESS: u16 = 0x043;
+const CSR_UIP_ADDRESS: u16 = 0x044;
 const CSR_SSTATUS_ADDRESS: u16 = 0x100;
+const CSR_SEDELEG_ADDRESS: u16 = 0x102;
+const CSR_SIDELEG_ADDRESS: u16 = 0x103;
 const CSR_STVEC_ADDRESS: u16 = 0x105;
 const CSR_SSCRATCH_ADDRESS: u16 = 0x140;
 const CSR_SEPC_ADDRESS: u16 = 0x141;
@@ -13,6 +29,7 @@ const CSR_STVAL_ADDRESS: u16 = 0x143;
 const CSR_SATP_ADDRESS: u16 = 0x180;
 const CSR_MSTATUS_ADDRESS: u16 = 0x300;
 const CSR_MEDELEG_ADDRESS: u16 = 0x302;
+const CSR_MIDELEG_ADDRESS: u16 = 0x303;
 const CSR_MIE_ADDRESS: u16 = 0x304;
 const CSR_MTVEC_ADDRESS: u16 = 0x305;
 const CSR_MSCRATCH_ADDRESS: u16 = 0x340;
@@ -24,16 +41,23 @@ const CSR_PMPADDR0_ADDRESS: u16 = 0x3b0;
 const CSR_MHARTID_ADDRESS: u16 = 0xf14;
 
 pub struct Cpu {
+	clock: u64,
+	plic_enabled: bool,
+	dump_flag: bool,
 	xlen: Xlen,
 	privilege_mode: PrivilegeMode,
 	addressing_mode: AddressingMode,
+	interrupt: InterruptType,
 	ppn: u64,
 	// using only lower 32bits of x, pc, and csr registers
 	// for 32-bit mode
 	x: [i64; 32],
 	pc: u64,
 	csr: [u64; CSR_CAPACITY],
-	memory: Vec<u8>
+	memory: Vec<u8>,
+	disk: VirtioBlockDisk,
+	uart: Uart,
+	plic: Plic
 }
 
 pub enum Xlen {
@@ -57,18 +81,41 @@ enum PrivilegeMode {
 }
 
 enum ExceptionType {
-	EnvironmentCallFromMMode,
+	InstructionAddressMisaligned,
+	InstructionAccessFault,
+	IllegalInstruction,
+	Breakpoint,
+	LoadAddressMisaligned,
+	LoadAccessFault,
+	StoreAddressMisaligned,
+	StoreAccessFault,
 	EnvironmentCallFromUMode,
 	EnvironmentCallFromSMode,
-	IllegalInstruction,
+	EnvironmentCallFromMMode,
 	InstructionPageFault,
 	LoadPageFault,
 	StorePageFault,
+	UserSoftwareInterrupt,
+	SupervisorSoftwareInterrupt,
+	MachineSoftwareInterrupt,
+	UserTimerInterrupt,
+	SupervisorTimerInterrupt,
+	MachineTimerInterrupt,
+	UserExternalInterrupt,
+	SupervisorExternalInterrupt,
+	MachineExternalInterrupt
 }
 
-struct Exception {
+struct Trap {
 	exception_type: ExceptionType,
 	address: u64
+}
+
+enum InterruptType {
+	None,
+	KeyInput,
+	Timer,
+	Virtio
 }
 
 enum MemoryAccessType {
@@ -147,6 +194,7 @@ enum Instruction {
 	SUB,
 	SUBW,
 	SW,
+	URET,
 	XOR,
 	XORI
 }
@@ -160,6 +208,13 @@ enum InstructionFormat {
 	R,
 	S,
 	U
+}
+
+fn get_xlen_width(xlen: &Xlen) -> u8 {
+	match xlen {
+		Xlen::Bit32 => 32,
+		Xlen::Bit64 => 64
+	}
 }
 
 fn get_addressing_mode_name(mode: &AddressingMode) -> &'static str {
@@ -190,15 +245,50 @@ fn get_privilege_encoding(mode: &PrivilegeMode) -> u8 {
 	}
 }
 
-fn get_exception_cause(exception: &Exception) -> u64 {
-	match exception.exception_type {
+fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
+	let interrupt_bit = match xlen {
+		Xlen::Bit32 => 0x80000000 as u64,
+		Xlen::Bit64 => 0x8000000000000000 as u64,
+	};
+	match trap.exception_type {
+		ExceptionType::InstructionAddressMisaligned => 0,
+		ExceptionType::InstructionAccessFault => 1,
 		ExceptionType::IllegalInstruction => 2,
+		ExceptionType::Breakpoint => 3,
+		ExceptionType::LoadAddressMisaligned => 4,
+		ExceptionType::LoadAccessFault => 5,
+		ExceptionType::StoreAddressMisaligned => 6,
+		ExceptionType::StoreAccessFault => 7,
 		ExceptionType::EnvironmentCallFromUMode => 8,
 		ExceptionType::EnvironmentCallFromSMode => 9,
 		ExceptionType::EnvironmentCallFromMMode => 11,
 		ExceptionType::InstructionPageFault => 12,
 		ExceptionType::LoadPageFault => 13,
 		ExceptionType::StorePageFault => 15,
+		ExceptionType::UserSoftwareInterrupt => interrupt_bit,
+		ExceptionType::SupervisorSoftwareInterrupt => interrupt_bit + 1,
+		ExceptionType::MachineSoftwareInterrupt => interrupt_bit + 3,
+		ExceptionType::UserTimerInterrupt => interrupt_bit + 4,
+		ExceptionType::SupervisorTimerInterrupt => interrupt_bit + 5,
+		ExceptionType::MachineTimerInterrupt => interrupt_bit + 7,
+		ExceptionType::UserExternalInterrupt => interrupt_bit + 8,
+		ExceptionType::SupervisorExternalInterrupt => interrupt_bit + 9,
+		ExceptionType::MachineExternalInterrupt => interrupt_bit + 11
+	}
+}
+
+fn get_interrupt_privilege_mode(trap: &Trap) -> PrivilegeMode {
+	match trap.exception_type {
+		ExceptionType::MachineSoftwareInterrupt |
+		ExceptionType::MachineTimerInterrupt |
+		ExceptionType::MachineExternalInterrupt => PrivilegeMode::Machine,
+		ExceptionType::SupervisorSoftwareInterrupt |
+		ExceptionType::SupervisorTimerInterrupt |
+		ExceptionType::SupervisorExternalInterrupt => PrivilegeMode::Supervisor,
+		ExceptionType::UserSoftwareInterrupt |
+		ExceptionType::UserTimerInterrupt |
+		ExceptionType::UserExternalInterrupt => PrivilegeMode::User,
+		_ => panic!() // other exception types are not interrupt
 	}
 }
 
@@ -273,6 +363,7 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::SUB => "SUB",
 		Instruction::SUBW => "SUBW",
 		Instruction::SW => "SW",
+		Instruction::URET => "URET",
 		Instruction::XOR => "XOR",
 		Instruction::XORI => "XORI"
 	}
@@ -344,6 +435,7 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRET |
 		Instruction::SRL |
 		Instruction::SRLW |
+		Instruction::URET |
 		Instruction::XOR => InstructionFormat::R,
 		Instruction::SB |
 		Instruction::SD |
@@ -355,25 +447,36 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 }
 
 impl Cpu {
-	pub fn new(xlen: Xlen) -> Self {
+	pub fn new(xlen: Xlen, display: Box<Display>) -> Self {
+		let memory_capacity = match XV6 {
+			true => XV6_MEMORY_CAPACITY,
+			false => TEST_MEMORY_CAPACITY
+		};
 		let mut cpu = Cpu {
+			clock: 0,
+			plic_enabled: false,
+			dump_flag: false,
 			xlen: xlen,
 			privilege_mode: PrivilegeMode::Machine,
 			addressing_mode: AddressingMode::None,
+			interrupt: InterruptType::None,
 			ppn: 0,
 			x: [0; 32],
 			pc: 0,
 			csr: [0; CSR_CAPACITY],
-			memory: Vec::with_capacity(MEMORY_CAPACITY)
+			memory: Vec::with_capacity(memory_capacity),
+			disk: VirtioBlockDisk::new(),
+			uart: Uart::new(display),
+			plic: Plic::new()
 		};
-		for _i in 0..MEMORY_CAPACITY {
+		for _i in 0..memory_capacity {
 			cpu.memory.push(0);
 		}
 		cpu
 	}
 
 	// @TODO: Move out from cpu.rs
-	pub fn run_test(&mut self, data: Vec<u8>) {
+	pub fn init(&mut self, data: Vec<u8>, image_data: Vec<u8>) {
 		// analyze elf header
 		// check ELF magic number
 		if data[0] != 0x7f || data[1] != 0x45 || data[2] != 0x4c || data[3] != 0x46 {
@@ -651,31 +754,46 @@ impl Cpu {
 			println!("sh_addralign:{:X}", sh_addralign);
 			println!("sh_entsize:{:X}", sh_entsize);
 			*/
+
+			// @TODO: Implement properly
+			if sh_type == 1 && sh_addr >= 0x80000000 && sh_offset > 0 && sh_size > 0 {
+				for j in 0..sh_size as usize {
+					self.memory[sh_addr as usize + j - DRAM_BASE] = data[sh_offset as usize + j];
+				}
+			}
+
 		}
 
 		//
 
+		self.disk.init(image_data);
+
 		self.pc = e_entry;
+	}
+
+	pub fn run(&mut self) {
 		loop {
 			self.tick();
 
-			// It seems in riscv-tests ends with end code
-			// written to a certain physical memory address
-			// (0x80001000 in mose test cases) so checking
-			// the data in the address and terminating the test
-			// if non-zero data is written.
-			// End code 1 seems to mean pass.
-			let endcode =
-				(self.memory[TOHOST_ADDRESS - DRAM_BASE] as u32) |
-				((self.memory[TOHOST_ADDRESS - DRAM_BASE + 1] as u32) << 8) |
-				((self.memory[TOHOST_ADDRESS - DRAM_BASE + 2] as u32) << 16) |
-				((self.memory[TOHOST_ADDRESS - DRAM_BASE + 3] as u32) << 24);
-			if endcode != 0 {
-				match endcode {
-					1 => println!("Test Passed with {:X}", endcode),
-					_ => println!("Test Failed with {:X}", endcode)
-				};
-				break;
+			if !XV6 {
+				// It seems in riscv-tests ends with end code
+				// written to a certain physical memory address
+				// (0x80001000 in mose test cases) so checking
+				// the data in the address and terminating the test
+				// if non-zero data is written.
+				// End code 1 seems to mean pass.
+				let endcode =
+					(self.memory[TOHOST_ADDRESS - DRAM_BASE] as u32) |
+					((self.memory[TOHOST_ADDRESS - DRAM_BASE + 1] as u32) << 8) |
+					((self.memory[TOHOST_ADDRESS - DRAM_BASE + 2] as u32) << 16) |
+					((self.memory[TOHOST_ADDRESS - DRAM_BASE + 3] as u32) << 24);
+				if endcode != 0 {
+					match endcode {
+						1 => println!("Test Passed with {:X}", endcode),
+						_ => println!("Test Failed with {:X}", endcode)
+					};
+					break;
+				}
 			}
 		}
 	}
@@ -683,65 +801,369 @@ impl Cpu {
 	pub fn tick(&mut self) {
 		match self.tick_operate() {
 			Ok(()) => {},
-			Err(e) => self.handle_trap(e)
+			Err(e) => self.handle_exception(e)
 		}
+		self.disk.tick();
+		self.uart.tick();
+		self.handle_interrupt();
 	}
 
 	// @TODO: Rename
-	fn tick_operate(&mut self) -> Result<(), Exception> {
+	fn tick_operate(&mut self) -> Result<(), Trap> {
+		self.clock = self.clock.wrapping_add(1);
 		let word = match self.fetch() {
 			Ok(word) => word,
 			Err(e) => return Err(e)
 		};
 		let instruction = self.decode(word);
 		// @TODO: Remove if the emulator becomes stable
-		println!("PC:{:016x}, Word:{:016x}, Inst:{}",
-			self.unsigned_data(self.pc.wrapping_sub(4) as i64),
-			word, get_instruction_name(&instruction));
+		if !XV6 {
+			println!("PC:{:016x}, Word:{:016x}, Inst:{}",
+				self.unsigned_data(self.pc.wrapping_sub(4) as i64),
+				word, get_instruction_name(&instruction));
+		}
 		self.operate(word, instruction)
 	}
 
-	fn handle_trap(&mut self, exception: Exception) {
-		// println!("Trap!");
-		let current_privilege_encoding = get_privilege_encoding(&self.privilege_mode) as u64;
-		self.privilege_mode = match ((self.csr[CSR_MEDELEG_ADDRESS as usize] >> get_exception_cause(&exception)) & 1) == 1 {
-			true => PrivilegeMode::Supervisor,
-			false => PrivilegeMode::Machine
-		};
-		match self.privilege_mode {
-			PrivilegeMode::Supervisor => {
-				self.csr[CSR_SEPC_ADDRESS as usize] = self.pc.wrapping_sub(4);
-				self.csr[CSR_SCAUSE_ADDRESS as usize] = get_exception_cause(&exception);
-				self.csr[CSR_STVAL_ADDRESS as usize] = exception.address;
-				self.pc = self.csr[CSR_STVEC_ADDRESS as usize];
+	// XV6 specific for now
+	fn handle_interrupt(&mut self) {
+		if !XV6 {
+			return;
+		}
 
-				// Override SPP bit[8] with the current privilege mode encoding
-				self.csr[CSR_SSTATUS_ADDRESS as usize] =
-					(self.csr[CSR_SSTATUS_ADDRESS as usize] & !0x100) |
-					((current_privilege_encoding & 1) << 8);
-			},
-			PrivilegeMode::Machine => {
-				self.csr[CSR_MEPC_ADDRESS as usize] = self.pc.wrapping_sub(4);
-				self.csr[CSR_MCAUSE_ADDRESS as usize] = get_exception_cause(&exception);
-				self.csr[CSR_MTVAL_ADDRESS as usize] = exception.address;
-				self.pc = self.csr[CSR_MTVEC_ADDRESS as usize];
+		// @TODO: Implement correctly
+		if self.disk.interrupting {
+			match self.interrupt {
+				InterruptType::None => {
+					self.interrupt = InterruptType::Virtio;
+				},
+				_ => {}
+			}
+		}
 
-				// Override MPP bits[12:11] with the current privilege mode encoding
-				self.csr[CSR_MSTATUS_ADDRESS as usize] = 
-					(self.csr[CSR_MSTATUS_ADDRESS as usize] & !0x1800) |
-					(current_privilege_encoding << 11);
+		if self.uart.interrupting {
+			match self.interrupt {
+				InterruptType::None => {
+					self.interrupt = InterruptType::KeyInput;
+				},
+				_ => {}
+			}
+		}
+
+		match self.interrupt {
+			InterruptType::Virtio => {
+				let result = self.handle_trap(Trap {
+					exception_type: ExceptionType::SupervisorExternalInterrupt,
+					address: self.pc // dummy
+				}, true);
+				if result {
+					self.plic.update(&self.interrupt);
+					self.interrupt = InterruptType::None;
+					self.handle_disk_access();
+					self.disk.reset_interrupt();
+				} else {
+					// println!("Virtio interrupt is ignored");
+				}
 			},
-			_ => panic!() // shouldn't happen
-		};
+			InterruptType::Timer => panic!(), // should not happen
+			InterruptType::KeyInput => {
+				let result = self.handle_trap(Trap {
+					exception_type: ExceptionType::SupervisorExternalInterrupt,
+					address: self.pc // dummy
+				}, true);
+				if result {
+					self.plic.update(&self.interrupt);
+					self.interrupt = InterruptType::None;
+					self.uart.reset_interrupt();
+				} else {
+					// println!("Virtio interrupt is ignored");
+				}
+			},
+			InterruptType::None => {
+				if self.plic_enabled && (self.clock % 0x200000) == 0 {	// @TODO: Fix me
+					self.handle_trap(Trap {
+						exception_type: ExceptionType::SupervisorSoftwareInterrupt,
+						address: self.pc // dummy
+					}, true);
+					self.plic.update(&InterruptType::Timer);
+				}
+			}
+		}
 	}
 
-	fn fetch(&mut self) -> Result<u32, Exception> {
+	fn handle_exception(&mut self, exception: Trap) {
+		self.handle_trap(exception, false);
+	}
+
+	fn handle_trap(&mut self, trap: Trap, is_interrupt: bool) -> bool{
+		let current_privilege_encoding = get_privilege_encoding(&self.privilege_mode) as u64;
+		let cause = get_trap_cause(&trap, &self.xlen);
+
+		// @TODO: Check if this logic is correct
+		let mdeleg = match is_interrupt {
+			true => self.csr[CSR_MIDELEG_ADDRESS as usize],
+			false => self.csr[CSR_MEDELEG_ADDRESS as usize]
+		};
+		let sdeleg = match is_interrupt {
+			true => self.csr[CSR_SIDELEG_ADDRESS as usize],
+			false => self.csr[CSR_SEDELEG_ADDRESS as usize]
+		};
+		let pos = cause & 0xffff;
+		let new_privilege_mode = match ((mdeleg >> pos) & 1) == 0 {
+			true => PrivilegeMode::Machine,
+			false => match ((sdeleg >> pos) & 1) == 0 {
+				true => PrivilegeMode::Supervisor,
+				false => PrivilegeMode::User
+			}
+		};
+		let new_privilege_encoding = get_privilege_encoding(&new_privilege_mode) as u64;
+
+		// @TODO: Which we should do, dispose or pend, if trap is disabled?
+		// Disposing so far.
+
+		let status = match new_privilege_mode {
+			PrivilegeMode::Machine => self.csr[CSR_MSTATUS_ADDRESS as usize],
+			PrivilegeMode::Supervisor => self.csr[CSR_SSTATUS_ADDRESS as usize],
+			PrivilegeMode::User => self.csr[CSR_USTATUS_ADDRESS as usize],
+			PrivilegeMode::Reserved => panic!(),
+		};
+
+		let mie = (status >> 3) & 1;
+		let sie = (status >> 1) & 1;
+		let uie = status & 1;
+
+		if is_interrupt {
+			let interrupt_privilege_mode = get_interrupt_privilege_mode(&trap);
+			let interrupt_privilege_encoding = get_privilege_encoding(&interrupt_privilege_mode) as u64;
+			match new_privilege_mode {
+				PrivilegeMode::Machine => {
+					if mie == 0 {
+						return false;
+					}
+				},
+				PrivilegeMode::Supervisor => {
+					if sie == 0 {
+						return false;
+					}
+				},
+				PrivilegeMode::User => {
+					if uie == 0 {
+						return false;
+					}
+				},
+				PrivilegeMode::Reserved => panic!()
+			};
+			if current_privilege_encoding > interrupt_privilege_encoding {
+				return false;
+			}
+		}
+
+		self.privilege_mode = new_privilege_mode;
+		let csr_epc_address = match self.privilege_mode {
+			PrivilegeMode::Machine => CSR_MEPC_ADDRESS,
+			PrivilegeMode::Supervisor => CSR_SEPC_ADDRESS,
+			PrivilegeMode::User => CSR_UEPC_ADDRESS,
+			PrivilegeMode::Reserved => panic!()
+		};
+		let csr_cause_address = match self.privilege_mode {
+			PrivilegeMode::Machine => CSR_MCAUSE_ADDRESS,
+			PrivilegeMode::Supervisor => CSR_SCAUSE_ADDRESS,
+			PrivilegeMode::User => CSR_UCAUSE_ADDRESS,
+			PrivilegeMode::Reserved => panic!()
+		};
+		let csr_tval_address = match self.privilege_mode {
+			PrivilegeMode::Machine => CSR_MTVAL_ADDRESS,
+			PrivilegeMode::Supervisor => CSR_STVAL_ADDRESS,
+			PrivilegeMode::User => CSR_UTVAL_ADDRESS,
+			PrivilegeMode::Reserved => panic!()
+		};
+		let csr_tvec_address = match self.privilege_mode {
+			PrivilegeMode::Machine => CSR_MTVEC_ADDRESS,
+			PrivilegeMode::Supervisor => CSR_STVEC_ADDRESS,
+			PrivilegeMode::User => CSR_UTVEC_ADDRESS,
+			PrivilegeMode::Reserved => panic!()
+		};
+
+		self.csr[csr_epc_address as usize] = match is_interrupt {
+			true => self.pc, // @TODO: remove this hack
+			false => self.pc.wrapping_sub(4)
+		};
+		self.csr[csr_cause_address as usize] = cause;
+		self.csr[csr_tval_address as usize] = trap.address;
+		self.pc = self.csr[csr_tvec_address as usize];
+
+		match self.privilege_mode {
+			PrivilegeMode::Machine => {
+				let status = self.csr[CSR_MSTATUS_ADDRESS as usize];
+				let mie = (status >> 3) & 1;
+				// clear MIE[3], override MPIE[7] with MIE[3], override MPP[12:11] with current privilege encoding
+				let new_status = (status & !0x1888) | (mie << 7) | (current_privilege_encoding << 11);
+				self.csr[CSR_MSTATUS_ADDRESS as usize] = new_status;
+			},
+			PrivilegeMode::Supervisor => {
+				let status = self.csr[CSR_SSTATUS_ADDRESS as usize];
+				let sie = (status >> 1) & 1;
+				// clear SIE[1], override SPIE[5] with SIE[1], override SPP[8] with current privilege encoding
+				let new_status = (status & !0x122) | (sie << 5) | ((current_privilege_encoding & 1) << 8);
+				self.csr[CSR_SSTATUS_ADDRESS as usize] = new_status;
+			},
+			PrivilegeMode::User => {
+				panic!("Not implemenete yet");
+			},
+			PrivilegeMode::Reserved => panic!() // shouldn't happen
+		};
+		true
+	}
+
+	fn handle_disk_access(&mut self) {
+		let avail_address = self.disk.get_avail_address();
+		let base_desc_address = self.disk.get_desc_address() as u64;
+		let base_used_address = self.disk.get_used_address();
+
+		let flag = match self.load_halfword(avail_address, false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen
+		};
+		let offset = match self.load_halfword(avail_address.wrapping_add(1), false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen		
+		};
+		let index = match self.load_halfword(avail_address.wrapping_add(offset as u64 % 8).wrapping_add(2), false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen		
+		};
+		let desc_size = 16;
+
+		let desc_address0 = base_desc_address + desc_size * index as u64;
+		let addr0 = match self.load_doubleword(desc_address0, false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen		
+		};
+		let len0 = match self.load_word(desc_address0.wrapping_add(8), false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen		
+		};
+		let flags0 = match self.load_halfword(desc_address0.wrapping_add(12), false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen		
+		};
+		let next0 = match self.load_halfword(desc_address0.wrapping_add(14), false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen		
+		};
+
+		let desc_address1 = base_desc_address + desc_size * next0 as u64;
+		let addr1 = match self.load_doubleword(desc_address1, false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen		
+		};
+		let len1 = match self.load_word(desc_address1.wrapping_add(8), false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen		
+		};
+		let flags1 = match self.load_halfword(desc_address1.wrapping_add(12), false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen		
+		};
+		let next1 = match self.load_halfword(desc_address1.wrapping_add(14), false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen		
+		};
+
+		let desc_address2 = base_desc_address + desc_size * next1 as u64;
+		let addr2 = match self.load_doubleword(desc_address2, false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen		
+		};
+		let len2 = match self.load_word(desc_address2.wrapping_add(8), false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen		
+		};
+		let flags2 = match self.load_halfword(desc_address2.wrapping_add(12), false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen		
+		};
+		let next2 = match self.load_halfword(desc_address2.wrapping_add(14), false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen		
+		};
+
+		/*
+		println!("Avail AD:{:X}", avail_address);
+		println!("Flag:{:X}", flag);
+		println!("Offset:{:X}", offset);
+		println!("Index:{:X}", index);
+		println!("addr0:{:X}", addr0);
+		println!("len0:{:X}", len0);
+		println!("flags0:{:X}", flags0);
+		println!("next0:{:X}", next0);
+		println!("addr1:{:X}", addr1);
+		println!("len1:{:X}", len1);
+		println!("flags1:{:X}", flags1);
+		println!("next1:{:X}", next1);
+		println!("addr2:{:X}", addr2);
+		println!("len2:{:X}", len2);
+		println!("flags2:{:X}", flags2);
+		println!("next2:{:X}", next2);
+		*/
+		
+		let blk_type = match self.load_word(addr0, false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen
+		};
+		let blk_reserved = match self.load_word(addr0.wrapping_add(4), false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen
+		};
+		let blk_sector = match self.load_doubleword(addr0.wrapping_add(8), false) {
+			Ok(data) => data,
+			Err(_e) => panic!() // shouldn't happen
+		};
+
+		/*
+		println!("Blk type:{:X}", blk_type);
+		println!("Blk reserved:{:X}", blk_reserved);
+		println!("Blk sector:{:X}", blk_sector);
+		*/
+
+		match (flags1 & 2) == 0 {
+			true => { // write to disk
+				// println!("Write to disk");
+				for i in 0..len1 as u64 {
+					let data = match self.load_byte(addr1 + i, false) {
+						Ok(data) => data,
+						Err(_e) => panic!() // shouldn't happen
+					};
+					self.disk.write_to_disk(blk_sector * 512 + i, data);
+					// print!("{:02X} ", data);
+				}
+				// println!();
+			},
+			false => { // read from disk
+				// println!("Read from disk");
+				for i in 0..len1 as u64 {
+					let data = self.disk.read_from_disk(blk_sector * 512 + i);
+					match self.store_byte(addr1 + i, data, false) {
+						Ok(()) => {},
+						Err(_e) => panic!() // shouldn't happen
+					};
+					// print!("{:02X} ", data);
+				}
+				// println!();
+			}
+		};
+		
+		let new_id = self.disk.get_new_id() as u16;
+		self.store_halfword(base_used_address.wrapping_add(2), new_id % 8, false);
+	}
+
+	fn fetch(&mut self) -> Result<u32, Trap> {
 		let word = match self.fetch_word(self.pc, true) {
 			Ok(word) => word,
 			Err(_e) => {
 				let address = self.pc;
 				self.pc = self.pc.wrapping_add(4);
-				return Err(Exception {
+				return Err(Trap {
 					exception_type: ExceptionType::InstructionPageFault,
 					address: address
 				})
@@ -754,7 +1176,7 @@ impl Cpu {
 	}
 
 	// @TOD: Can we combile with load_word?
-	fn fetch_word(&self, address: u64, translation: bool) -> Result<u32, Exception> {
+	fn fetch_word(&mut self, address: u64, translation: bool) -> Result<u32, Trap> {
 		let mut data = 0 as u32;
 		for i in 0..4 {
 			match self.fetch_byte(address.wrapping_add(i), translation) {
@@ -768,11 +1190,11 @@ impl Cpu {
 	}
 
 	// @TOD: Can we combile with load_byte?
-	fn fetch_byte(&self, address: u64, translation: bool) -> Result<u8, Exception> {
+	fn fetch_byte(&mut self, address: u64, translation: bool) -> Result<u8, Trap> {
 		let p_address = match translation {
 			true => match self.translate_address(address, MemoryAccessType::Execute) {
 				Ok(address) => address,
-				Err(_e) => return Err(Exception {
+				Err(_e) => return Err(Trap {
 					exception_type: ExceptionType::InstructionPageFault,
 					address: address
 				})
@@ -785,7 +1207,7 @@ impl Cpu {
 		}))
 	}
 
-	fn load_doubleword(&self, address: u64, translation: bool) -> Result<u64, Exception> {
+	fn load_doubleword(&mut self, address: u64, translation: bool) -> Result<u64, Trap> {
 		let mut data = 0 as u64;
 		for i in 0..8 {
 			match self.load_byte(address.wrapping_add(i), translation) {
@@ -798,7 +1220,7 @@ impl Cpu {
 		Ok(data)
 	}
 
-	fn load_word(&self, address: u64, translation: bool) -> Result<u32, Exception> {
+	fn load_word(&mut self, address: u64, translation: bool) -> Result<u32, Trap> {
 		let mut data = 0 as u32;
 		for i in 0..4 {
 			match self.load_byte(address.wrapping_add(i), translation) {
@@ -811,7 +1233,7 @@ impl Cpu {
 		Ok(data)
 	}
 
-	fn load_halfword(&self, address: u64, translation: bool) -> Result<u16, Exception> {
+	fn load_halfword(&mut self, address: u64, translation: bool) -> Result<u16, Trap> {
 		let mut data = 0 as u16;
 		for i in 0..2 {
 			match self.load_byte(address.wrapping_add(i), translation) {
@@ -824,11 +1246,11 @@ impl Cpu {
 		Ok(data)
 	}
 
-	fn load_byte(&self, address: u64, translation: bool) -> Result<u8, Exception> {
+	fn load_byte(&mut self, address: u64, translation: bool) -> Result<u8, Trap> {
 		let p_address = match translation {
 			true => match self.translate_address(address, MemoryAccessType::Read) {
 				Ok(address) => address,
-				Err(_e) => return Err(Exception {
+				Err(_e) => return Err(Trap {
 					exception_type: ExceptionType::LoadPageFault,
 					address: address
 				})
@@ -841,7 +1263,15 @@ impl Cpu {
 		}))
 	}
 
-	fn load_memory(&self, address: u64) -> u8 {
+	fn load_memory(&mut self, address: u64) -> u8 {
+		// @TODO: Implement properly
+		// 0x02000000 - 0xXXXXXXXX CLINT
+		// 0x0C000000 - 0xXXXXXXXX PLIC
+		// 0x10000000 - 0xXXXXXXXX UART0
+		// 0x10001000 - 0xXXXXXXXX VIRTIO disk
+		if (address as usize) < DRAM_BASE {
+			return self.load_from_device(address);
+		}
 		if (address as usize) < DRAM_BASE {
 			println!("Accessing out of address, {:X}", address);
 			panic!();
@@ -849,7 +1279,20 @@ impl Cpu {
 		self.memory[address as usize - DRAM_BASE]
 	}
 
-	fn store_doubleword(&mut self, address: u64, value: u64, translation: bool) -> Result<(), Exception> {
+	fn load_from_device(&mut self, address: u64) -> u8 {
+		// @TODO: implement
+		// 0x200bff8: CLINT Timer register (mtime)
+		// println!("Device IO load? PC:{:X} PA:{:X}", self.pc.wrapping_sub(4), address);
+		// dummy
+		match address {
+			0x0c201004 => self.plic.load(address) as u8,
+			0x10000000..=0x10000005 => self.uart.load(address),
+			0x10001000..=0x10001FFF => self.disk.load(address),
+			_ => 0
+		}
+	}
+
+	fn store_doubleword(&mut self, address: u64, value: u64, translation: bool) -> Result<(), Trap> {
 		for i in 0..8 {
 			match self.store_byte(address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8, translation) {
 				Ok(()) => {},
@@ -859,7 +1302,7 @@ impl Cpu {
 		Ok(())
 	}
 
-	fn store_word(&mut self, address: u64, value: u32, translation: bool) -> Result<(), Exception> {
+	fn store_word(&mut self, address: u64, value: u32, translation: bool) -> Result<(), Trap> {
 		for i in 0..4 {
 			match self.store_byte(address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8, translation) {
 				Ok(()) => {},
@@ -869,7 +1312,7 @@ impl Cpu {
 		Ok(())
 	}
 
-	fn store_halfword(&mut self, address: u64, value: u16, translation: bool) -> Result<(), Exception> {
+	fn store_halfword(&mut self, address: u64, value: u16, translation: bool) -> Result<(), Trap> {
 		for i in 0..2 {
 			match self.store_byte(address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8, translation) {
 				Ok(()) => {},
@@ -879,11 +1322,11 @@ impl Cpu {
 		Ok(())
 	}
 
-	fn store_byte(&mut self, address: u64, value: u8, translation: bool) -> Result<(), Exception> {
+	fn store_byte(&mut self, address: u64, value: u8, translation: bool) -> Result<(), Trap> {
 		let p_address = match translation {
 			true => match self.translate_address(address, MemoryAccessType::Write) {
 				Ok(address) => address,
-				Err(_e) => return Err(Exception {
+				Err(_e) => return Err(Trap {
 					exception_type: ExceptionType::StorePageFault,
 					address: address
 				})
@@ -898,6 +1341,10 @@ impl Cpu {
 	}
 
 	fn store_memory(&mut self, address: u64, value: u8) {
+		// @TODO: Implement properly
+		if (address as usize) < DRAM_BASE {
+			return self.store_to_device(address, value);
+		}
 		if (address as usize) < DRAM_BASE {
 			println!("Accessing out of address, {:X}", address);
 			panic!();
@@ -906,7 +1353,24 @@ impl Cpu {
 		self.memory[address as usize - DRAM_BASE] = value;
 	}
 
-	fn translate_address(&self, address: u64, access_type: MemoryAccessType) -> Result<u64, ()> {
+	fn store_to_device(&mut self, address: u64, value: u8) {
+		// println!("Device IO store? PC:{:X} PA:{:X} Value:{:X}", self.pc.wrapping_sub(4), address, value);
+		// dummy
+		match address {
+			0x0c002080 => { // PLIC_SENABLE(hart) (PLIC + 0x2080 + (hart)*0x100)
+				self.plic_enabled = true;
+			},
+			0x10000000..=0x10000005 => {
+				self.uart.store(address, value);
+			},
+			0x10001000..=0x10001FFF => { // @TODO: Check a valid range
+				self.disk.store(address, value);
+			},
+			_ => {}
+		}
+	}
+
+	fn translate_address(&mut self, address: u64, access_type: MemoryAccessType) -> Result<u64, ()> {
 		match self.addressing_mode {
 			AddressingMode::None => Ok(address),
 			AddressingMode::SV32 => match self.privilege_mode {
@@ -930,7 +1394,7 @@ impl Cpu {
 		}
 	}
 
-	fn traverse_page(&self, v_address: u64, level: u8, parent_ppn: u64,
+	fn traverse_page(&mut self, v_address: u64, level: u8, parent_ppn: u64,
 		vpns: &[u64], access_type: MemoryAccessType) -> Result<u64, ()> {
 		let pagesize = 4096;
 		let ptesize = match self.addressing_mode {
@@ -982,8 +1446,21 @@ impl Cpu {
 
 		// Leaf page found
 
-		if a == 0 {
-			return Err(());
+		if a == 0 || (match access_type { MemoryAccessType::Write => d == 0, _ => false }) {
+			let new_pte = pte | (1 << 6) | (match access_type {
+				MemoryAccessType::Write => 1 << 7,
+				_ => 0
+			});
+			match self.addressing_mode {
+				AddressingMode::SV32 => match self.store_word(pte_address, new_pte as u32, false) {
+					Ok(()) => {},
+					Err(_e) => panic!() // Shouldn't happen
+				},
+				_ => match self.store_doubleword(pte_address, new_pte, false) {
+					Ok(()) => {},
+					Err(_e) => panic!() // Shouldn't happen
+				}
+			};
 		}
 
 		match access_type {
@@ -998,7 +1475,7 @@ impl Cpu {
 				}
 			},
 			MemoryAccessType::Write => {
-				if d == 0 || w == 0 {
+				if w == 0 {
 					return Err(());
 				}
 			}
@@ -1043,17 +1520,18 @@ impl Cpu {
 		privilege as u8 <= get_privilege_encoding(&self.privilege_mode)
 	}
 
-	fn read_csr(&mut self, address: u16) -> Result<u64, Exception> {
+	fn read_csr(&mut self, address: u16) -> Result<u64, Trap> {
 		match self.has_csr_access_privilege(address) {
 			true => Ok(self.csr[address as usize]),
-			false => Err(Exception {
+			false => Err(Trap {
 				exception_type: ExceptionType::IllegalInstruction,
 				address: self.pc.wrapping_sub(4) // @TODO: Is this always correct?
 			})
 		}
 	}
 
-	fn write_csr(&mut self, address: u16, value: u64) -> Result<(), Exception> {
+	fn write_csr(&mut self, address: u16, value: u64) -> Result<(), Trap> {
+		// println!("PC:{:X} Privilege mode:{}", self.pc.wrapping_sub(4), get_privilege_mode_name(&self.privilege_mode));
 		// println!("CSR:{:X} Value:{:X}", address, value);
 		match self.has_csr_access_privilege(address) {
 			true => {
@@ -1070,7 +1548,7 @@ impl Cpu {
 				}
 				Ok(())
 			},
-			false => Err(Exception {
+			false => Err(Trap {
 				exception_type: ExceptionType::IllegalInstruction,
 				address: self.pc.wrapping_sub(4) // @TODO: Is this always correct?
 			})
@@ -1118,7 +1596,7 @@ impl Cpu {
 		}
 	}
 
-	fn decode(&self, word: u32) -> Instruction {
+	fn decode(&mut self, word: u32) -> Instruction {
 		let opcode = word & 0x7f; // [6:0]
 		let funct3 = (word >> 12) & 0x7; // [14:12]
 		let funct7 = (word >> 25) & 0x7f; // [31:25]
@@ -1147,6 +1625,7 @@ impl Cpu {
 				4 => Instruction::XORI,
 				5 => match funct7 {
 					0 => Instruction::SRLI,
+					1 => Instruction::SRLI, // temporal workaround for xv6
 					0x20 => Instruction::SRAI,
 					_ => {
 						println!("Unknown funct7: {:07b}", funct7);
@@ -1343,6 +1822,7 @@ impl Cpu {
 						9 => Instruction::SFENCE_VMA,
 						_ => match word {
 							0x00000073 => Instruction::ECALL,
+							0x00200073 => Instruction::URET,
 							0x10200073 => Instruction::SRET,
 							0x30200073 => Instruction::MRET,
 							_ => {
@@ -1370,7 +1850,7 @@ impl Cpu {
 		}
 	}
 
-	fn operate(&mut self, word: u32, instruction: Instruction) -> Result<(), Exception> {
+	fn operate(&mut self, word: u32, instruction: Instruction) -> Result<(), Trap> {
 		let instruction_format = get_instruction_format(&instruction);
 		match instruction_format {
 			InstructionFormat::B => {
@@ -1684,36 +2164,75 @@ impl Cpu {
 						};
 					},
 					Instruction::ECALL => {
-						let csr = match self.privilege_mode {
+						let csr_epc_address = match self.privilege_mode {
 							PrivilegeMode::User => CSR_UEPC_ADDRESS,
 							PrivilegeMode::Supervisor => CSR_SEPC_ADDRESS,
 							PrivilegeMode::Machine => CSR_MEPC_ADDRESS,
 							PrivilegeMode::Reserved => panic!()
 						};
-						self.csr[csr as usize] = self.pc.wrapping_sub(4);
+						self.csr[csr_epc_address as usize] = self.pc.wrapping_sub(4);
 						let exception_type = match self.privilege_mode {
 							PrivilegeMode::User => ExceptionType::EnvironmentCallFromUMode,
 							PrivilegeMode::Supervisor => ExceptionType::EnvironmentCallFromSMode,
 							PrivilegeMode::Machine => ExceptionType::EnvironmentCallFromMMode,
 							PrivilegeMode::Reserved => panic!()
 						};
-						return Err(Exception {
+						return Err(Trap {
 							exception_type: exception_type,
 							address: self.pc.wrapping_sub(4)
 						});
 					},
-					Instruction::MRET => {
-						self.pc = match self.read_csr(CSR_MEPC_ADDRESS) {
+					Instruction::MRET |
+					Instruction::SRET |
+					Instruction::URET => {
+						// @TODO: Throw error if higher privilege return instruction is executed
+						// @TODO: Implement propertly
+						let csr_epc_address = match instruction {
+							Instruction::MRET => CSR_MEPC_ADDRESS,
+							Instruction::SRET => CSR_SEPC_ADDRESS,
+							Instruction::URET => CSR_UEPC_ADDRESS,
+							_ => panic!() // shouldn't happen
+						};
+						self.pc = match self.read_csr(csr_epc_address) {
 							Ok(data) => data,
 							Err(e) => return Err(e)
 						};
-						// @TODO: Implement properly
-						self.privilege_mode = match (self.csr[CSR_MSTATUS_ADDRESS as usize] >> 11) & 0x3 {
-							0 => PrivilegeMode::User,
-							1 => PrivilegeMode::Supervisor,
-							3 => PrivilegeMode::Machine,
-							_ => panic!()
+						match instruction {
+							Instruction::MRET => {
+								let status = self.csr[CSR_MSTATUS_ADDRESS as usize];
+								let mie = (status >> 3) & 1;
+								let mpie = (status >> 7) & 1;
+								let mpp = (status >> 11) & 0x3;
+								// Override MIE[3] with MPIE[7], set MPIE[7] to 1, set MPP[12:11] to 0
+								let new_status = (status & !0x1888) | (mpie << 3) | (1 << 7);
+								self.csr[CSR_MSTATUS_ADDRESS as usize] = new_status;
+								self.privilege_mode = match mpp {
+									0 => PrivilegeMode::User,
+									1 => PrivilegeMode::Supervisor,
+									3 => PrivilegeMode::Machine,
+									_ => panic!() // Shouldn't happen
+								};
+							},
+							Instruction::SRET => {
+								let status = self.csr[CSR_SSTATUS_ADDRESS as usize];
+								let sie = (status >> 1) & 1;
+								let spie = (status >> 5) & 1;
+								let spp = (status >> 8) & 1;
+								// Override SIE[1] with SPIE[5], set SPIE[5] to 1, set SPP[8] to 0
+								let new_status = (status & !0x122) | (spie << 1) | (1 << 5);
+								self.csr[CSR_SSTATUS_ADDRESS as usize] = new_status;
+								self.privilege_mode = match spp {
+									0 => PrivilegeMode::User,
+									1 => PrivilegeMode::Supervisor,
+									_ => panic!() // Shouldn't happen
+								};
+							},
+							Instruction::URET => {
+								panic!("Not implemented yet.");
+							},
+							_ => panic!() // shouldn't happen
 						};
+						// println!("{}", get_privilege_mode_name(&self.privilege_mode));
 					},
 					Instruction::MUL => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize].wrapping_mul(self.x[rs2 as usize]));
@@ -1811,22 +2330,6 @@ impl Cpu {
 					Instruction::SRAW => {
 						self.x[rd as usize] = (self.x[rs1 as usize] as i32).wrapping_shr(self.x[rs2 as usize] as u32) as i32 as i64;
 					},
-					Instruction::SRET => {
-						// @TODO: Implement propertly
-						self.pc = match self.read_csr(CSR_SEPC_ADDRESS) {
-							Ok(data) => data,
-							Err(e) => return Err(e)
-						};
-						// Set privilege mode depending on SPP bit[8] in csr sstatis
-						self.privilege_mode = match self.csr[CSR_SSTATUS_ADDRESS as usize] & 0x100 {
-							0 => PrivilegeMode::User,
-							_ => {
-								// clear SPP bit
-								self.csr[CSR_SSTATUS_ADDRESS as usize] &= !0x100;
-								PrivilegeMode::Supervisor
-							}
-						};
-					},
 					Instruction::SRL => {
 						self.x[rd as usize] = self.sign_extend(self.unsigned_data(self.x[rs1 as usize]).wrapping_shr(self.x[rs2 as usize] as u32) as i64);
 					},
@@ -1914,7 +2417,7 @@ impl Cpu {
 		Ok(())
 	}
 
-	fn dump_instruction(&self, address: u64) {
+	fn dump_instruction(&mut self, address: u64) {
 		let word = match self.load_word(address, true) {
 			Ok(word) => word,
 			Err(_e) => return // @TODO: What should here do?
@@ -1922,5 +2425,313 @@ impl Cpu {
 		let pc = self.unsigned_data(address as i64);
 		let opcode = word & 0x7f; // [6:0]
 		println!("Pc:{:016x}, Opcode:{:07b}, Word:{:016x}", pc, opcode, word);
+	}
+	
+	// Wasm specific
+	pub fn get_output(&mut self) -> u8 {
+		self.uart.get_output()
+	}
+
+	pub fn put_input(&mut self, data: u8) {
+		self.uart.put_input(data);
+	}
+}
+
+struct VirtioBlockDisk {
+	id: u8,
+	clock: u64,
+	driver_features: u32,
+	guest_page_size: u32,
+	queue_select: u32,
+	queue_num: u32,
+	queue_pfn: u32,
+	queue_notify: u32,
+	status: u32,
+	notify_clock: u64,
+	interrupting: bool,
+	contents: Vec<u8>
+}
+
+impl VirtioBlockDisk {
+	fn new() -> Self {
+		VirtioBlockDisk {
+			id: 0,
+			clock: 0,
+			driver_features: 0,
+			guest_page_size: 0,
+			queue_select: 0,
+			queue_num: 0,
+			queue_pfn: 0,
+			queue_notify: 0,
+			status: 0,
+			notify_clock: 0,
+			interrupting: false,
+			contents: vec![]
+		}
+	}
+
+	fn init(&mut self, contents: Vec<u8>) {
+		for i in 0..contents.len() {
+			self.contents.push(contents[i]);
+		}
+	}
+
+	fn tick(&mut self) {
+		self.clock = self.clock.wrapping_add(1);
+		if self.notify_clock > 0 && self.clock > self.notify_clock + 500 {
+			self.interrupting = true;
+		}
+	}
+
+	fn load(&self, address: u64) -> u8 {
+		match address {
+			0x10001000 => 0x76, // vertio disk magic value: 0x74726976
+			0x10001001 => 0x69,
+			0x10001002 => 0x72,
+			0x10001003 => 0x74,
+			0x10001004 => 1, // vertio version: 1
+			0x10001008 => 2, // vertio device id: 2
+			0x1000100c => 0x51, // vertio vendor id: 0x554d4551
+			0x1000100d => 0x45,
+			0x1000100e => 0x4d,
+			0x1000100f => 0x55,
+			0x10001034 => 8, // vertio  queue num max: At least 8
+			_ => 0
+		}
+	}
+	
+	fn store(&mut self, address: u64, value: u8) {
+		match address {
+			0x10001020 => {
+				self.driver_features = (self.driver_features & !0xff) | (value as u32);
+			},
+			0x10001021 => {
+				self.driver_features = (self.driver_features & !0xff00) | ((value as u32) << 8);
+			},
+			0x10001022 => {
+				self.driver_features = (self.driver_features & !0xff0000) | ((value as u32) << 16);			
+			},
+			0x10001023 => {
+				self.driver_features = (self.driver_features & !0xff000000) | ((value as u32) << 24);
+			},
+			0x10001028 => {
+				self.guest_page_size = (self.guest_page_size & !0xff) | (value as u32);
+			},
+			0x10001029 => {
+				self.guest_page_size = (self.guest_page_size & !0xff00) | ((value as u32) << 8);
+			},
+			0x1000102a => {
+				self.guest_page_size = (self.guest_page_size & !0xff0000) | ((value as u32) << 16);			
+			},
+			0x1000102b => {
+				self.guest_page_size = (self.guest_page_size & !0xff000000) | ((value as u32) << 24);
+			},
+			0x10001030 => {
+				self.queue_select = (self.queue_select & !0xff) | (value as u32);
+			},
+			0x10001031 => {
+				self.queue_select = (self.queue_select & !0xff00) | ((value as u32) << 8);
+			},
+			0x10001032 => {
+				self.queue_select = (self.queue_select & !0xff0000) | ((value as u32) << 16);			
+			},
+			0x10001033 => {
+				self.queue_select = (self.queue_select & !0xff000000) | ((value as u32) << 24);
+			},
+			0x10001038 => {
+				self.queue_num = (self.queue_num & !0xff) | (value as u32);
+			},
+			0x10001039 => {
+				self.queue_num = (self.queue_num & !0xff00) | ((value as u32) << 8);
+			},
+			0x1000103a => {
+				self.queue_num = (self.queue_num & !0xff0000) | ((value as u32) << 16);			
+			},
+			0x1000103b => {
+				self.queue_num = (self.queue_num & !0xff000000) | ((value as u32) << 24);
+			},
+			0x10001040 => {
+				self.queue_pfn = (self.queue_pfn & !0xff) | (value as u32);
+			},
+			0x10001041 => {
+				self.queue_pfn = (self.queue_pfn & !0xff00) | ((value as u32) << 8);
+			},
+			0x10001042 => {
+				self.queue_pfn = (self.queue_pfn & !0xff0000) | ((value as u32) << 16);			
+			},
+			0x10001043 => {
+				self.queue_pfn = (self.queue_pfn & !0xff000000) | ((value as u32) << 24);
+			},
+			0x10001050 => {
+				self.queue_notify = (self.queue_notify & !0xff) | (value as u32);
+			},
+			0x10001051 => {
+				self.queue_notify = (self.queue_notify & !0xff00) | ((value as u32) << 8);
+			},
+			0x10001052 => {
+				self.queue_notify = (self.queue_notify & !0xff0000) | ((value as u32) << 16);			
+			},
+			0x10001053 => {
+				self.queue_notify = (self.queue_notify & !0xff000000) | ((value as u32) << 24);
+				self.notify_clock = self.clock;
+			},
+			0x10001070 => {
+				self.status = (self.status & !0xff) | (value as u32);
+			},
+			0x10001071 => {
+				self.status = (self.status & !0xff00) | ((value as u32) << 8);
+			},
+			0x10001072 => {
+				self.status = (self.status & !0xff0000) | ((value as u32) << 16);			
+			},
+			0x10001073 => {
+				self.status = (self.status & !0xff000000) | ((value as u32) << 24);
+			},
+			_ => {}
+		};
+	}
+
+	fn get_page_address(&self) -> u64 {
+		self.queue_pfn as u64 * self.guest_page_size as u64
+	}
+
+	// desc = pages -- num * VRingDesc
+	// avail = pages + 0x40 -- 2 * uint16, then num * uint16
+	// used = pages + 4096 -- 2 * uint16, then num * vRingUsedElem
+	
+	fn get_desc_address(&self) -> u64 {
+		self.get_page_address()
+	}
+
+	fn get_avail_address(&self) -> u64 {
+		self.get_page_address() + 0x40
+	}
+
+	fn get_used_address(&self) -> u64 {
+		self.get_page_address() + 4096
+	}
+
+	fn read_from_disk(&mut self, address: u64) -> u8 {
+		self.contents[address as usize]
+	}
+	
+	fn write_to_disk(&mut self, address: u64, value: u8) {
+		self.contents[address as usize] = value
+	}
+
+	fn get_new_id(&mut self) -> u8 {
+		self.id += 1;
+		self.id
+	}
+
+	// @TODO: Rename
+	fn reset_interrupt(&mut self) {
+		self.interrupting = false;
+		self.notify_clock = 0;
+	}
+}
+
+struct Uart {
+	clock: u64,
+	receive_register: u8,
+	transmit_register: u8,
+	line_status_register: u8,
+	interrupting: bool,
+	display: Box<Display>
+}
+
+impl Uart {
+	fn new(display: Box<Display>) -> Self {
+		Uart {
+			clock: 0,
+			receive_register: 0,
+			transmit_register: 0,
+			line_status_register: 0x20,
+			interrupting: false,
+			display: display
+		}
+	}
+
+	fn tick(&mut self) {
+		self.clock = self.clock.wrapping_add(1);
+		if (self.clock % 0x10000) == 0 && !self.interrupting {
+			let value = self.display.get_input();
+			if value != 0 {
+				self.interrupting = true;
+				self.receive_register = value;
+				self.line_status_register = 1;
+			}
+		}
+	}
+
+	fn load(&mut self, address: u64) -> u8 {
+		match address {
+			0x10000000 => {
+				let value = self.receive_register;
+				self.receive_register = 0x0;
+				self.line_status_register = 0x20;
+				value
+			},
+			0x10000005 => self.line_status_register, // UART0 LSR
+			_ => 0
+		}
+	}
+
+	fn store(&mut self, address: u64, value: u8) {
+		match address {
+			0x10000000 => { // UART0 THR
+				self.display.put_byte(value);
+			},
+			_ => {}
+		};
+	}
+	
+	// @TODO: Rename
+	fn reset_interrupt(&mut self) {
+		self.interrupting = false;
+	}
+
+	// Wasm specific
+
+	fn get_output(&mut self) -> u8 {
+		self.display.get_output()
+	}
+	
+	fn put_input(&mut self, data: u8) {
+		self.display.put_input(data);
+	}
+}
+
+struct Plic {
+	irq: u32
+}
+
+impl Plic {
+	fn new() -> Self {
+		Plic {
+			irq: 0
+		}
+	}
+
+	fn update(&mut self, interrupt_type: &InterruptType) {
+		match interrupt_type {
+			InterruptType::Virtio => {
+				self.irq = 1;
+			}
+			InterruptType::KeyInput => {
+				self.irq = 10;
+			}
+			InterruptType::None |
+			InterruptType::Timer => {
+				self.irq = 0;
+			}
+		}
+	}
+
+	fn load(&self, address: u64) -> u32 {
+		match address {
+			0x0c201004 => self.irq, // PLIC_SCLAIM(hart) (PLIC + 0x201004 + (hart)*0x2000)
+			_ => 0
+		}
 	}
 }

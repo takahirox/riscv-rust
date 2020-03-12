@@ -1,8 +1,12 @@
 extern crate getopts;
 
 mod cpu;
+mod display;
+mod standalone_display;
+
 use cpu::Cpu;
 use cpu::Xlen;
+use standalone_display::StandaloneDisplay;
 
 use std::env;
 use std::fs::File;
@@ -11,7 +15,7 @@ use std::io::Read;
 use getopts::Options;
 
 fn print_usage(program: &str, opts: Options) {
-	let usage = format!("Usage: {} FILE [options]", program);
+	let usage = format!("Usage: {} KERNEL_FILE IMAGE_FILE [options]", program);
 	print!("{}", opts.usage(&usage));
 }
 
@@ -35,16 +39,21 @@ fn main () -> std::io::Result<()> {
 		print_usage(&program, opts);
 		return Ok(());
 	}
-	if args.len() < 2 {
+	if args.len() < 3 {
 		print_usage(&program, opts);
 		// @TODO: throw error?
 		return Ok(());
 	}
 
-	let filename = args[1].clone();
-	let mut file = File::open(filename)?;
-	let mut contents = vec![];
-	file.read_to_end(&mut contents)?;
+	let kernel_filename = args[1].clone();
+	let mut kernel_file = File::open(kernel_filename)?;
+	let mut kernel_contents = vec![];
+	kernel_file.read_to_end(&mut kernel_contents)?;
+
+	let image_filename = args[2].clone();
+	let mut image_file = File::open(image_filename)?;
+	let mut image_contents = vec![];
+	image_file.read_to_end(&mut image_contents)?;
 
 	let xlen = match matches.opt_str("x") {
 		Some(x) => match x.as_str() {
@@ -59,7 +68,9 @@ fn main () -> std::io::Result<()> {
 		None => Xlen::Bit32
 	};
 
-	let mut cpu = Cpu::new(xlen);
-	cpu.run_test(contents);
+	let display = Box::new(StandaloneDisplay::new());
+	let mut cpu = Cpu::new(xlen, display);
+	cpu.init(kernel_contents, image_contents);
+	cpu.run();
 	Ok(())
 }
