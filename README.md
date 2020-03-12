@@ -2,6 +2,10 @@
 
 riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written in Rust
 
+## Demo
+
+[Online demo with xv6](https://takahirox.github.io/riscv-rust/index.html)
+
 ## Instructions/Features support status
 
 - [x] RV32/64I
