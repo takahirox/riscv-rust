@@ -1,4 +1,4 @@
-pub trait Display {
+pub trait Terminal {
 	fn put_byte(&mut self, value: u8);
 	fn get_input(&mut self) -> u8;
 	// Wasm specific
