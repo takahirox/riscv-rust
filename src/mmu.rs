@@ -133,17 +133,41 @@ impl Mmu {
 		Ok(self.load_raw(p_address))
 	}
 
-	pub fn fetch_word(&mut self, v_address: u64) -> Result<u32, Trap> {
-		let mut data = 0 as u32;
-		for i in 0..4 {
-			match self.fetch(v_address.wrapping_add(i)) {
-				Ok(byte) => {
-					data |= (byte as u32) << (i * 8)
-				},
-				Err(e) => return Err(e)
-			};
+	fn fetch_bytes(&mut self, v_address: u64, width: u64) -> Result<u64, Trap> {
+		let mut data = 0 as u64;
+		match (v_address & 0xfff) <= (0x1000 - width) {
+			true => {
+				let effective_address = self.get_effective_address(v_address);
+				let p_address = match self.translate_address(effective_address, MemoryAccessType::Execute) {
+					Ok(address) => address,
+					Err(()) => return Err(Trap {
+						trap_type: TrapType::InstructionPageFault,
+						value: v_address
+					})
+				};
+				for i in 0..width {
+					data |= (self.load_raw(p_address.wrapping_add(i) as u64) as u64) << (i * 8);
+				}
+			},
+			false => {
+				for i in 0..width {
+					match self.fetch(v_address.wrapping_add(i)) {
+						Ok(byte) => {
+							data |= (byte as u64) << (i * 8)
+						},
+						Err(e) => return Err(e)
+					};
+				}
+			}
 		}
 		Ok(data)
+	}
+
+	pub fn fetch_word(&mut self, v_address: u64) -> Result<u32, Trap> {
+		match self.fetch_bytes(v_address, 4) {
+			Ok(data) => Ok(data as u32),
+			Err(e) => Err(e)
+		}
 	}
 
 	pub fn load(&mut self, v_address: u64) -> Result<u8, Trap> {
@@ -158,43 +182,55 @@ impl Mmu {
 		Ok(self.load_raw(p_address))
 	}
 
-	pub fn load_halfword(&mut self, v_address: u64) -> Result<u16, Trap> {
-		let mut data = 0 as u16;
-		for i in 0..2 {
-			match self.load(v_address.wrapping_add(i)) {
-				Ok(byte) => {
-					data |= (byte as u16) << (i * 8)
-				},
-				Err(e) => return Err(e)
-			};
+	fn load_bytes(&mut self, v_address: u64, width: u64) -> Result<u64, Trap> {
+		let mut data = 0 as u64;
+		match (v_address & 0xfff) <= (0x1000 - width) {
+			true => {
+				let effective_address = self.get_effective_address(v_address);
+				let p_address = match self.translate_address(effective_address, MemoryAccessType::Read) {
+					Ok(address) => address,
+					Err(()) => return Err(Trap {
+						trap_type: TrapType::LoadPageFault,
+						value: v_address
+					})
+				};
+				for i in 0..width {
+					data |= (self.load_raw(p_address.wrapping_add(i) as u64) as u64) << (i * 8);
+				}
+			},
+			false => {
+				for i in 0..width {
+					match self.load(v_address.wrapping_add(i)) {
+						Ok(byte) => {
+							data |= (byte as u64) << (i * 8)
+						},
+						Err(e) => return Err(e)
+					};
+				}
+			}
 		}
 		Ok(data)
+	}
+
+	pub fn load_halfword(&mut self, v_address: u64) -> Result<u16, Trap> {
+		match self.load_bytes(v_address, 2) {
+			Ok(data) => Ok(data as u16),
+			Err(e) => Err(e)
+		}
 	}
 
 	pub fn load_word(&mut self, v_address: u64) -> Result<u32, Trap> {
-		let mut data = 0 as u32;
-		for i in 0..4 {
-			match self.load(v_address.wrapping_add(i)) {
-				Ok(byte) => {
-					data |= (byte as u32) << (i * 8)
-				},
-				Err(e) => return Err(e)
-			};
+		match self.load_bytes(v_address, 4) {
+			Ok(data) => Ok(data as u32),
+			Err(e) => Err(e)
 		}
-		Ok(data)
 	}
 
 	pub fn load_doubleword(&mut self, v_address: u64) -> Result<u64, Trap> {
-		let mut data = 0 as u64;
-		for i in 0..8 {
-			match self.load(v_address.wrapping_add(i)) {
-				Ok(byte) => {
-					data |= (byte as u64) << (i * 8)
-				},
-				Err(e) => return Err(e)
-			};
+		match self.load_bytes(v_address, 8) {
+			Ok(data) => Ok(data as u64),
+			Err(e) => Err(e)
 		}
-		Ok(data)
 	}
 
 	pub fn store(&mut self, v_address: u64, value: u8) -> Result<(), Trap> {
@@ -202,7 +238,7 @@ impl Mmu {
 		let p_address = match self.translate_address(effective_address, MemoryAccessType::Write) {
 			Ok(address) => address,
 			Err(()) => return Err(Trap {
-				trap_type: TrapType::LoadPageFault,
+				trap_type: TrapType::StorePageFault,
 				value: v_address
 			})
 		};
@@ -210,34 +246,43 @@ impl Mmu {
 		Ok(())
 	}
 
-	pub fn store_halfword(&mut self, v_address: u64, value: u16) -> Result<(), Trap> {
-		for i in 0..2 {
-			match self.store(v_address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8) {
-				Ok(()) => {},
-				Err(e) => return Err(e)
+	fn store_bytes(&mut self, v_address: u64, value: u64, width: u64) -> Result<(), Trap> {
+		match (v_address & 0xfff) <= (0x1000 - width) {
+			true => {
+				let effective_address = self.get_effective_address(v_address);
+				let p_address = match self.translate_address(effective_address, MemoryAccessType::Write) {
+					Ok(address) => address,
+					Err(()) => return Err(Trap {
+						trap_type: TrapType::StorePageFault,
+						value: v_address
+					})
+				};
+				for i in 0..width {
+					self.store_raw(p_address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8);
+				}
+			},
+			false => {
+				for i in 0..width {
+					match self.store(v_address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8) {
+						Ok(()) => {},
+						Err(e) => return Err(e)
+					}
+				}
 			}
 		}
 		Ok(())
+	}
+
+	pub fn store_halfword(&mut self, v_address: u64, value: u16) -> Result<(), Trap> {
+		self.store_bytes(v_address, value as u64, 2)
 	}
 
 	pub fn store_word(&mut self, v_address: u64, value: u32) -> Result<(), Trap> {
-		for i in 0..4 {
-			match self.store(v_address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8) {
-				Ok(()) => {},
-				Err(e) => return Err(e)
-			}
-		}
-		Ok(())
+		self.store_bytes(v_address, value as u64, 4)
 	}
 
 	pub fn store_doubleword(&mut self, v_address: u64, value: u64) -> Result<(), Trap> {
-		for i in 0..8 {
-			match self.store(v_address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8) {
-				Ok(()) => {},
-				Err(e) => return Err(e)
-			}
-		}
-		Ok(())
+		self.store_bytes(v_address, value as u64, 8)
 	}
 
 	pub fn load_raw(&mut self, address: u64) -> u8 {
@@ -384,7 +429,7 @@ impl Mmu {
 		// println!("VA:{:X} Level:{:X} PTE_AD:{:X} PTE:{:X} PPPN:{:X} PPN:{:X} PPN1:{:X} PPN0:{:X}", v_address, level, pte_address, pte, parent_ppn, ppn, ppns[1], ppns[0]);
 
 		if v == 0 || (r == 0 && w == 1) {
-			return Err({});
+			return Err(());
 		}
 
 		if r == 0 && x == 0 {
