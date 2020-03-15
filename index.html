@@ -7,6 +7,8 @@
       color: #fff;
       border-style: none;
       resize: none;
+      width: 100%;
+      height: 90%;
     }
     </style>
   </head>
@@ -24,6 +26,7 @@
 
         const inputs = [];
         const terminal = document.getElementById('terminal');
+
         terminal.addEventListener('keydown', event => {
           let value = 0;
           switch (event.keyCode) {
@@ -73,16 +76,20 @@
         .then(wasm => run(wasm))
         .catch(error => console.error(error));
     </script>
+<textarea id="terminal" readonly>
+Message from the emulator author Takahiro:
+
+Booting the kernel of xv6 RISC-V port.
+The emulator is still very slow. It takes time to boot.
+Thank you for your patience.
+Once the kernel boots up shell starts.
+Note that some special character inputs are not handled correctly yet.
+
+Enjoy RISC-V and Operating System on browser!
+
+</textarea><br />
     <div>
-      xv6 on <a href="https://github.com/takahirox/riscv-rust" target="_blank">RISC-V processor emulator in Rust+WASM</a>
-    </div>
-    <textarea id="terminal" cols="82" rows="30" readonly></textarea><br />
-    <div>
-    Note
-    <ul>
-      <li>It's still very slow, especially it takes time to boot</li>
-      <li>Most special character inputs are not handled correctly yet other than space or new line</li>
-    </ul>
+      <a href="https://github.com/mit-pdos/xv6-riscv" target="_blank">xv6</a> on <a href="https://github.com/takahirox/riscv-rust" target="_blank">RISC-V processor emulator in Rust+WASM</a>
     </div>
   </body>
 </html>
