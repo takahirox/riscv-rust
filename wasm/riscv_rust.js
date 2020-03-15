@@ -51,12 +51,12 @@ export class WasmRiscv {
     }
     /**
     * @param {Uint8Array} kernel_contents
-    * @param {Uint8Array} image_contents
+    * @param {Uint8Array} fs_contents
     */
-    init(kernel_contents, image_contents) {
+    init(kernel_contents, fs_contents) {
         var ptr0 = passArray8ToWasm0(kernel_contents, wasm.__wbindgen_malloc);
         var len0 = WASM_VECTOR_LEN;
-        var ptr1 = passArray8ToWasm0(image_contents, wasm.__wbindgen_malloc);
+        var ptr1 = passArray8ToWasm0(fs_contents, wasm.__wbindgen_malloc);
         var len1 = WASM_VECTOR_LEN;
         wasm.wasmriscv_init(this.ptr, ptr0, len0, ptr1, len1);
     }
