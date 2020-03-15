@@ -4,9 +4,9 @@
     <style>
     #terminal {
       background-color: #000;
-	  color: #fff;
-	  border-style: none;
-	  resize: none;
+      color: #fff;
+      border-style: none;
+      resize: none;
     }
     </style>
   </head>
@@ -15,7 +15,7 @@
       import init, { WasmRiscv } from "./wasm/riscv_rust.js";
 
       const run = async wasm => {
-	    const kernelResponse = await fetch('xv6/kernel');
+        const kernelResponse = await fetch('xv6/kernel');
         const kernelBuffer = await kernelResponse.arrayBuffer();
         const imageResponse = await fetch('xv6/fs.img');
         const imageBuffer = await imageResponse.arrayBuffer();
@@ -23,27 +23,27 @@
         riscv.init(new Uint8Array(kernelBuffer), new Uint8Array(imageBuffer));
 
         const inputs = [];
-		const terminal = document.getElementById('terminal');
+        const terminal = document.getElementById('terminal');
         terminal.addEventListener('keydown', event => {
           let value = 0;
-		  switch (event.keyCode) {
-		    // @TODO: Support more special characters
-		    case 13: // new line
-			  value = 0xa;
+          switch (event.keyCode) {
+            // @TODO: Support more special characters
+            case 13: // new line
+              value = 0xa;
               break;
-			case 16: // shift
+            case 16: // shift
             case 37: // cursors
             case 38:
             case 39:
             case 40:
               break;
-			case 32: // space
-			  value = 0x20;
+            case 32: // space
+              value = 0x20;
               break;
-			default:
-			  value = event.key.charCodeAt(0);
-			  break;
-		  }
+            default:
+              value = event.key.charCodeAt(0);
+              break;
+          }
           if (value > 0) {
             inputs.push(value);
           }
@@ -53,36 +53,36 @@
         const run_cycles = () => {
           setTimeout(run_cycles, 0);
           riscv.run(0x10000);
-		  while (true) {
-		    const output_data = riscv.get_output();
-			if (output_data !== 0) {
-			  terminal.value += String.fromCharCode(output_data);
-			  terminal.scrollTop = terminal.scrollHeight ;
-			} else {
-			  break;
-			}
-		  }
+          while (true) {
+            const output_data = riscv.get_output();
+            if (output_data !== 0) {
+              terminal.value += String.fromCharCode(output_data);
+              terminal.scrollTop = terminal.scrollHeight ;
+            } else {
+              break;
+            }
+          }
           while (inputs.length > 0) {
-		    riscv.put_input(inputs.shift());
-		  }
+            riscv.put_input(inputs.shift());
+          }
         };
-		run_cycles();
-	  };
+        run_cycles();
+      };
 
       init()
         .then(wasm => run(wasm))
         .catch(error => console.error(error));
     </script>
-	<div>
-	  xv6 on <a href="https://github.com/takahirox/riscv-rust" target="_blank">RISC-V processor emulator in Rust+WASM</a>
-	</div>
+    <div>
+      xv6 on <a href="https://github.com/takahirox/riscv-rust" target="_blank">RISC-V processor emulator in Rust+WASM</a>
+    </div>
     <textarea id="terminal" cols="82" rows="30" readonly></textarea><br />
     <div>
     Note
-	<ul>
+    <ul>
       <li>It's still very slow, especially it takes time to boot</li>
-	  <li>Most special character inputs are not handled correctly yet other than space or new line</li>
-	</ul>
+      <li>Most special character inputs are not handled correctly yet other than space or new line</li>
+    </ul>
     </div>
   </body>
 </html>
