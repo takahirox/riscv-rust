@@ -1587,7 +1587,7 @@ impl Cpu {
 
 	// For riscv-tests
 
-	pub fn dump_current_instruction(&mut self) {
+	pub fn dump_current_instruction_to_terminal(&mut self) {
 		// @TODO: Fetching can make a side effect,
 		// for example updating page table entry or update peripheral hardware registers
 		// by accessing them. How can we avoid it?
@@ -1595,14 +1595,22 @@ impl Cpu {
 		let word = match self.mmu.fetch_word(v_address) {
 			Ok(data) => data,
 			Err(_e) => {
-				println!("PC:{:016x}, InstructionPageFault Trap!", v_address);
+				let s = format!("PC:{:016x}, InstructionPageFault Trap!\n", v_address);
+				self.put_bytes_to_terminal(s.as_bytes());
 				return;
 			}
 		};
 		let instruction = self.decode(word);
-		println!("PC:{:016x}, Word:{:016x}, Inst:{}",
+		let s = format!("PC:{:016x}, Word:{:016x}, Inst:{}\n",
 			self.unsigned_data(v_address as i64),
 			word, get_instruction_name(&instruction));
+		self.put_bytes_to_terminal(s.as_bytes());
+	}
+
+	pub fn put_bytes_to_terminal(&mut self, bytes: &[u8]) {
+		for i in 0..bytes.len() {
+			self.mmu.put_uart_output(bytes[i]);
+		}
 	}
 	
 	// Wasm specific

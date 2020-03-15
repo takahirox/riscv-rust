@@ -623,6 +623,10 @@ impl Mmu {
 		self.uart.get_output()
 	}
 
+	pub fn put_uart_output(&mut self, data: u8) {
+		self.uart.put_output(data);
+	}
+
 	pub fn put_uart_input(&mut self, data: u8) {
 		self.uart.put_input(data);
 	}

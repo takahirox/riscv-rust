@@ -32,8 +32,12 @@ impl WasmRiscv {
 		self.application.setup_filesystem(fs_contents);
 	}
 
-	pub fn run(&mut self, clocks: u32) {
-		for _i in 0..clocks {
+	pub fn run(&mut self) {
+		self.application.run();
+	}
+
+	pub fn run_cycles(&mut self, cycles: u32) {
+		for _i in 0..cycles {
 			self.application.tick();
 		}
 	}
