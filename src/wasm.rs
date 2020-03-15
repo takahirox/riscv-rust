@@ -33,7 +33,7 @@ impl WasmRiscv {
 	}
 
 	pub fn run(&mut self, clocks: u32) {
-		for i in 0..clocks {
+		for _i in 0..clocks {
 			self.application.tick();
 		}
 	}
