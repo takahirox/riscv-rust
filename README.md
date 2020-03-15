@@ -4,9 +4,9 @@ riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written 
 
 ## Demo
 
-[Online demo with xv6](https://takahirox.github.io/riscv-rust/index.html)
+[Online demo with xv6-riscv](https://takahirox.github.io/riscv-rust/index.html)
 
-[xv6-riscv](https://github.com/mit-pdos/xv6-riscv) is the RISC-V port of xv6 which is UNIX V6 rewritten by MIT in the current C language for x86.
+[xv6-riscv](https://github.com/mit-pdos/xv6-riscv) is the RISC-V port of [xv6](https://pdos.csail.mit.edu/6.828/2019/xv6.html) which is UNIX V6 rewritten by MIT for x86 in the current C language.
 
 ## Features
 
