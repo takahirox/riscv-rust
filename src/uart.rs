@@ -67,6 +67,10 @@ impl Uart {
 		self.terminal.get_output()
 	}
 
+	pub fn put_output(&mut self, data: u8) {
+		self.terminal.put_byte(data);
+	}
+
 	pub fn put_input(&mut self, data: u8) {
 		self.terminal.put_input(data);
 	}

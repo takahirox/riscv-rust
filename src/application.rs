@@ -54,7 +54,7 @@ impl Application {
 	pub fn run_test(&mut self) {
 		println!("This elf file seems riscv-tests elf file. Running in test mode.");
 		loop {
-			self.cpu.dump_current_instruction();
+			self.cpu.dump_current_instruction_to_terminal();
 
 			self.tick();
 
@@ -67,8 +67,12 @@ impl Application {
 			let endcode = self.cpu.load_word_raw(self.tohost_addr);
 			if endcode != 0 {
 				match endcode {
-					1 => println!("Test Passed with {:X}", endcode),
-					_ => println!("Test Failed with {:X}", endcode)
+					1 => {
+						self.cpu.put_bytes_to_terminal(format!("Test Passed with {:X}\n", endcode).as_bytes())
+					},
+					_ => {
+						self.cpu.put_bytes_to_terminal(format!("Test Failed with {:X}\n", endcode).as_bytes())
+					}
 				};
 				break;
 			}
