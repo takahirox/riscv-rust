@@ -61,10 +61,15 @@ export class WasmRiscv {
         wasm.wasmriscv_init(this.ptr, ptr0, len0, ptr1, len1);
     }
     /**
-    * @param {number} clocks
     */
-    run(clocks) {
-        wasm.wasmriscv_run(this.ptr, clocks);
+    run() {
+        wasm.wasmriscv_run(this.ptr);
+    }
+    /**
+    * @param {number} cycles
+    */
+    run_cycles(cycles) {
+        wasm.wasmriscv_run_cycles(this.ptr, cycles);
     }
     /**
     * @returns {number}
