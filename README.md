@@ -74,5 +74,5 @@ $ git clone https://github.com/takahirox/riscv-rust.git
 $ cd riscv-rust
 $ vi build_tests.sh # edit the path to the installed riscv-tests
 $ bash build_test.sh
-$ cargo run ./tests/rv32ui-p-add
+$ cargo run ./tests/rv32ui-p-add -n
 ```
