@@ -1,20 +1,20 @@
-use display::Display;
+use terminal::Terminal;
 
-pub struct WasmDisplay {
+pub struct WasmTerminal {
 	input_data: Vec<u8>,
 	output_data: Vec<u8>
 }
 
-impl WasmDisplay {
+impl WasmTerminal {
 	pub fn new() -> Self {
-		WasmDisplay {
+		WasmTerminal {
 			input_data: vec![],
 			output_data: vec![]
 		}
 	}
 }
 
-impl Display for WasmDisplay {
+impl Terminal for WasmTerminal {
 	fn put_byte(&mut self, value: u8) {
 		self.output_data.push(value);
 	}

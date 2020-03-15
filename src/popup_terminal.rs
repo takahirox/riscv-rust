@@ -1,14 +1,14 @@
 extern crate pancurses;
 
-use display::Display;
+use terminal::Terminal;
 use std::str;
 use self::pancurses::*;
 
-pub struct StandaloneDisplay {
+pub struct PopupTerminal {
 	window: Window
 }
 
-impl StandaloneDisplay {
+impl PopupTerminal {
 	pub fn new() -> Self {
 		let window = initscr();
 		window.scrollok(true);
@@ -16,13 +16,13 @@ impl StandaloneDisplay {
 		window.nodelay(true);
 		noecho();
 		curs_set(0);
-		StandaloneDisplay {
+		PopupTerminal {
 			window: window
 		}
 	}
 }
 	
-impl Display for StandaloneDisplay {
+impl Terminal for PopupTerminal {
 	fn put_byte(&mut self, value: u8) {
 		let str = vec![value];
 		self.window.printw(str::from_utf8(&str).unwrap());
@@ -38,8 +38,9 @@ impl Display for StandaloneDisplay {
 		}
 	}
 
+	// Wasm specific methods. No use.
 	
-	fn put_input(&mut self, value: u8) {
+	fn put_input(&mut self, _value: u8) {
 	}
 	
 	fn get_output(&mut self) -> u8 {

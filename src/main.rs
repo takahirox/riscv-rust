@@ -1,12 +1,21 @@
 extern crate getopts;
 
+mod application;
 mod cpu;
-mod display;
-mod standalone_display;
+mod mmu;
+mod plic;
+mod clint;
+mod uart;
+mod virtio_block_disk;
+mod terminal;
+mod dummy_terminal;
+mod popup_terminal;
 
-use cpu::Cpu;
 use cpu::Xlen;
-use standalone_display::StandaloneDisplay;
+use terminal::Terminal;
+use popup_terminal::PopupTerminal;
+use dummy_terminal::DummyTerminal;
+use application::Application;
 
 use std::env;
 use std::fs::File;
@@ -14,9 +23,21 @@ use std::io::Read;
 
 use getopts::Options;
 
+enum TerminalType {
+	PopupTerminal,
+	DummyTerminal
+}
+
 fn print_usage(program: &str, opts: Options) {
-	let usage = format!("Usage: {} KERNEL_FILE IMAGE_FILE [options]", program);
+	let usage = format!("Usage: {} program_file [options]", program);
 	print!("{}", opts.usage(&usage));
+}
+
+fn get_terminal(terminal_type: TerminalType) -> Box<dyn Terminal> {
+	match terminal_type {
+		TerminalType::PopupTerminal => Box::new(PopupTerminal::new()),
+		TerminalType::DummyTerminal => Box::new(DummyTerminal::new()),
+	}
 }
 
 fn main () -> std::io::Result<()> {
@@ -24,8 +45,11 @@ fn main () -> std::io::Result<()> {
 	let program = args[0].clone();
 
 	let mut opts = Options::new();
-	opts.optopt("x", "xlen", "Set bit mode. Default is 32", "32|64");
+	opts.optopt("x", "xlen", "Set bit mode. Default is auto detect from elf file", "32|64");
+	opts.optopt("f", "fs", "File system image file", "xv6/fs.img");
+	opts.optflag("n", "no_terminal", "No popup terminal");
 	opts.optflag("h", "help", "Show this help menu");
+
 	let matches = match opts.parse(&args[1..]) {
 		Ok(m) => m,
 		Err(f) => {
@@ -35,42 +59,64 @@ fn main () -> std::io::Result<()> {
 			return Ok(());
 		}
 	};
+
 	if matches.opt_present("h") {
 		print_usage(&program, opts);
 		return Ok(());
 	}
-	if args.len() < 3 {
+
+	if args.len() < 2 {
 		print_usage(&program, opts);
 		// @TODO: throw error?
 		return Ok(());
 	}
 
-	let kernel_filename = args[1].clone();
-	let mut kernel_file = File::open(kernel_filename)?;
-	let mut kernel_contents = vec![];
-	kernel_file.read_to_end(&mut kernel_contents)?;
+	let fs_contents = match matches.opt_str("f") {
+		Some(path) => {
+			let mut file = File::open(path)?;
+			let mut contents = vec![];
+			file.read_to_end(&mut contents)?;
+			contents
+		}
+		None => vec![]
+	};
 
-	let image_filename = args[2].clone();
-	let mut image_file = File::open(image_filename)?;
-	let mut image_contents = vec![];
-	image_file.read_to_end(&mut image_contents)?;
+	let elf_filename = args[1].clone();
+	let mut elf_file = File::open(elf_filename)?;
+	let mut elf_contents = vec![];
+	elf_file.read_to_end(&mut elf_contents)?;
 
-	let xlen = match matches.opt_str("x") {
+	let terminal_type = match matches.opt_present("n") {
+		true => {
+			println!("No popup terminal mode. Output will be flushed on your terminal but you can not input.");
+			TerminalType::DummyTerminal
+		},
+		false => TerminalType::PopupTerminal
+	};
+
+	let mut application = Application::new(get_terminal(terminal_type));
+	application.setup_from_elf(elf_contents);
+	
+	match matches.opt_str("x") {
 		Some(x) => match x.as_str() {
-			"32" => Xlen::Bit32,
-			"64" => Xlen::Bit64,
+			"32" => {
+				println!("Force to 32-bit mode.");
+				application.update_xlen(Xlen::Bit32);
+			},
+			"64" => {
+				println!("Force to 64-bit mode.");
+				application.update_xlen(Xlen::Bit64);
+			},
 			_ => {
 				print_usage(&program, opts);
 				// @TODO: throw error?
 				return Ok(());
 			}
 		},
-		None => Xlen::Bit32
+		None => {}
 	};
 
-	let display = Box::new(StandaloneDisplay::new());
-	let mut cpu = Cpu::new(xlen, display);
-	cpu.init(kernel_contents, image_contents);
-	cpu.run();
+	application.setup_filesystem(fs_contents);
+	application.run();
 	Ok(())
 }
