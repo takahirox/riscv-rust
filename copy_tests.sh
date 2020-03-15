@@ -1,7 +1,7 @@
 #/bin/bash
 
 path_to_riscv_tests="../riscv-tests"
-out_directory="$(pwd)/tests"
+out_directory="$(pwd)/riscv-tests"
 
 if [ ! -e $out_directory ]; then
     mkdir $out_directory
