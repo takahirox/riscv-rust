@@ -18,7 +18,11 @@ pub struct Mmu {
 	disk: VirtioBlockDisk,
 	plic: Plic,
 	clint: Clint,
-	uart: Uart
+	uart: Uart,
+
+	// experimental
+	// 0: virtual page -> 1: physical page
+	last_accessed_instruction_page: [u64; 2]
 }
 
 pub enum AddressingMode {
@@ -47,18 +51,22 @@ impl Mmu {
 			disk: VirtioBlockDisk::new(),
 			plic: Plic::new(),
 			clint: Clint::new(),
-			uart: Uart::new(terminal)
+			uart: Uart::new(terminal),
+			// experimental
+			last_accessed_instruction_page: [0xffffffffffffffff, 0xffffffffffffffff]
 		}
 	}
 
 	pub fn update_xlen(&mut self, xlen: Xlen) {
 		self.xlen = xlen;
+		self.last_accessed_instruction_page[0] = 0xffffffffffffffff;
 	}
 
 	pub fn init_memory(&mut self, capacity: u64) {
 		for _i in 0..capacity {
 			self.memory.push(0);
 		}
+		self.last_accessed_instruction_page[0] = 0xffffffffffffffff;
 	}
 	
 	pub fn init_disk(&mut self, data: Vec<u8>) {
@@ -104,14 +112,17 @@ impl Mmu {
 
 	pub fn update_addressing_mode(&mut self, new_addressing_mode: AddressingMode) {
 		self.addressing_mode = new_addressing_mode;
+		self.last_accessed_instruction_page[0] = 0xffffffffffffffff;
 	}
 
 	pub fn update_privilege_mode(&mut self, mode: PrivilegeMode) {
 		self.privilege_mode = mode;
+		self.last_accessed_instruction_page[0] = 0xffffffffffffffff;
 	}
 
 	pub fn update_ppn(&mut self, ppn: u64) {
 		self.ppn = ppn;
+		self.last_accessed_instruction_page[0] = 0xffffffffffffffff;
 	}
 
 	fn get_effective_address(&self, address: u64) -> u64 {
@@ -125,10 +136,13 @@ impl Mmu {
 		let effective_address = self.get_effective_address(v_address);
 		let p_address = match self.translate_address(effective_address, MemoryAccessType::Execute) {
 			Ok(address) => address,
-			Err(()) => return Err(Trap {
-				trap_type: TrapType::InstructionPageFault,
-				value: v_address
-			})
+			Err(()) => {
+				self.last_accessed_instruction_page[0] = 0xffffffffffffffff;
+				return Err(Trap {
+					trap_type: TrapType::InstructionPageFault,
+					value: v_address
+				});
+			}
 		};
 		Ok(self.load_raw(p_address))
 	}
@@ -140,10 +154,13 @@ impl Mmu {
 				let effective_address = self.get_effective_address(v_address);
 				let p_address = match self.translate_address(effective_address, MemoryAccessType::Execute) {
 					Ok(address) => address,
-					Err(()) => return Err(Trap {
-						trap_type: TrapType::InstructionPageFault,
-						value: v_address
-					})
+					Err(()) => {
+						self.last_accessed_instruction_page[0] = 0xffffffffffffffff;
+						return Err(Trap {
+							trap_type: TrapType::InstructionPageFault,
+							value: v_address
+						});
+					}
 				};
 				for i in 0..width {
 					data |= (self.load_raw(p_address.wrapping_add(i) as u64) as u64) << (i * 8);
@@ -397,6 +414,10 @@ impl Mmu {
 
 	fn traverse_page(&mut self, v_address: u64, level: u8, parent_ppn: u64,
 		vpns: &[u64], access_type: MemoryAccessType) -> Result<u64, ()> {
+		if self.last_accessed_instruction_page[0] == (v_address & !0xfff) {
+			return Ok(self.last_accessed_instruction_page[1] | (v_address & 0xfff));
+		}
+
 		let pagesize = 4096;
 		let ptesize = match self.addressing_mode {
 			AddressingMode::SV32 => 4,
@@ -501,6 +522,8 @@ impl Mmu {
 			},
 		};
 		// println!("PA:{:X}", p_address);
+		self.last_accessed_instruction_page[0] = v_address & !0xfff;
+		self.last_accessed_instruction_page[1] = p_address & !0xfff;
 		Ok(p_address)
 	}
 
