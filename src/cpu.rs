@@ -109,7 +109,10 @@ enum Instruction {
 	BLT,
 	BLTU,
 	BNE,
+	CSRRC,
+	CSRRCI,
 	CSRRS,
+	CSRRSI,
 	CSRRW,
 	CSRRWI,
 	DIV,
@@ -290,7 +293,10 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::BLT => "BLT",
 		Instruction::BLTU => "BLTU",
 		Instruction::BNE => "BNE",
+		Instruction::CSRRC => "CSRRC",
+		Instruction::CSRRCI => "CSRRCI",
 		Instruction::CSRRS => "CSRRS",
+		Instruction::CSRRSI => "CSRRSI",
 		Instruction::CSRRW => "CSRRW",
 		Instruction::CSRRWI => "CSRRWI",
 		Instruction::DIV => "DIV",
@@ -359,7 +365,10 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::BLT |
 		Instruction::BLTU |
 		Instruction::BNE => InstructionFormat::B,
+		Instruction::CSRRC |
+		Instruction::CSRRCI |
 		Instruction::CSRRS |
+		Instruction::CSRRSI |
 		Instruction::CSRRW |
 		Instruction::CSRRWI => InstructionFormat::C,
 		Instruction::ADDI |
@@ -430,7 +439,7 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 
 impl Cpu {
 	pub fn new(terminal: Box<dyn Terminal>) -> Self {
-		Cpu {
+		let mut cpu = Cpu {
 			clock: 0,
 			xlen: Xlen::Bit64,
 			privilege_mode: PrivilegeMode::Machine,
@@ -438,7 +447,9 @@ impl Cpu {
 			pc: 0,
 			csr: [0; CSR_CAPACITY],
 			mmu: Mmu::new(Xlen::Bit64, terminal)
-		}
+		};
+		cpu.csr[CSR_SSTATUS_ADDRESS as usize] = 0x200000000;
+		cpu
 	}
 
 	// Five public methods for setting up from outside
@@ -995,7 +1006,10 @@ impl Cpu {
 				}
 				1 => Instruction::CSRRW,
 				2 => Instruction::CSRRS,
+				3 => Instruction::CSRRC,
 				5 => Instruction::CSRRWI,
+				6 => Instruction::CSRRSI,
+				7 => Instruction::CSRRCI,
 				_ => {
 					println!("CSR funct3: {:03b} is not supported yet", funct3);
 					self.dump_instruction(self.pc.wrapping_sub(4));
@@ -1070,14 +1084,52 @@ impl Cpu {
 				let rd = (word >> 7) & 0x1f; // [11:7];
 				// @TODO: Don't write if csr bits aren't writable
 				match instruction {
-					Instruction::CSRRS => {
+					Instruction::CSRRC => {
+						let data = match self.read_csr(csr) {
+							Ok(data) => data,
+							Err(e) => return Err(e)
+						};
+						let tmp = self.x[rs as usize];
+						self.x[rd as usize] = self.sign_extend(data as i64);
+						self.x[0] = 0; // hard-wired zero
+						match self.write_csr(csr, (self.x[rd as usize] & !tmp) as u64) {
+							Ok(()) => {},
+							Err(e) => return Err(e)
+						};
+					},
+					Instruction::CSRRCI => {
 						let data = match self.read_csr(csr) {
 							Ok(data) => data,
 							Err(e) => return Err(e)
 						};
 						self.x[rd as usize] = self.sign_extend(data as i64);
 						self.x[0] = 0; // hard-wired zero
-						match self.write_csr(csr, self.unsigned_data(self.x[rd as usize] | self.x[rs as usize])) {
+						match self.write_csr(csr, (self.x[rd as usize] as u64) & !(rs as u64)) {
+							Ok(()) => {},
+							Err(e) => return Err(e)
+						};
+					},
+					Instruction::CSRRS => {
+						let data = match self.read_csr(csr) {
+							Ok(data) => data,
+							Err(e) => return Err(e)
+						};
+						let tmp = self.x[rs as usize];
+						self.x[rd as usize] = self.sign_extend(data as i64);
+						self.x[0] = 0; // hard-wired zero
+						match self.write_csr(csr, self.unsigned_data(self.x[rd as usize] | tmp)) {
+							Ok(()) => {},
+							Err(e) => return Err(e)
+						};
+					},
+					Instruction::CSRRSI => {
+						let data = match self.read_csr(csr) {
+							Ok(data) => data,
+							Err(e) => return Err(e)
+						};
+						self.x[rd as usize] = self.sign_extend(data as i64);
+						self.x[0] = 0; // hard-wired zero
+						match self.write_csr(csr, self.unsigned_data((self.x[rd as usize] as u64 | rs as u64) as i64)) {
 							Ok(()) => {},
 							Err(e) => return Err(e)
 						};
