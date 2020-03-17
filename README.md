@@ -17,9 +17,7 @@ riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written 
 
 ## Screenshots
 
-![standalone](./screenshots/standalone.png)
-
-![WASM](./screenshots/wasm.png)
+![animation](./screenshots/animation.gif)
 
 ## Instructions/Features support status
 
