@@ -99,6 +99,7 @@ enum Instruction {
 	ADDI,
 	ADDIW,
 	ADDW,
+	AMOADDW,
 	AMOSWAPW,
 	AND,
 	ANDI,
@@ -283,6 +284,7 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::ADDI => "ADDI",
 		Instruction::ADDIW => "ADDIW",
 		Instruction::ADDW => "ADDW",
+		Instruction::AMOADDW => "AMOADD.W",
 		Instruction::AMOSWAPW => "AMOSWAP.W",
 		Instruction::AND => "AND",
 		Instruction::ANDI => "ANDI",
@@ -396,6 +398,7 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::FENCE => InstructionFormat::O,
 		Instruction::ADD |
 		Instruction::ADDW |
+		Instruction::AMOADDW |
 		Instruction::AMOSWAPW |
 		Instruction::AND |
 		Instruction::DIV |
@@ -1287,6 +1290,7 @@ impl Cpu {
 			0x2f => match funct3 {
 				2 => {
 					match funct7 >> 2 {
+						0 => Instruction::AMOADDW,
 						1 => Instruction::AMOSWAPW,
 						_ => return Err(())
 					}
@@ -1707,6 +1711,17 @@ impl Cpu {
 					},
 					Instruction::ADDW => {
 						self.x[rd as usize] = self.x[rs1 as usize].wrapping_add(self.x[rs2 as usize]) as i32 as i64;
+					},
+					Instruction::AMOADDW => {
+						let tmp = match self.mmu.load_word(self.unsigned_data(self.x[rs1 as usize])) {
+							Ok(data) => data,
+							Err(e) => return Err(e)
+						};
+						match self.mmu.store_word(self.unsigned_data(self.x[rs1 as usize]), self.x[rs2 as usize].wrapping_add(tmp as i64) as u32) {
+							Ok(()) => {},
+							Err(e) => return Err(e)
+						};
+						self.x[rd as usize] = tmp as i32 as i64;
 					},
 					Instruction::AMOSWAPW => {
 						let tmp = match self.mmu.load_word(self.unsigned_data(self.x[rs1 as usize])) {
