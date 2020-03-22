@@ -499,8 +499,27 @@ impl Cpu {
 			Ok(word) => word,
 			Err(e) => return Err(e)
 		};
-		let instruction = self.decode(word);
-		self.operate(word, instruction)
+		let instruction_address = self.pc;
+		// First try to decode as non-compressed instruction
+		match self.decode(word) {
+			Ok(instruction) => {
+				self.pc = self.pc.wrapping_add(4); // 32-bit length instruction
+				self.operate(word, instruction, instruction_address)
+			},
+			Err(()) => {
+				// If fails to decode as non-compressed instruction,
+				// try to decode as compressed instruction
+				// @TODO: Optimize
+				let uncompressed_word = self.uncompress(word & 0xffff);
+				match self.decode(uncompressed_word) {
+					Ok(instruction) => {
+						self.pc = self.pc.wrapping_add(2); // 16-bit length instruction
+						self.operate(uncompressed_word, instruction, instruction_address)
+					},
+					Err(()) => panic!("Unknown instruction PC:{:X} WORD:{:X}", instruction_address, word)
+				}
+			}
+		}
 	}
 
 	fn handle_interrupt(&mut self) {
@@ -674,13 +693,10 @@ impl Cpu {
 		let word = match self.mmu.fetch_word(self.pc) {
 			Ok(word) => word,
 			Err(e) => {
-				self.pc = self.pc.wrapping_add(4);
+				self.pc = self.pc.wrapping_add(4); // @TODO: What if instruction is compressed?
 				return Err(e);
 			}
 		};
-		// @TODO: Should I increment pc after operating an instruction because
-		// some of the instruction operations need the address of the instruction?
-		self.pc = self.pc.wrapping_add(4);
 		Ok(word)
 	}
 
@@ -767,12 +783,462 @@ impl Cpu {
 		}
 	}
 
-	fn decode(&mut self, word: u32) -> Instruction {
+	// @TODO: Optimize
+	fn uncompress(&self, halfword: u32) -> u32 {
+		let op = halfword & 0x3; // [1:0]
+		let funct3 = (halfword >> 13) & 0x7; // [15:13]
+
+		match op {
+			0 => match funct3 {
+				0 => {
+					// C.ADDI4SPN
+					// addi rd+8, x2, nzuimm
+					let rd = (halfword >> 2) & 0x7; // [4:2]
+					let nzuimm =
+						((halfword >> 7) & 0x30) | // nzuimm[5:4] <= [12:11]
+						((halfword >> 1) & 0x3e0) | // nzuimm{9:6] <= [10:7]
+						((halfword >> 4) & 0x4) | // nzuimm[2] <= [6]
+						((halfword >> 2) & 0x8); // nzuimm[3] <= [5]
+					// nzuimm == 0 is reserved instruction
+					if nzuimm != 0 {
+						return (nzuimm << 20) | (2 << 15) | ((rd + 8) << 7) | 0x13;
+					}
+				},
+				1 => {
+					// C.FLD(32, 64-bit) or C.LQ(128-bit)
+					panic!("C.FLD is not implemented yet.");
+				},
+				2 => {
+					// C.LW
+					// lw rd+8, offset(rs1+8)
+					let rs1 = (halfword >> 7) & 0x7; // [9:7]
+					let rd = (halfword >> 2) & 0x7; // [4:2]
+					let offset =
+						((halfword >> 7) & 0x38) | // offset[5:3] <= [12:10]
+						((halfword >> 4) & 0x4) | // offset[2] <= [6]
+						((halfword << 1) & 0x40); // offset[6] <= [5]
+					return (offset << 20) | ((rs1 + 8) << 15) | (2 << 12) | ((rd + 8) << 7) | 0x3;
+				},
+				3 => {
+					// @TODO: Support C.FLW in 32-bit mode
+					// C.LD in 64-bit mode
+					// ld rd+8, offset(rs1+8)
+					let rs1 = (halfword >> 7) & 0x7; // [9:7]
+					let rd = (halfword >> 2) & 0x7; // [4:2]
+					let offset =
+						((halfword >> 7) & 0x38) | // offset[5:3] <= [12:10]
+						((halfword << 1) & 0xc0); // offset[7:6] <= [6:5]
+					return (offset << 20) | ((rs1 + 8) << 15) | (3 << 12) | ((rd + 8) << 7) | 0x3;
+				},
+				4 => {
+					// Reserved
+				},
+				5 => {
+					// C.FSD
+					panic!("C.FSD is not supported yet.");
+				},
+				6 => {
+					// C.SW
+					// sw rs2+8, offset(rs1+8)
+					let rs1 = (halfword >> 7) & 0x7; // [9:7]
+					let rs2 = (halfword >> 2) & 0x7; // [4:2]
+					let offset = 
+						((halfword >> 7) & 0x38) | // offset[5:3] <= [12:10]
+						((halfword << 1) & 0x40) | // offset[6] <= [5]
+						((halfword >> 4) & 0x4); // offset[2] <= [6]
+					let imm11_5 = (offset >> 5) & 0x7f;
+					let imm4_0 = offset & 0x1f;
+					return (imm11_5 << 25) | ((rs2 + 8) << 20) | ((rs1 + 8) << 15) | (2 << 12) | (imm4_0 << 7) | 0x23;
+				},
+				7 => {
+					// @TODO: Support C.FSW in 32-bit mode
+					// C.SD
+					// sd rs2+8, offset(rs1+8)
+					let rs1 = (halfword >> 7) & 0x7; // [9:7]
+					let rs2 = (halfword >> 2) & 0x7; // [4:2]
+					let offset = 
+						((halfword >> 7) & 0x38) | // uimm[5:3] <= [12:10]
+						((halfword << 1) & 0xc0); // uimm[7:6] <= [6:5]
+					let imm11_5 = (offset >> 5) & 0x7f;
+					let imm4_0 = offset & 0x1f;
+					return (imm11_5 << 25) | ((rs2 + 8) << 20) | ((rs1 + 8) << 15) | (3 << 12) | (imm4_0 << 7) | 0x23;
+				},
+				_ => {} // Not happens
+			},
+			1 => {
+				match funct3 {
+					0 => {
+						let r = (halfword >> 7) & 0x1f; // [11:7]
+						let imm = match halfword & 0x1000 {
+							0x1000 => 0xffffffc0,
+							_ => 0
+						} | // imm[31:6] <= [12]
+						((halfword >> 7) & 0x20) | // imm[5] <= [12]
+						((halfword >> 2) & 0x1f); // imm[4:0] <= [6:2]
+						if r == 0 && imm == 0 {
+							// C.NOP
+							// addi x0, x0, 0
+							return 0x13;
+						} else if r != 0 {
+							// C.ADDI
+							// addi r, r, imm
+							return (imm << 20) | (r << 15) | (r << 7) | 0x13;
+						}
+						// @TODO: Support HINTs
+						// r == 0 and imm != 0 is HINTs
+					},
+					1 => {
+						// @TODO: Support C.JAL in 32-bit mode
+						// C.ADDIW
+						// addiw r, r, imm
+						let r = (halfword >> 7) & 0x1f;
+						let imm = match halfword & 0x1000 {
+							0x1000 => 0xffffffc0,
+							_ => 0
+						} | // imm[31:6] <= [12]
+						((halfword >> 7) & 0x20) | // imm[5] <= [12]
+						((halfword >> 2) & 0x1f); // imm[4:0] <= [6:2]
+						if r != 0 {
+							return (imm << 20) | (r << 15) | (r << 7) | 0x1b;
+						}
+						// r == 0 is reserved instruction
+					},
+					2 => {
+						// C.LI
+						// addi rd, x0, imm
+						let r = (halfword >> 7) & 0x1f;
+						let imm = match halfword & 0x1000 {
+							0x1000 => 0xffffffc0,
+							_ => 0
+						} | // imm[31:6] <= [12]
+						((halfword >> 7) & 0x20) | // imm[5] <= [12]
+						((halfword >> 2) & 0x1f); // imm[4:0] <= [6:2]
+						if r != 0 {
+							return (imm << 20) | (r << 7) | 0x13;
+						}
+						// @TODO: Support HINTs
+						// r == 0 is for HINTs
+					},
+					3 => {
+						let r = (halfword >> 7) & 0x1f; // [11:7]
+						if r == 2 {
+							// C.ADDI16SP
+							// addi r, r, nzimm
+							let imm = match halfword & 0x1000 {
+								0x1000 => 0xfffffc00,
+								_ => 0
+							} | // imm[31:10] <= [12]
+							((halfword >> 3) & 0x200) | // imm[9] <= [12]
+							((halfword >> 2) & 0x10) | // imm[4] <= [6]
+							((halfword << 1) & 0x40) | // imm[6] <= [5]
+							((halfword << 4) & 0x180) | // imm[8:7] <= [4:3]
+							((halfword << 3) & 0x20); // imm[5] <= [2]
+							if imm != 0 {
+								return (imm << 20) | (r << 15) | (r << 7) | 0x13;
+							}
+							// imm == 0 is for reserved instruction
+						}
+						if r != 0 && r != 2 {
+							// C.LUI
+							// lui r, nzimm
+							let nzimm = match halfword & 0x1000 {
+								0x1000 => 0xfffc0000,
+								_ => 0
+							} | // nzimm[31:18] <= [12]
+							((halfword << 5) & 0x20000) | // nzimm[17] <= [12]
+							((halfword << 10) & 0x1f000); // nzimm[16:12] <= [6:2]
+							if nzimm != 0 {
+								return nzimm | (r << 7) | 0x37;
+							}
+							// nzimm == 0 is for reserved instruction
+						}
+					},
+					4 => {
+						let funct2 = (halfword >> 10) & 0x3; // [11:10]
+						match funct2 {
+							0 => {
+								// C.SRLI
+								// c.srli rs1+8, rs1+8, shamt
+								let shamt = 
+									((halfword >> 7) & 0x20) | // shamt[5] <= [12]
+									((halfword >> 2) & 0x1f); // shamt[4:0] <= [6:2]
+								let rs1 = (halfword >> 7) & 0x7; // [9:7]
+								return (shamt << 20) | ((rs1 + 8) << 15) | (5 << 12) | ((rs1 + 8) << 7) | 0x13;
+							},
+							1 => {
+								// C.SRAI
+								// srai rs1+8, rs1+8, shamt
+								let shamt = 
+									((halfword >> 7) & 0x20) | // shamt[5] <= [12]
+									((halfword >> 2) & 0x1f); // shamt[4:0] <= [6:2]
+								let rs1 = (halfword >> 7) & 0x7; // [9:7]
+								return (0x20 << 25) | (shamt << 20) | ((rs1 + 8) << 15) | (5 << 12) | ((rs1 + 8) << 7) | 0x13;
+							},
+							2 => {
+								// C.ANDI
+								// andi, r+8, r+8, imm
+								let r = (halfword >> 7) & 0x7; // [9:7]
+								let imm = match halfword & 0x1000 {
+									0x1000 => 0xffffffc0,
+									_ => 0
+								} | // imm[31:6] <= [12]
+								((halfword >> 7) & 0x20) | // imm[5] <= [12]
+								((halfword >> 2) & 0x1f); // imm[4:0] <= [6:2]
+								return (imm << 20) | ((r + 8) << 15) | (7 << 12) | ((r + 8) << 7) | 0x13;
+							},
+							3 => {
+								let funct1 = (halfword >> 12) & 1; // [12]
+								let funct2_2 = (halfword >> 5) & 0x3; // [6:5]
+								let rs1 = (halfword >> 7) & 0x7;
+								let rs2 = (halfword >> 2) & 0x7;
+								match funct1 {
+									0 => match funct2_2 {
+										0 => {
+											// C.SUB
+											// sub rs1+8, rs1+8, rs2+8
+											return (0x20 << 25) | ((rs2 + 8) << 20) | ((rs1 + 8) << 15) | ((rs1 + 8) << 7) | 0x33;
+										},
+										1 => {
+											// C.XOR
+											// xor rs1+8, rs1+8, rs2+8
+											return ((rs2 + 8) << 20) | ((rs1 + 8) << 15) | (4 << 12) | ((rs1 + 8) << 7) | 0x33;
+										},
+										2 => {
+											// C.OR
+											// or rs1+8, rs1+8, rs2+8
+											return ((rs2 + 8) << 20) | ((rs1 + 8) << 15) | (6 << 12) | ((rs1 + 8) << 7) | 0x33;
+										},
+										3 => {
+											// C.AND
+											// and rs1+8, rs1+8, rs2+8
+											return ((rs2 + 8) << 20) | ((rs1 + 8) << 15) | (7 << 12) | ((rs1 + 8) << 7) | 0x33;
+										},
+										_ => {} // Not happens
+									},
+									1 => match funct2_2 {
+										0 => {
+											// C.SUBW
+											// subw r1+8, r1+8, r2+8
+											return (0x20 << 25) | ((rs2 + 8) << 20) | ((rs1 + 8) << 15) | ((rs1 + 8) << 7) | 0x3b;
+										},
+										1 => {
+											// C.ADDW
+											// addw r1+8, r1+8, r2+8
+											return ((rs2 + 8) << 20) | ((rs1 + 8) << 15) | ((rs1 + 8) << 7) | 0x3b;
+										},
+										2 => {
+											// Reserved
+										},
+										3 => {
+											// Reserved
+										},
+										_ => {} // Not happens
+									},
+									_ => {} // No happens
+								};
+							},
+							_ => {} // not happens
+						};
+					},
+					5 => {
+						// C.J
+						// jal x0, imm
+						let offset =
+							match halfword & 0x1000 {
+								0x1000 => 0xfffff000,
+								_ => 0
+							} | // offset[31:12] <= [12]
+							((halfword >> 1) & 0x800) | // offset[11] <= [12]
+							((halfword >> 7) & 0x10) | // offset[4] <= [11]
+							((halfword >> 1) & 0x300) | // offset[9:8] <= [10:9]
+							((halfword << 2) & 0x400) | // offset[10] <= [8]
+							((halfword >> 1) & 0x40) | // offset[6] <= [7]
+							((halfword << 1) & 0x80) | // offset[7] <= [6]
+							((halfword >> 2) & 0xe) | // offset[3:1] <= [5:3]
+							((halfword << 3) & 0x20); // offset[5] <= [2]
+						let imm =
+							((offset >> 1) & 0x80000) | // imm[19] <= offset[20]
+							((offset << 8) & 0x7fe00) | // imm[18:9] <= offset[10:1]
+							((offset >> 3) & 0x100) | // imm[8] <= offset[11]
+							((offset >> 12) & 0xff); // imm[7:0] <= offset[19:12]
+						return (imm << 12) | 0x6f;
+					},
+					6 => {
+						// C.BEQZ
+						// beq r+8, x0, offset
+						let r = (halfword >> 7) & 0x7;
+						let offset =
+							match halfword & 0x1000 {
+								0x1000 => 0xfffffe00,
+								_ => 0
+							} | // offset[31:9] <= [12]
+							((halfword >> 4) & 0x100) | // offset[8] <= [12]
+							((halfword >> 7) & 0x18) | // offset[4:3] <= [11:10]
+							((halfword << 1) & 0xc0) | // offset[7:6] <= [6:5]
+							((halfword >> 2) & 0x6) | // offset[2:1] <= [4:3]
+							((halfword << 3) & 0x20); // offset[5] <= [2]
+						let imm2 =
+							((offset >> 6) & 0x40) | // imm2[6] <= [12]
+							((offset >> 5) & 0x3f); // imm2[5:0] <= [10:5]
+						let imm1 =
+							(offset & 0x1e) | // imm1[4:1] <= [4:1]
+							((offset >> 11) & 0x1); // imm1[0] <= [11]
+						return (imm2 << 25) | ((r + 8) << 20) | (imm1 << 7) | 0x63;
+					},
+					7 => {
+						// C.BNEZ
+						// bne r+8, x0, offset
+						let r = (halfword >> 7) & 0x7;
+						let offset =
+							match halfword & 0x1000 {
+								0x1000 => 0xfffffe00,
+								_ => 0
+							} | // offset[31:9] <= [12]
+							((halfword >> 4) & 0x100) | // offset[8] <= [12]
+							((halfword >> 7) & 0x18) | // offset[4:3] <= [11:10]
+							((halfword << 1) & 0xc0) | // offset[7:6] <= [6:5]
+							((halfword >> 2) & 0x6) | // offset[2:1] <= [4:3]
+							((halfword << 3) & 0x20); // offset[5] <= [2]
+						let imm2 =
+							((offset >> 6) & 0x40) | // imm2[6] <= [12]
+							((offset >> 5) & 0x3f); // imm2[5:0] <= [10:5]
+						let imm1 =
+							(offset & 0x1e) | // imm1[4:1] <= [4:1]
+							((offset >> 11) & 0x1); // imm1[0] <= [11]
+						return (imm2 << 25) | ((r + 8) << 20) | (1 << 12) | (imm1 << 7) | 0x63;
+					},
+					_ => {} // No happens
+				};
+			},
+			2 => {
+				match funct3 {
+					0 => {
+						// C.SLLI
+						// slli r, r, shamt
+						let r = (halfword >> 7) & 0x1f;
+						let shamt =
+							((halfword >> 7) & 0x20) | // imm[5] <= [12]
+							((halfword >> 2) & 0x1f); // imm[4:0] <= [6:2]
+						if r != 0 {
+							return (shamt << 20) | (r << 15) | (1 << 12) | (r << 7) | 0x13;
+						}
+						// r == 0 is reserved instruction?
+					},
+					1 => {
+						// C.FLDSP
+						panic!("C.FLDSP is not implemented yet.");
+					},
+					2 => {
+						// C.LWSP
+						// lw r, offset(x2)
+						let r = (halfword >> 7) & 0x1f;
+						let offset =
+							((halfword >> 7) & 0x20) | // offset[5] <= [12]
+							((halfword >> 2) & 0x1c) | // offset[4:2] <= [6:4]
+							((halfword << 4) & 0xc0); // offset[7:6] <= [3:2]
+						if r != 0 {
+							return (offset << 20) | (2 << 15) | (2 << 12) | (r << 7) | 0x3;
+						}
+						// r == 0 is reseved instruction
+					},
+					3 => {
+						// @TODO: Support C.FLWSP in 32-bit mode
+						// C.LDSP
+						// ld rd, offset(x2)
+						let rd = (halfword >> 7) & 0x1f;
+						let offset =
+							((halfword >> 7) & 0x20) | // offset[5] <= [12]
+							((halfword >> 2) & 0x18) | // offset[4:3] <= [6:5]
+							((halfword << 4) & 0x1c0); // offset[8:6] <= [4:2]
+						if rd != 0 {
+							return (offset << 20) | (2 << 15) | (3 << 12) | (rd << 7) | 0x3;
+						}
+						// rd == 0 is reseved instruction
+					},
+					4 => {
+						let funct1 = (halfword >> 12) & 1; // [12]
+						let rs1 = (halfword >> 7) & 0x1f; // [11:7]
+						let rs2 = (halfword >> 2) & 0x1f; // [6:2]
+						match funct1 {
+							0 => {
+								if rs1 != 0 && rs2 == 0 {
+									// C.JR
+									// jalr x0, 0(rs1)
+									return (rs1 << 15) | 0x67;
+								}
+								// rs1 == 0 is reserved instruction
+								if rs1 != 0 && rs2 != 0 {
+									// C.MV
+									// add rs1, x0, rs2
+									return (rs2 << 20) | (rs1 << 7) | 0x33;
+								}
+								// rs1 == 0 && rs2 != 0 is Hints
+								// @TODO: Support Hints
+							},
+							1 => {
+								if rs1 == 0 && rs2 == 0 {
+									// C.EBREAK
+									panic!("C.EBREAK is not supported yet.");
+								}
+								if rs1 != 0 && rs2 == 0 {
+									// C.JALR
+									// jalr x1, 0(rs1)
+									return (rs1 << 15) | (1 << 7) | 0x67;
+								}
+								if rs1 != 0 && rs2 != 0 {
+									// C.ADD
+									// add rs1, rs1, rs2
+									return (rs2 << 20) | (rs1 << 15) | (rs1 << 7) | 0x33;
+								}
+								// rs1 == 0 && rs2 != 0 is Hists
+								// @TODO: Supports Hinsts
+							},
+							_ => {} // Not happens
+						};
+					},
+					5 => {
+						// @TODO: Implement
+						// C.FSDSP
+						panic!("C.FSDSP is not implemented yet.");
+					},
+					6 => {
+						// C.SWSP
+						// sw rs2, offset(x2)
+						let rs2 = (halfword >> 2) & 0x1f; // [6:2]
+						let offset =
+							((halfword >> 7) & 0x3c) | // offset[5:2] <= [12:9]
+							((halfword >> 1) & 0xc0); // offset[7:6] <= [8:7]
+						let imm11_5 = (offset >> 5) & 0x3f;
+						let imm4_0 = offset & 0x1f;
+						return (imm11_5 << 25) | (rs2 << 20) | (2 << 15) | (2 << 12) | (imm4_0 << 7) | 0x23;
+					},
+					7 => {
+						// @TODO: Support C.FSWSP in 32-bit mode
+						// C.SDSP
+						// sd rs, offset(x2)
+						let rs2 = (halfword >> 2) & 0x1f; // [6:2]
+						let offset =
+							((halfword >> 7) & 0x38) | // offset[5:3] <= [12:10]
+							((halfword >> 1) & 0x1c0); // offset[8:6] <= [9:7]
+						let imm11_5 = (offset >> 5) & 0x3f;
+						let imm4_0 = offset & 0x1f;
+						return (imm11_5 << 25) | (rs2 << 20) | (2 << 15) | (3 << 12) | (imm4_0 << 7) | 0x23;
+					},
+					_ => {} // Not happens
+				};
+			},
+			_ => {} // No happnes
+		};
+		0xffffffff // Return invalid value
+	}
+
+	// @TODO: Optimize
+	fn decode(&mut self, word: u32) -> Result<Instruction, ()> {
 		let opcode = word & 0x7f; // [6:0]
 		let funct3 = (word >> 12) & 0x7; // [14:12]
 		let funct7 = (word >> 25) & 0x7f; // [31:25]
 
-		match opcode {
+		let instruction = match opcode {
 			0x03 => match funct3 {
 				0 => Instruction::LB,
 				1 => Instruction::LH,
@@ -781,11 +1247,7 @@ impl Cpu {
 				4 => Instruction::LBU,
 				5 => Instruction::LHU,
 				6 => Instruction::LWU,
-				_ => {
-					println!("Unknown funct3: {:03b}", funct3);
-					self.dump_instruction(self.pc.wrapping_sub(4));
-					panic!();
-				}
+				_ => return Err(())
 			},
 			0x0f => Instruction::FENCE,
 			0x13 => match funct3 {
@@ -798,19 +1260,11 @@ impl Cpu {
 					0 => Instruction::SRLI,
 					1 => Instruction::SRLI, // temporal workaround for xv6
 					0x20 => Instruction::SRAI,
-					_ => {
-						println!("Unknown funct7: {:07b}", funct7);
-						self.dump_instruction(self.pc.wrapping_sub(4));
-						panic!();
-					}
+					_ => return Err(())
 				}
 				6 => Instruction::ORI,
 				7 => Instruction::ANDI,
-				_ => {
-					println!("Unknown funct3: {:03b}", funct3);
-					self.dump_instruction(self.pc.wrapping_sub(4));
-					panic!();
-				}
+				_ => return Err(())
 			},
 			0x17 => Instruction::AUIPC,
 			0x1b => match funct3 {
@@ -819,126 +1273,70 @@ impl Cpu {
 				5 => match funct7 {
 					0 => Instruction::SRLIW,
 					0x20 => Instruction::SRAIW,
-					_ => {
-						println!("Unknown funct7: {:07b}", funct7);
-						self.dump_instruction(self.pc.wrapping_sub(4));
-						panic!();
-					}
+					_ => return Err(())
 				},
-				_ => {
-					println!("Unknown funct3: {:03b}", funct3);
-					self.dump_instruction(self.pc.wrapping_sub(4));
-					panic!();
-				}
+				_ => return Err(())
 			},
 			0x23 => match funct3 {
 				0 => Instruction::SB,
 				1 => Instruction::SH,
 				2 => Instruction::SW,
 				3 => Instruction::SD,
-				_ => {
-					println!("Unknown funct3: {:03b}", funct3);
-					self.dump_instruction(self.pc.wrapping_sub(4));
-					panic!();
-				}
+				_ => return Err(())
 			},
 			0x2f => match funct3 {
 				2 => {
 					match funct7 >> 2 {
 						1 => Instruction::AMOSWAPW,
-						_ => {
-							println!("Unknown funct7: {:07b}", funct7);
-							self.dump_instruction(self.pc.wrapping_sub(4));
-							panic!();
-						}
+						_ => return Err(())
 					}
 				},
-				_ => {
-					println!("Unknown funct3: {:03b}", funct3);
-					self.dump_instruction(self.pc.wrapping_sub(4));
-					panic!();
-				}
+				_ => return Err(())
 			}
 			0x33 => match funct3 {
 				0 => match funct7 {
 					0 => Instruction::ADD,
 					1 => Instruction::MUL,
 					0x20 => Instruction::SUB,
-					_ => {
-						println!("Unknown funct7: {:07b}", funct7);
-						self.dump_instruction(self.pc.wrapping_sub(4));
-						panic!();
-					}
+					_ => return Err(())
 				},
 				1 => match funct7 {
 					0 => Instruction::SLL,
 					1 => Instruction::MULH,
-					_ => {
-						println!("Unknown funct7: {:07b}", funct7);
-						self.dump_instruction(self.pc.wrapping_sub(4));
-						panic!();
-					}
+					_ => return Err(())
 				},
 				2 => match funct7 {
 					0 => Instruction::SLT,
 					1 => Instruction::MULHSU,
-					_ => {
-						println!("Unknown funct7: {:07b}", funct7);
-						self.dump_instruction(self.pc.wrapping_sub(4));
-						panic!();
-					}
+					_ => return Err(())
 				},
 				3 => match funct7 {
 					0 => Instruction::SLTU,
 					1 => Instruction::MULHU,
-					_ => {
-						println!("Unknown funct7: {:07b}", funct7);
-						self.dump_instruction(self.pc.wrapping_sub(4));
-						panic!();
-					}
+					_ => return Err(())
 				},
 				4 => match funct7 {
 					0 => Instruction::XOR,
 					1 => Instruction::DIV,
-					_ => {
-						println!("Unknown funct7: {:07b}", funct7);
-						self.dump_instruction(self.pc.wrapping_sub(4));
-						panic!();
-					}
+					_ => return Err(())
 				},
 				5 => match funct7 {
 					0 => Instruction::SRL,
 					1 => Instruction::DIVU,
 					0x20 => Instruction::SRA,
-					_ => {
-						println!("Unknown funct7: {:07b}", funct7);
-						self.dump_instruction(self.pc.wrapping_sub(4));
-						panic!();
-					}
+					_ => return Err(())
 				},
 				6 => match funct7 {
 					0 => Instruction::OR,
 					1 => Instruction::REM,
-					_ => {
-						println!("Unknown funct7: {:07b}", funct7);
-						self.dump_instruction(self.pc.wrapping_sub(4));
-						panic!();
-					}
+					_ => return Err(())
 				},
 				7 => match funct7 {
 					0 => Instruction::AND,
 					1 => Instruction::REMU,
-					_ => {
-						println!("Unknown funct7: {:07b}", funct7);
-						self.dump_instruction(self.pc.wrapping_sub(4));
-						panic!();
-					}
+					_ => return Err(())
 				},
-				_ => {
-					println!("Unknown funct3: {:03b}", funct3);
-					self.dump_instruction(self.pc.wrapping_sub(4));
-					panic!();
-				}
+				_ => return Err(())
 			},
 			0x37 => Instruction::LUI,
 			0x3b => match funct3 {
@@ -946,11 +1344,7 @@ impl Cpu {
 					0 => Instruction::ADDW,
 					1 => Instruction::MULW,
 					0x20 => Instruction::SUBW,
-					_ => {
-						println!("Unknown funct7: {:07b}", funct7);
-						self.dump_instruction(self.pc.wrapping_sub(4));
-						panic!();
-					}
+					_ => return Err(())
 				},
 				1 => Instruction::SLLW,
 				4 => Instruction::DIVW,
@@ -958,19 +1352,11 @@ impl Cpu {
 					0 => Instruction::SRLW,
 					1 => Instruction::DIVUW,
 					0x20 => Instruction::SRAW,
-					_ => {
-						println!("Unknown funct7: {:07b}", funct7);
-						self.dump_instruction(self.pc.wrapping_sub(4));
-						panic!();
-					}
+					_ => return Err(())
 				},
 				6 => Instruction::REMW,
 				7 => Instruction::REMUW,
-				_ => {
-					println!("funct3: {:03b} is not supported yet", funct3);
-					self.dump_instruction(self.pc.wrapping_sub(4));
-					panic!();
-				}
+				_ => return Err(())
 			},
 			0x63 => match funct3 {
 				0 => Instruction::BEQ,
@@ -979,11 +1365,7 @@ impl Cpu {
 				5 => Instruction::BGE,
 				6 => Instruction::BLTU,
 				7 => Instruction::BGEU,
-				_ => {
-					println!("Branch funct3: {:03b} is not supported yet", funct3);
-					self.dump_instruction(self.pc.wrapping_sub(4));
-					panic!();
-				}
+				_ => return Err(())
 			},
 			0x67 => Instruction::JALR,
 			0x6f => Instruction::JAL,
@@ -996,11 +1378,7 @@ impl Cpu {
 							0x00200073 => Instruction::URET,
 							0x10200073 => Instruction::SRET,
 							0x30200073 => Instruction::MRET,
-							_ => {
-								println!("Priviledged instruction 0x{:08x} is not supported yet", word);
-								self.dump_instruction(self.pc.wrapping_sub(4));
-								panic!();
-							}
+							_ => return Err(())
 						}
 					}
 				}
@@ -1010,21 +1388,14 @@ impl Cpu {
 				5 => Instruction::CSRRWI,
 				6 => Instruction::CSRRSI,
 				7 => Instruction::CSRRCI,
-				_ => {
-					println!("CSR funct3: {:03b} is not supported yet", funct3);
-					self.dump_instruction(self.pc.wrapping_sub(4));
-					panic!();
-				}
+				_ => return Err(())
 			},
-			_ => {
-				println!("Unknown Instruction type.");
-				self.dump_instruction(self.pc.wrapping_sub(4));
-				panic!();
-			}
-		}
+			_ => return Err(())
+		};
+		Ok(instruction)
 	}
 
-	fn operate(&mut self, word: u32, instruction: Instruction) -> Result<(), Trap> {
+	fn operate(&mut self, word: u32, instruction: Instruction, instruction_address: u64) -> Result<(), Trap> {
 		let instruction_format = get_instruction_format(&instruction);
 		match instruction_format {
 			InstructionFormat::B => {
@@ -1043,37 +1414,37 @@ impl Cpu {
 				match instruction {
 					Instruction::BEQ => {
 						if self.sign_extend(self.x[rs1 as usize]) == self.sign_extend(self.x[rs2 as usize]) {
-							self.pc = self.pc.wrapping_sub(4).wrapping_add(imm);
+							self.pc = instruction_address.wrapping_add(imm);
 						}
 					},
 					Instruction::BGE => {
 						if self.sign_extend(self.x[rs1 as usize]) >= self.sign_extend(self.x[rs2 as usize]) {
-							self.pc = self.pc.wrapping_sub(4).wrapping_add(imm);
+							self.pc = instruction_address.wrapping_add(imm);
 						}
 					},
 					Instruction::BGEU => {
 						if self.unsigned_data(self.x[rs1 as usize]) >= self.unsigned_data(self.x[rs2 as usize]) {
-							self.pc = self.pc.wrapping_sub(4).wrapping_add(imm);
+							self.pc = instruction_address.wrapping_add(imm);
 						}
 					},
 					Instruction::BLT => {
 						if self.sign_extend(self.x[rs1 as usize]) < self.sign_extend(self.x[rs2 as usize]) {
-							self.pc = self.pc.wrapping_sub(4).wrapping_add(imm);
+							self.pc = instruction_address.wrapping_add(imm);
 						}
 					},
 					Instruction::BLTU => {
 						if self.unsigned_data(self.x[rs1 as usize]) < self.unsigned_data(self.x[rs2 as usize]) {
-							self.pc = self.pc.wrapping_sub(4).wrapping_add(imm);
+							self.pc = instruction_address.wrapping_add(imm);
 						}
 					},
 					Instruction::BNE => {
 						if self.sign_extend(self.x[rs1 as usize]) != self.sign_extend(self.x[rs2 as usize]) {
-							self.pc = self.pc.wrapping_sub(4).wrapping_add(imm);
+							self.pc = instruction_address.wrapping_add(imm);
 						}
 					},
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(self.pc.wrapping_sub(4));
+						self.dump_instruction(instruction_address);
 						panic!();
 					}
 				};
@@ -1161,7 +1532,7 @@ impl Cpu {
 					},
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(self.pc.wrapping_sub(4));
+						self.dump_instruction(instruction_address);
 						panic!();
 					}
 				};
@@ -1286,7 +1657,7 @@ impl Cpu {
 					},
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(self.pc.wrapping_sub(4));
+						self.dump_instruction(instruction_address);
 						panic!();
 					}
 				};
@@ -1305,11 +1676,11 @@ impl Cpu {
 				match instruction {
 					Instruction::JAL => {
 						self.x[rd as usize] = self.sign_extend(self.pc as i64);
-						self.pc = self.pc.wrapping_sub(4).wrapping_add(imm);
+						self.pc = instruction_address.wrapping_add(imm);
 					},
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(self.pc.wrapping_sub(4));
+						self.dump_instruction(instruction_address);
 						panic!();
 					}
 				};
@@ -1321,7 +1692,7 @@ impl Cpu {
 					},
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(self.pc.wrapping_sub(4));
+						self.dump_instruction(instruction_address);
 						panic!();
 					}
 				};
@@ -1382,7 +1753,7 @@ impl Cpu {
 							PrivilegeMode::Machine => CSR_MEPC_ADDRESS,
 							PrivilegeMode::Reserved => panic!()
 						};
-						self.csr[csr_epc_address as usize] = self.pc.wrapping_sub(4);
+						self.csr[csr_epc_address as usize] = instruction_address;
 						let exception_type = match self.privilege_mode {
 							PrivilegeMode::User => TrapType::EnvironmentCallFromUMode,
 							PrivilegeMode::Supervisor => TrapType::EnvironmentCallFromSMode,
@@ -1391,7 +1762,7 @@ impl Cpu {
 						};
 						return Err(Trap {
 							trap_type: exception_type,
-							value: self.pc.wrapping_sub(4)
+							value: instruction_address
 						});
 					},
 					Instruction::MRET |
@@ -1551,7 +1922,7 @@ impl Cpu {
 					},
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(self.pc.wrapping_sub(4));
+						self.dump_instruction(instruction_address);
 						panic!();
 					}
 				};
@@ -1594,7 +1965,7 @@ impl Cpu {
 					},
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(self.pc.wrapping_sub(4));
+						self.dump_instruction(instruction_address);
 						panic!();
 					}
 				};
@@ -1610,14 +1981,14 @@ impl Cpu {
 				) as u64;
 				match instruction {
 					Instruction::AUIPC => {
-						self.x[rd as usize] = self.sign_extend(self.pc.wrapping_sub(4).wrapping_add(imm) as i64);
+						self.x[rd as usize] = self.sign_extend(instruction_address.wrapping_add(imm) as i64);
 					},
 					Instruction::LUI => {
 						self.x[rd as usize] = imm as i64;
 					}
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(self.pc.wrapping_sub(4));
+						self.dump_instruction(instruction_address);
 						panic!();
 					}
 				};
@@ -1644,7 +2015,7 @@ impl Cpu {
 		// for example updating page table entry or update peripheral hardware registers
 		// by accessing them. How can we avoid it?
 		let v_address = self.pc;
-		let word = match self.mmu.fetch_word(v_address) {
+		let mut word = match self.mmu.fetch_word(v_address) {
 			Ok(data) => data,
 			Err(_e) => {
 				let s = format!("PC:{:016x}, InstructionPageFault Trap!\n", v_address);
@@ -1652,8 +2023,21 @@ impl Cpu {
 				return;
 			}
 		};
-		let instruction = self.decode(word);
-		let s = format!("PC:{:016x}, Word:{:016x}, Inst:{}\n",
+		let instruction = match self.decode(word) {
+			Ok(instruction) => instruction,
+			Err(()) => match self.decode(self.uncompress(word & 0xffff)) {
+				Ok(instruction) => {
+					word = word & 0xffff;
+					instruction
+				},
+				Err(()) => {
+					println!("Unknown instruction PC:{:x} WORD:{:x}", self.pc, word);
+					self.dump_instruction(self.pc);
+					panic!();
+				}
+			}
+		};
+		let s = format!("PC:{:016x}, Word:{:08x}, Inst:{}\n",
 			self.unsigned_data(v_address as i64),
 			word, get_instruction_name(&instruction));
 		self.put_bytes_to_terminal(s.as_bytes());
