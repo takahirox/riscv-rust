@@ -47,6 +47,7 @@ fn main () -> std::io::Result<()> {
 	let mut opts = Options::new();
 	opts.optopt("x", "xlen", "Set bit mode. Default is auto detect from elf file", "32|64");
 	opts.optopt("f", "fs", "File system image file", "xv6/fs.img");
+	opts.optopt("d", "dtb", "Device tree file", "linux/dtb");
 	opts.optflag("n", "no_terminal", "No popup terminal");
 	opts.optflag("h", "help", "Show this help menu");
 
@@ -72,6 +73,16 @@ fn main () -> std::io::Result<()> {
 	}
 
 	let fs_contents = match matches.opt_str("f") {
+		Some(path) => {
+			let mut file = File::open(path)?;
+			let mut contents = vec![];
+			file.read_to_end(&mut contents)?;
+			contents
+		}
+		None => vec![]
+	};
+
+	let dtb_contents = match matches.opt_str("d") {
 		Some(path) => {
 			let mut file = File::open(path)?;
 			let mut contents = vec![];
@@ -117,6 +128,7 @@ fn main () -> std::io::Result<()> {
 	};
 
 	application.setup_filesystem(fs_contents);
+	application.setup_dtb(dtb_contents);
 	application.run();
 	Ok(())
 }
