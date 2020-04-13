@@ -34,6 +34,7 @@ riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written 
 - [x] SV32/39
 - [ ] SV48
 - [x] Privileged instructions (partially)
+- [ ] PMP
 
 etc...
 
