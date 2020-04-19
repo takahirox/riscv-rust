@@ -9,7 +9,7 @@ riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written 
 ## Features
 
 - Emulate RISC-V processor and peripheral devices
-- Stable as [Linux]([Linux RISC-V port](https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html)) and [xv6-riscv](https://github.com/mit-pdos/xv6-riscv) run on it
+- Stable as [Linux](https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html) and [xv6-riscv](https://github.com/mit-pdos/xv6-riscv) run on it
 - Runnable locally
 - Also runnable on browser with WebAssembly
 
