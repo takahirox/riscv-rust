@@ -4,14 +4,12 @@ riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written 
 
 ## Demo
 
-[Online demo with xv6-riscv](https://takahirox.github.io/riscv-rust/index.html)
-
-[xv6-riscv](https://github.com/mit-pdos/xv6-riscv) is the RISC-V port of [xv6](https://pdos.csail.mit.edu/6.828/2019/xv6.html) which is UNIX V6 rewritten by MIT for x86 in the current C language.
+[Online demo with Linux and xv6-riscv](https://takahirox.github.io/riscv-rust/index.html)
 
 ## Features
 
 - Emulate RISC-V processor and peripheral devices
-- Stable as [xv6-riscv](https://github.com/mit-pdos/xv6-riscv) runs on it
+- Stable as [Linux]([Linux RISC-V port](https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html)) and [xv6-riscv](https://github.com/mit-pdos/xv6-riscv) run on it
 - Runnable locally
 - Also runnable on browser with WebAssembly
 
@@ -23,8 +21,8 @@ riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written 
 
 - [x] RV32/64I
 - [x] RV32/64M
-- [ ] RV32/64F
-- [ ] RV32/64D
+- [x] RV32/64F (partially)
+- [x] RV32/64D (partially)
 - [ ] RV32/64Q
 - [x] RV32/64A (partially)
 - [x] RV64C/32C (partially)
@@ -38,13 +36,16 @@ riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written 
 
 etc...
 
-## How to build riscv-rust and run xv6
+## How to build riscv-rust and run Linux or xv6
 
 ### Standalone
 
 ```sh
 $ git clone https://github.com/takahirox/riscv-rust.git
 $ cd riscv-rust
+# Run Linux
+$ cargo run --release linux/bbl -f linux/busybear.bin -d linux/dtb.dtb
+# Run xv6
 $ cargo run --release xv6/kernel -f xv6/fs.img
 ```
 
@@ -72,3 +73,13 @@ $ git clone https://github.com/takahirox/riscv-rust.git
 $ cd riscv-rust
 $ cargo run $path_to_riscv_tets/isa/rv32ui-p-add -n
 ```
+
+## Links
+
+### Linux RISC-V port
+
+[Linux RISC-V port](https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html)
+
+### xv6-riscv
+
+[xv6-riscv](https://github.com/mit-pdos/xv6-riscv) is the RISC-V port of [xv6](https://pdos.csail.mit.edu/6.828/2019/xv6.html) which is UNIX V6 rewritten by MIT for x86 in the current C language.
