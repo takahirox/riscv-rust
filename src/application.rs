@@ -449,6 +449,10 @@ impl Application {
 		self.cpu.setup_filesystem(data);
 	}
 
+	pub fn setup_dtb(&mut self, data: Vec<u8>) {
+		self.cpu.setup_dtb(data);
+	}
+
 	pub fn update_xlen(&mut self, xlen: Xlen) {
 		self.cpu.update_xlen(xlen);
 	}

@@ -5,7 +5,8 @@ use std::str;
 use self::pancurses::*;
 
 pub struct PopupTerminal {
-	window: Window
+	window: Window,
+	in_escape_sequence: bool
 }
 
 impl PopupTerminal {
@@ -17,13 +18,25 @@ impl PopupTerminal {
 		noecho();
 		curs_set(0);
 		PopupTerminal {
-			window: window
+			window: window,
+			in_escape_sequence: false
 		}
 	}
 }
 	
 impl Terminal for PopupTerminal {
 	fn put_byte(&mut self, value: u8) {
+		if !self.in_escape_sequence {
+			if value == 0x1b {
+				self.in_escape_sequence = true;
+			}
+		}
+		if self.in_escape_sequence {
+			if value == 0x6d {
+				self.in_escape_sequence = false;
+			}
+			return;
+		}
 		let str = vec![value];
 		self.window.printw(str::from_utf8(&str).unwrap());
 		self.window.refresh();

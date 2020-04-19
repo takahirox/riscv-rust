@@ -31,25 +31,40 @@
 
         const selectElement = document.getElementById('file-select');
         const selectedOption = selectElement.selectedOptions[0];
-		const filename = selectedOption.value;
-		const isXv6 = filename === 'xv6/kernel';
+        const filename = selectedOption.value;
+        const isLinux = filename === 'linux/bbl';
+        const isXv6 = filename === 'xv6/kernel';
+
+        if (isLinux) {
+          terminal.value += 'login name: root\n';
+          terminal.value += 'Password: busybear\n';
+          terminal.value += 'It takes time to boot. Thank you for your patience.\n\n';
+        }
 
         const elfResponse = await fetch(filename);
         const elfBuffer = await elfResponse.arrayBuffer();
 
         let fsBuffer;
+        let dtbBuffer;
 
-        if (isXv6) {
+        if (isLinux) {
+          const fsResponse = await fetch('linux/busybear.bin');
+          fsBuffer = await fsResponse.arrayBuffer();
+          const dtbResponse = await fetch('linux/dtb.dtb');
+          dtbBuffer = await dtbResponse.arrayBuffer();
+        } else if (isXv6) {
           const fsResponse = await fetch('xv6/fs.img');
           fsBuffer = await fsResponse.arrayBuffer();
+          dtbBuffer = new ArrayBuffer(0); // dummy
 		} else {
           fsBuffer = new ArrayBuffer(0); // dummy
+          dtbBuffer = new ArrayBuffer(0); // dummy
 		}
 
         const riscv = WasmRiscv.new();
         currentRiscv = riscv;
         riscv.running = false;
-        riscv.init(new Uint8Array(elfBuffer), new Uint8Array(fsBuffer));
+        riscv.init(new Uint8Array(elfBuffer), new Uint8Array(fsBuffer), new Uint8Array(dtbBuffer));
 
         const outputToTerminal = () => {
           const output_bytes = [];
@@ -67,7 +82,7 @@
           }
 		};
 
-        if (!isXv6) {
+        if (!isXv6 && !isLinux) {
           riscv.run();
           outputToTerminal();
 		} else {
@@ -147,7 +162,8 @@
       };
     </script>
     <select id="file-select">
-      <option value="xv6/kernel" selected>xv6 (tiny OS)</option>
+      <option value="linux/bbl" selected>Linux</option>
+      <option value="xv6/kernel">xv6 (tiny OS)</option>
       <option value="riscv-tests/rv32ui-p-add">rv32ui-p-add test</option>
       <option value="riscv-tests/rv32ui-p-addi">rv32ui-p-addi test</option>
       <option value="riscv-tests/rv32ui-p-and">rv32ui-p-and test</option>
@@ -265,14 +281,13 @@
 Message from the emulator author Takahiro:
 
 This is RISC-V processor emulator written in Rust and compiled to WebAssembly.
-You can run the RISC-V port of xv6 (UNIX V6 rewritten by MIT for x86) or basic
-ISA verification test set riscv-tests. Select what you want to run from the list
-and press Run button.
+You can run the RISC-V port of Linux, xv6 (UNIX V6 rewritten by MIT for x86) or
+basic ISA verification test set riscv-tests. Select what you want to run from the
+list and press Run button.
 
-Note for xv6:
+Note for Linux and xv6:
 The emulator is still very slow. It takes time to boot. Thank you for your
-patience. Once the kernel boots up shell starts. Some special character inputs
-are not handled correctly yet.
+patience. Some special character inputs are not handled correctly yet.
 
 Note for riscv-tests:
 Only p tests are in the list although the emulator also passes v tests because
@@ -283,7 +298,7 @@ Enjoy RISC-V and Operating System on browser!
 
 </textarea><br />
     <div>
-      <a href="https://github.com/mit-pdos/xv6-riscv" target="_blank">xv6</a> and <a href="https://github.com/riscv/riscv-tests" target="_blank">riscv-tests</a> on <a href="https://github.com/takahirox/riscv-rust" target="_blank">RISC-V processor emulator in Rust+WASM</a>
+      <a href="https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html">Linux</a>, <a href="https://github.com/mit-pdos/xv6-riscv" target="_blank">xv6</a> and <a href="https://github.com/riscv/riscv-tests" target="_blank">riscv-tests</a> on <a href="https://github.com/takahirox/riscv-rust" target="_blank">RISC-V processor emulator in Rust+WASM</a>
     </div>
   </body>
 </html>
