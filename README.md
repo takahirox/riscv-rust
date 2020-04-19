@@ -83,3 +83,11 @@ $ cargo run $path_to_riscv_tets/isa/rv32ui-p-add -n
 ### xv6-riscv
 
 [xv6-riscv](https://github.com/mit-pdos/xv6-riscv) is the RISC-V port of [xv6](https://pdos.csail.mit.edu/6.828/2019/xv6.html) which is UNIX V6 rewritten by MIT for x86 in the current C language.
+
+### Specifications
+
+- [RISC-V ISA](https://riscv.org/specifications/)
+- [Virtio Device](https://docs.oasis-open.org/virtio/virtio/v1.1/csprd01/virtio-v1.1-csprd01.html)
+- [UART](http://www.ti.com/lit/ug/sprugp1/sprugp1.pdf)
+- [CLINT, PLIC (SiFive E31 Manual)](https://sifive.cdn.prismic.io/sifive%2Fc89f6e5a-cf9e-44c3-a3db-04420702dcc1_sifive+e31+manual+v19.08.pdf)
+- [SiFive Interrupt Cookbook](https://sifive.cdn.prismic.io/sifive/0d163928-2128-42be-a75a-464df65e04e0_sifive-interrupt-cookbook.pdf)
