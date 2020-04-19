@@ -582,12 +582,12 @@ impl Cpu {
 			mmu: Mmu::new(Xlen::Bit64, terminal),
 			dump_flag: false
 		};
-		cpu.x[0xb] = 0x1020; // I don't know why Linux seems to require this initializationboot
+		cpu.x[0xb] = 0x1020; // I don't know why but Linux boot seems to require this initialization
 		cpu.write_csr_raw(CSR_MISA_ADDRESS, 0x800000008014312f);
 		cpu
 	}
 
-	// Five public methods for setting up from outside
+	// Seven public methods for setting up from outside
 
 	pub fn store_raw(&mut self, address: u64, value: u8) {
 		self.mmu.store_raw(address, value);
@@ -650,7 +650,10 @@ impl Cpu {
 	// @TODO: Rename
 	fn tick_operate(&mut self) -> Result<(), Trap> {
 		if self.wfi {
-			//return Ok(());
+			// If WFI hint instruction is executed it should be ok to do nothing
+			// until an interrupt comes. But the emulator freezes at login prompt on Linux.
+			// So commenting out so far.
+			// return Ok(());
 		}
 		let word = match self.fetch() {
 			Ok(word) => word,

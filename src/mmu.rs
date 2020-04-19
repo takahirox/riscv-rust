@@ -507,7 +507,6 @@ impl Mmu {
 
 	//
 
-	// @TODO: This implementation is too specific to xv6.
 	// Follow the virtio block specification more propertly.
 	pub fn handle_disk_access(&mut self) {
 		let base_desc_address = self.disk.get_desc_address() as u64;

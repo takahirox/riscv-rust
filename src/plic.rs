@@ -41,7 +41,7 @@ impl Plic {
 		let virtio_irq = 1;
 		let uart_irq = 10;
 
-		// Which should be prioritized, local interrupts or global interrupts?
+		// Which should be prioritized, local timer interrupt or global interrupts?
 
 		let virtio_priority = self.priorities[virtio_irq as usize];
 		let uart_priority = self.priorities[uart_irq as usize];

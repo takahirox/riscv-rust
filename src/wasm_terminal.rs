@@ -18,6 +18,8 @@ impl WasmTerminal {
 
 impl Terminal for WasmTerminal {
 	fn put_byte(&mut self, value: u8) {
+		// Cutting off escape sequence so far
+		// @TODO: Implement properly
 		if !self.in_escape_sequence {
 			if value == 0x1b {
 				self.in_escape_sequence = true;

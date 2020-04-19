@@ -31,13 +31,15 @@ impl Uart {
 
 	pub fn tick(&mut self) {
 		self.clock = self.clock.wrapping_add(1);
-		if (self.clock % 0x38400) == 0 && self.rbr == 0 { // @TODO: Fix me
+		// 0x38400 is just an arbitary number @TODO: Fix me
+		if (self.clock % 0x38400) == 0 && self.rbr == 0 {
 			let value = self.terminal.get_input();
 			if value != 0 {
 				self.rbr = value;
 				self.lsr |= 0x01;
 			}
 		}
+		// 0x10 is just an arbitary number @TODO: Fix me
 		if (self.clock % 0x10) == 0 && self.thr != 0 {
 			self.terminal.put_byte(self.thr);
 			self.thr = 0;

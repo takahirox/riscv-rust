@@ -11,13 +11,15 @@ impl Clint {
 			clock: 0,
 			msip: 0,
 			mtimecmp: 0,
-			mtime: 0
+			mtime: 0 // @TODO: Should be bound to csr time register
 		}
 	}
 
 	pub fn tick(&mut self) {
 		self.clock = self.clock.wrapping_add(1);
-		if self.clock % 8 == 0 {
+		// core clock : mtime clock = 8 : 1 is just an arbiraty ratio.
+		// @TODO: Implement more properly
+		if (self.clock % 8) == 0 {
 			self.mtime = self.mtime.wrapping_add(1);
 		}
 	}
@@ -162,7 +164,10 @@ impl Clint {
 	}
 
 	pub fn is_interrupting(&self) -> bool {
-		//return self.mtimecmp > 0 && self.mtime >= self.mtimecmp;
+		// I'm not sure why but if clock interrupt happens while Linux boot
+		// virtio block device access fails. So disable the clock interrupt
+		// until likely Linux boots up as workaround.
+		// @TODO: Figure out the root issue and fix.
 		match self.mtime < 0x1400000 {
 			true => false,
 			false => self.mtimecmp > 0 && self.mtime >= self.mtimecmp
