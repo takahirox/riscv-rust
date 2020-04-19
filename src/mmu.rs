@@ -1,3 +1,6 @@
+use std::str;
+use std::io::{stdout, Write};
+
 use cpu::{PrivilegeMode, Trap, TrapType, Xlen};
 use virtio_block_disk::VirtioBlockDisk;
 use plic::{InterruptType, Plic};
@@ -13,8 +16,8 @@ pub struct Mmu {
 	ppn: u64,
 	addressing_mode: AddressingMode,
 	privilege_mode: PrivilegeMode,
-	interrupt: InterruptType,
 	memory: Vec<u8>,
+	dtb: Vec<u8>,
 	disk: VirtioBlockDisk,
 	plic: Plic,
 	clint: Clint,
@@ -34,6 +37,15 @@ enum MemoryAccessType {
 	Write
 }
 
+fn _get_addressing_mode_name(mode: &AddressingMode) -> &'static str {
+	match mode {
+		AddressingMode::None => "None",
+		AddressingMode::SV32 => "SV32",
+		AddressingMode::SV39 => "SV39",
+		AddressingMode::SV48 => "SV48"
+	}
+}
+
 impl Mmu {
 	pub fn new(xlen: Xlen, terminal: Box<dyn Terminal>) -> Self {
 		Mmu {
@@ -42,8 +54,8 @@ impl Mmu {
 			ppn: 0,
 			addressing_mode: AddressingMode::None,
 			privilege_mode: PrivilegeMode::Machine,
-			interrupt: InterruptType::None,
 			memory: vec![],
+			dtb: vec![],
 			disk: VirtioBlockDisk::new(),
 			plic: Plic::new(),
 			clint: Clint::new(),
@@ -65,6 +77,13 @@ impl Mmu {
 		self.disk.init(data);
 	}
 
+	pub fn init_dtb(&mut self, data: Vec<u8>) {
+		println!("DTB SIZE:{:X}", data.len());
+		for i in 0..data.len() {
+			self.dtb.push(data[i]);
+		}
+	}
+
 	pub fn tick(&mut self) {
 		self.disk.tick();
 		self.plic.tick();
@@ -73,33 +92,15 @@ impl Mmu {
 		self.clock = self.clock.wrapping_add(1);
 	}
 
-	pub fn detect_interrupt(&mut self) -> &InterruptType {
-		// @TODO: Implement properly
-		match self.interrupt {
-			InterruptType::None => {
-				let mut interrupt = InterruptType::None;
-				if self.is_disk_interrupting() {
-					interrupt = InterruptType::Virtio;
-				} else if self.is_uart_interrupting() {
-					interrupt = InterruptType::KeyInput;
-				} else if self.is_clint_interrupting() {
-					interrupt = InterruptType::Timer;
-				}
-				match interrupt {
-					InterruptType::None => {},
-					_ => {
-						self.update_plic(&interrupt);
-					}
-				};
-				self.interrupt = interrupt;
-			},
-			_ => {}
-		};
-		&self.interrupt
-	}
-
-	pub fn reset_interrupt(&mut self) {
-		self.interrupt = InterruptType::None;
+	pub fn detect_interrupt(&mut self) -> InterruptType {
+		let virtio_is_interrupting = self.is_disk_interrupting();
+		let uart_is_interrupting = self.is_uart_interrupting();
+		let timer_is_interrupting = self.is_clint_interrupting();
+		self.plic.detect_interrupt(
+			virtio_is_interrupting,
+			uart_is_interrupting,
+			timer_is_interrupting
+		)
 	}
 
 	pub fn update_addressing_mode(&mut self, new_addressing_mode: AddressingMode) {
@@ -287,11 +288,14 @@ impl Mmu {
 
 	pub fn load_raw(&mut self, address: u64) -> u8 {
 		let effective_address = self.get_effective_address(address);
-		// @TODO: Check valid memory map
+		// @TODO: Map from dtb file
 		match address {
-			0x0200bff8..=0x0200bfff => self.clint.load(effective_address) as u8,
-			0x0c201004..=0x0c201007 => self.plic.load(effective_address) as u8,
-			0x10000000..=0x10000005 => self.uart.load(effective_address),
+			// I don't know why but dtb data seems to be stored from 0x1020 on Linux.
+			// It might be from self.x[0xb] initialization?
+			0x00001020..=0x00001ea2 => self.dtb[address as usize - 0x1020],
+			0x02000000..=0x0200ffff => self.clint.load(effective_address),
+			0x0C000000..=0x0fffffff => self.plic.load(effective_address),
+			0x10000000..=0x100000ff => self.uart.load(effective_address),
 			0x10001000..=0x10001FFF => self.disk.load(effective_address),
 			_ => {
 				if effective_address < DRAM_BASE as u64 {
@@ -330,19 +334,16 @@ impl Mmu {
 		let effective_address = self.get_effective_address(address);
 		// @TODO: Check memory map
 		match address {
-			0x0c000004..=0x0c000007 => {}, // @TODO: Where to?
-			0x0c000028..=0x0c00002b => {}, // @TODO: Where to?
-			0x0c002080..=0x0c002083 => { // PLIC_SENABLE(hart) (PLIC + 0x2080 + (hart)*0x100)
-				self.plic.store(effective_address, value);
-			},
-			0x0c201000..=0x0c201007 => {}, // @TODO: Where to?
-			0x02004000..=0x02004007 => {
+			0x02000000..=0x0200ffff => {
 				self.clint.store(effective_address, value);
 			},
-			0x10000000..=0x10000005 => {
+			0x0c000000..=0x0fffffff => {
+				self.plic.store(effective_address, value);
+			},
+			0x10000000..=0x100000ff => {
 				self.uart.store(effective_address, value);
 			},
-			0x10001000..=0x10001FFF => { // @TODO: Check a valid range
+			0x10001000..=0x10001FFF => {
 				self.disk.store(effective_address, value);
 			},
 			_ => {
@@ -509,55 +510,41 @@ impl Mmu {
 	// @TODO: This implementation is too specific to xv6.
 	// Follow the virtio block specification more propertly.
 	pub fn handle_disk_access(&mut self) {
-		let avail_address = self.disk.get_avail_address();
 		let base_desc_address = self.disk.get_desc_address() as u64;
+		let avail_address = self.disk.get_avail_address();
 		let base_used_address = self.disk.get_used_address();
 
 		let _flag = self.load_halfword_raw(avail_address);
-		let offset = self.load_halfword_raw(avail_address.wrapping_add(1));
-		let index = self.load_halfword_raw(avail_address.wrapping_add(offset as u64 % 8).wrapping_add(2));
+		let queue_num = self.load_halfword_raw(avail_address.wrapping_add(2)) as u64 % 8;
+		let index = self.load_halfword_raw(avail_address.wrapping_add(4).wrapping_add(queue_num * 2)) % 8;
 		let desc_size = 16;
-
-		let desc_address0 = base_desc_address + desc_size * index as u64;
-		let addr0 = self.load_doubleword_raw(desc_address0);
-		let _len0 = self.load_word_raw(desc_address0.wrapping_add(8));
-		let _flags0 = self.load_halfword_raw(desc_address0.wrapping_add(12));
-		let next0 = self.load_halfword_raw(desc_address0.wrapping_add(14));
-
-		let desc_address1 = base_desc_address + desc_size * next0 as u64;
-		let addr1 = self.load_doubleword_raw(desc_address1);
-		let len1 = self.load_word_raw(desc_address1.wrapping_add(8));
-		let flags1 = self.load_halfword_raw(desc_address1.wrapping_add(12));
-		let next1 = self.load_halfword_raw(desc_address1.wrapping_add(14));
-
-		let desc_address2 = base_desc_address + desc_size * next1 as u64;
-		let _addr2 = self.load_doubleword_raw(desc_address2);
-		let _len2 = self.load_word_raw(desc_address2.wrapping_add(8));
-		let _flags2 = self.load_halfword_raw(desc_address2.wrapping_add(12));
-		let _next2 = self.load_halfword_raw(desc_address2.wrapping_add(14));
 
 		/*
 		println!("Avail AD:{:X}", avail_address);
-		println!("Flag:{:X}", flag);
-		println!("Offset:{:X}", offset);
+		println!("Desc AD:{:X}", base_desc_address);
+
+		println!("Used AD:{:X}", base_used_address);
+		println!("Flag:{:X}", _flag);
+		println!("Queue num:{:X}", queue_num);
 		println!("Index:{:X}", index);
-		println!("addr0:{:X}", addr0);
-		println!("len0:{:X}", len0);
-		println!("flags0:{:X}", flags0);
-		println!("next0:{:X}", next0);
-		println!("addr1:{:X}", addr1);
-		println!("len1:{:X}", len1);
-		println!("flags1:{:X}", flags1);
-		println!("next1:{:X}", next1);
-		println!("addr2:{:X}", addr2);
-		println!("len2:{:X}", len2);
-		println!("flags2:{:X}", flags2);
-		println!("next2:{:X}", next2);
 		*/
-		
-		let _blk_type = self.load_word_raw(addr0);
-		let _blk_reserved = self.load_word_raw(addr0.wrapping_add(4));
-		let blk_sector = self.load_doubleword_raw(addr0.wrapping_add(8));
+
+		let desc_address = base_desc_address + desc_size * index as u64;
+		let addr = self.load_doubleword_raw(desc_address);
+		let len = self.load_word_raw(desc_address.wrapping_add(8));
+		let flags = self.load_halfword_raw(desc_address.wrapping_add(12));
+		let next = self.load_halfword_raw(desc_address.wrapping_add(14));
+
+		/*
+		println!("addr:{:X}", addr);
+		println!("len:{:X}", len);
+		println!("flags:{:X}", flags);
+		println!("next:{:X}", next);
+		*/
+
+		let blk_type = self.load_word_raw(addr);
+		let blk_reserved = self.load_word_raw(addr.wrapping_add(4));
+		let blk_sector = self.load_doubleword_raw(addr.wrapping_add(8));
 
 		/*
 		println!("Blk type:{:X}", blk_type);
@@ -565,29 +552,71 @@ impl Mmu {
 		println!("Blk sector:{:X}", blk_sector);
 		*/
 
-		match (flags1 & 2) == 0 {
-			true => { // write to disk
-				// println!("Write to disk");
-				for i in 0..len1 as u64 {
-					let data = self.load_raw(addr1 + i);
-					self.disk.write_to_disk(blk_sector * 512 + i, data);
-					// print!("{:02X} ", data);
-				}
-				// println!();
-			},
-			false => { // read from disk
-				// println!("Read from disk");
-				for i in 0..len1 as u64 {
-					let data = self.disk.read_from_disk(blk_sector * 512 + i);
-					self.store_raw(addr1 + i, data);
-					// print!("{:02X} ", data);
-				}
-				// println!();
+		let mut next = index;
+		let mut desc_num = 0;
+		while true {
+			let desc_address = base_desc_address + desc_size * next as u64;
+			let addr = self.load_doubleword_raw(desc_address);
+			let len = self.load_word_raw(desc_address.wrapping_add(8));
+			let flags = self.load_halfword_raw(desc_address.wrapping_add(12));
+			next = self.load_halfword_raw(desc_address.wrapping_add(14)) % 8;
+
+			/*
+			println!("addr:{:X}", addr);
+			println!("len:{:X}", len);
+			println!("flags:{:X}", flags);
+			println!("next:{:X}", next);
+			*/
+
+			if desc_num == 1 {
+				match (flags & 2) == 0 {
+					true => { // write to disk
+						//println!("Write to disk DiskAD:{:X} MemAd:{:X}", blk_sector * 512, addr);
+						for i in 0..len as u64 {
+							let data = self.load_raw(addr + i);
+							self.disk.write_to_disk(blk_sector * 512 + i, data);
+							//print!("{:02X} ", data);
+						}
+						//println!();
+					},
+					false => { // read from disk
+						//println!("Read from disk DiskAD:{:X} MemAd:{:X}", blk_sector * 512, addr);
+						for i in 0..len as u64 {
+							let data = self.disk.read_from_disk(blk_sector * 512 + i);
+							self.store_raw(addr + i, data);
+							//print!("{:02X} ", data);
+						}
+						//println!();
+					}
+				};
 			}
-		};
-		
-		let new_id = self.disk.get_new_id() as u16;
-		self.store_halfword_raw(base_used_address.wrapping_add(2), new_id % 8);
+
+			if desc_num == 2 {
+				match (flags & 2) == 0 {
+					true => panic!("Third descriptor should be write."),
+					false => { // read from disk
+						//println!("Read from disk DiskAD:{:X} MemAd:{:X}", blk_sector * 512, addr);
+						for i in 0..len as u64 {
+							let data = self.disk.read_from_disk(blk_sector * 512 + i);
+							self.store_raw(addr + i, 0);
+							//print!("{:02X} ", data);
+						}
+						//println!();
+					}
+				};
+			}
+
+			desc_num += 1;
+
+			if (flags & 1) == 0 {
+				break;
+			}
+		}
+
+		let new_id = self.disk.get_new_id();
+		self.store_halfword_raw(base_used_address.wrapping_add(2), new_id);
+		self.store_word_raw(base_used_address.wrapping_add(4).wrapping_add(new_id.wrapping_sub(1) as u64 * 8), index as u32);
+		self.store_word_raw(base_used_address.wrapping_add(4).wrapping_add(new_id.wrapping_sub(1) as u64 * 8).wrapping_add(4), 3);
 	}
 
 	//
@@ -596,31 +625,16 @@ impl Mmu {
 		self.disk.is_interrupting()
 	}
 
-	pub fn reset_disk_interrupting(&mut self) {
-		self.disk.reset_interrupting();
-	}
-
 	pub fn is_clint_interrupting(&self) -> bool {
 		self.clint.is_interrupting()
-	}
-
-	pub fn reset_clint_interrupting(&mut self) {
-		self.clint.reset_interrupting();
 	}
 
 	pub fn is_uart_interrupting(&mut self) -> bool {
 		self.uart.is_interrupting()
 	}
 
-	pub fn reset_uart_interrupting(&mut self) {
-		self.uart.reset_interrupting();
-	}
+	// Wasm specific methods
 
-	pub fn update_plic(&mut self, interrupt_type: &InterruptType) {
-		self.plic.update(interrupt_type);
-	}
-
-	// Wasm specific
 	pub fn get_uart_output(&mut self) -> u8 {
 		self.uart.get_output()
 	}

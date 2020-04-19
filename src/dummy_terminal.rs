@@ -16,7 +16,12 @@ impl DummyTerminal {
 impl Terminal for DummyTerminal {
 	fn put_byte(&mut self, value: u8) {
 		let str = vec![value];
-		print!("{}", str::from_utf8(&str).unwrap());
+		match str::from_utf8(&str) {
+			Ok(s) => {
+				print!("{}", s);
+			},
+			Err(_e) => {}
+		};
 		match stdout().flush() {
 			_ => {} // Ignoring error so far
 		};

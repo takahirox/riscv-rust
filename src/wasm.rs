@@ -27,9 +27,10 @@ impl WasmRiscv {
 		}
 	}
 	
-	pub fn init(&mut self, kernel_contents: Vec<u8>, fs_contents: Vec<u8>) {
+	pub fn init(&mut self, kernel_contents: Vec<u8>, fs_contents: Vec<u8>, dtb_contents: Vec<u8>) {
 		self.application.setup_from_elf(kernel_contents);
 		self.application.setup_filesystem(fs_contents);
+		self.application.setup_dtb(dtb_contents);
 	}
 
 	pub fn run(&mut self) {
