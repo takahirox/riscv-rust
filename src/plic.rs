@@ -1,10 +1,4 @@
-#[derive(Clone)]
-pub enum InterruptType {
-	None,
-	KeyInput,
-	Timer,
-	Virtio
-}
+use cpu::MIP_SEIP;
 
 // Based on SiFive Interrupt Cookbook
 // https://sifive.cdn.prismic.io/sifive/0d163928-2128-42be-a75a-464df65e04e0_sifive-interrupt-cookbook.pdf
@@ -28,14 +22,9 @@ impl Plic {
 		}
 	}
 
-	pub fn tick(&mut self) {
+	pub fn tick(&mut self, virtio_is_interrupting: bool,
+		uart_is_interrupting: bool, mip: &mut u64) {
 		self.clock = self.clock.wrapping_add(1);
-	}
-
-	pub fn detect_interrupt(&mut self,
-		virtio_is_interrupting: bool,
-		uart_is_interrupting: bool,
-		timer_is_interrupting: bool) -> InterruptType {
 
 		// @TODO: IRQ num should be configurable with dtb
 		let virtio_irq = 1;
@@ -52,51 +41,24 @@ impl Plic {
 		let interruptings = [virtio_is_interrupting, uart_is_interrupting];
 		let enables = [virtio_enabled, uart_enabled];
 		let priorities = [virtio_priority, uart_priority];
+		let irqs = [virtio_irq, uart_irq];
 
-		let mut interrupt_id = 0; // 1: Virtio, 2: UART, 3: Timer
+		let mut irq = 0;
 		let mut priority = 0;
 		for i in 0..2 {
-			if interruptings[i] && enables[i] {
-				if interrupt_id == 0 || (priorities[i] > priority) {
-					interrupt_id = i + 1;
+			if interruptings[i] && enables[i] &&
+				priorities[i] > self.threshold &&
+				(irq == 0 || priorities[i] > priority) {
+					irq = irqs[i];
 					priority = priorities[i];
-				}
 			}
 		}
-
-		if interrupt_id != 0 {
-			if priority <= self.threshold {
-				interrupt_id = 0;
-			}
-		}
-
-		// Second, detect local interrupts if no external interrupts
-
-		if interrupt_id == 0 {
-			if timer_is_interrupting {
-				interrupt_id = 3;
-			}
-		}
-
-		let interrupt = match interrupt_id {
-			1 => InterruptType::Virtio,
-			2 => InterruptType::KeyInput,
-			3 => InterruptType::Timer,
-			_ => InterruptType::None
-		};
-
-		let irq = match interrupt {
-			InterruptType::Virtio => virtio_irq,
-			InterruptType::KeyInput => uart_irq,
-			_ => 0
-		};
 
 		if irq != 0 {
 			self.irq = irq;
 			//println!("IRQ: {:X}", self.irq);
+			*mip |= MIP_SEIP;
 		}
-
-		interrupt
 	}
 
 	pub fn load(&self, address: u64) -> u8 {

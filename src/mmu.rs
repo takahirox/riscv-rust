@@ -1,9 +1,6 @@
-use std::str;
-use std::io::{stdout, Write};
-
 use cpu::{PrivilegeMode, Trap, TrapType, Xlen};
 use virtio_block_disk::VirtioBlockDisk;
-use plic::{InterruptType, Plic};
+use plic::Plic;
 use clint::Clint;
 use uart::Uart;
 use terminal::Terminal;
@@ -84,23 +81,14 @@ impl Mmu {
 		}
 	}
 
-	pub fn tick(&mut self) {
-		self.disk.tick();
-		self.plic.tick();
-		self.clint.tick();
+	pub fn tick(&mut self, mip: &mut u64) {
+		self.clint.tick(mip);
+		if self.disk.tick() {
+			self.handle_disk_access();
+		}
 		self.uart.tick();
+		self.plic.tick(self.disk.is_interrupting(), self.uart.is_interrupting(), mip);
 		self.clock = self.clock.wrapping_add(1);
-	}
-
-	pub fn detect_interrupt(&mut self) -> InterruptType {
-		let virtio_is_interrupting = self.is_disk_interrupting();
-		let uart_is_interrupting = self.is_uart_interrupting();
-		let timer_is_interrupting = self.is_clint_interrupting();
-		self.plic.detect_interrupt(
-			virtio_is_interrupting,
-			uart_is_interrupting,
-			timer_is_interrupting
-		)
 	}
 
 	pub fn update_addressing_mode(&mut self, new_addressing_mode: AddressingMode) {
@@ -616,20 +604,6 @@ impl Mmu {
 		self.store_halfword_raw(base_used_address.wrapping_add(2), new_id);
 		self.store_word_raw(base_used_address.wrapping_add(4).wrapping_add(new_id.wrapping_sub(1) as u64 * 8), index as u32);
 		self.store_word_raw(base_used_address.wrapping_add(4).wrapping_add(new_id.wrapping_sub(1) as u64 * 8).wrapping_add(4), 3);
-	}
-
-	//
-
-	pub fn is_disk_interrupting(&mut self) -> bool {
-		self.disk.is_interrupting()
-	}
-
-	pub fn is_clint_interrupting(&self) -> bool {
-		self.clint.is_interrupting()
-	}
-
-	pub fn is_uart_interrupting(&mut self) -> bool {
-		self.uart.is_interrupting()
 	}
 
 	// Wasm specific methods

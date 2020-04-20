@@ -1,8 +1,4 @@
-use std::str;
-use std::io::{stdout, Write};
-
 use mmu::{AddressingMode, Mmu};
-use plic::InterruptType;
 use terminal::Terminal;
 
 const CSR_CAPACITY: usize = 4096;
@@ -44,6 +40,13 @@ const CSR_CYCLE_ADDRESS: u16 = 0xc00;
 const CSR_TIME_ADDRESS: u16 = 0xc01;
 const CSR_INSERT_ADDRESS: u16 = 0xc02;
 const _CSR_MHARTID_ADDRESS: u16 = 0xf14;
+
+const MIP_MEIP: u64 = 0x800;
+pub const MIP_MTIP: u64 = 0x080;
+const MIP_MSIP: u64 = 0x008;
+pub const MIP_SEIP: u64 = 0x200;
+const MIP_STIP: u64 = 0x020;
+const MIP_SSIP: u64 = 0x002;
 
 pub struct Cpu {
 	clock: u64,
@@ -636,15 +639,15 @@ impl Cpu {
 			Ok(()) => {},
 			Err(e) => self.handle_exception(e, instruction_address)
 		}
+		self.mmu.tick(&mut self.csr[CSR_MIP_ADDRESS as usize]);
 		self.handle_interrupt(self.pc);
-		self.mmu.tick();
 		self.clock = self.clock.wrapping_add(1);
-		self.csr[CSR_CYCLE_ADDRESS as usize] = self.csr[CSR_CYCLE_ADDRESS as usize].wrapping_add(1);
-		self.csr[CSR_MCYCLE_ADDRESS as usize] = self.csr[CSR_MCYCLE_ADDRESS as usize].wrapping_add(1);
+		self.write_csr_raw(CSR_CYCLE_ADDRESS, self.read_csr_raw(CSR_CYCLE_ADDRESS).wrapping_add(1));
+		self.write_csr_raw(CSR_MCYCLE_ADDRESS, self.read_csr_raw(CSR_MCYCLE_ADDRESS).wrapping_add(1));
 		if self.clock % 8 == 0 {
-			self.csr[CSR_TIME_ADDRESS as usize] = self.csr[CSR_TIME_ADDRESS as usize].wrapping_add(1);
+			self.write_csr_raw(CSR_TIME_ADDRESS, self.read_csr_raw(CSR_TIME_ADDRESS).wrapping_add(1));
 		}
-		self.csr[CSR_INSERT_ADDRESS as usize] = self.csr[CSR_INSERT_ADDRESS as usize].wrapping_add(1);
+		self.write_csr_raw(CSR_INSERT_ADDRESS, self.read_csr_raw(CSR_INSERT_ADDRESS).wrapping_add(1));
 	}
 
 	// @TODO: Rename
@@ -684,56 +687,42 @@ impl Cpu {
 
 	fn handle_interrupt(&mut self, instruction_address: u64) {
 		// @TODO: Implement more properly
-		if (self.csr[CSR_MIP_ADDRESS as usize] & 0x20) != 0 {
-			match self.handle_trap(Trap {
+		let minterrupt = self.read_csr_raw(CSR_MIP_ADDRESS) & self.read_csr_raw(CSR_MIE_ADDRESS);
+
+		if (minterrupt & MIP_MTIP) != 0 {
+			if self.handle_trap(Trap {
+				trap_type: TrapType::MachineTimerInterrupt,
+				value: self.pc // dummy
+			}, instruction_address, true) {
+				// Who should fall mip bit?
+				self.write_csr_raw(CSR_MIP_ADDRESS, self.read_csr_raw(CSR_MIP_ADDRESS) & !MIP_MTIP);
+				self.wfi = false;
+			}
+		} else if (minterrupt & MIP_SEIP) != 0 {
+			if self.handle_trap(Trap {
+				trap_type: TrapType::SupervisorExternalInterrupt,
+				value: self.pc // dummy
+			}, instruction_address, true) {
+				self.write_csr_raw(CSR_MIP_ADDRESS, self.read_csr_raw(CSR_MIP_ADDRESS) & !MIP_SEIP);
+				self.wfi = false;
+			}
+		} else if (minterrupt & MIP_STIP) != 0 {
+			if self.handle_trap(Trap {
 				trap_type: TrapType::SupervisorTimerInterrupt,
 				value: self.pc // dummy
 			}, instruction_address, true) {
-				true => {
-					self.wfi = false;
-					return;
-				},
-				false => {}
-			};
+				self.write_csr_raw(CSR_MIP_ADDRESS, self.read_csr_raw(CSR_MIP_ADDRESS) & !MIP_STIP);
+				self.wfi = false;
+			}
+		} else if (minterrupt & MIP_SSIP) != 0 {
+			if self.handle_trap(Trap {
+				trap_type: TrapType::SupervisorSoftwareInterrupt,
+				value: self.pc // dummy
+			}, instruction_address, true) {
+				self.write_csr_raw(CSR_MIP_ADDRESS, self.read_csr_raw(CSR_MIP_ADDRESS) & !MIP_SEIP);
+				self.wfi = false;
+			}
 		}
-
-		match self.mmu.detect_interrupt() {
-			InterruptType::KeyInput => {
-				match self.handle_trap(Trap {
-					trap_type: TrapType::SupervisorExternalInterrupt,
-					value: self.pc // dummy
-				}, instruction_address, true) {
-					true => {
-						self.wfi = false;
-					},
-					false => {}
-				};
-			},
-			InterruptType::Timer => {
-				match self.handle_trap(Trap {
-					trap_type: TrapType::MachineTimerInterrupt,
-					value: self.pc // dummy
-				}, instruction_address, true) {
-					true => {
-						self.wfi = false;
-					},
-					false => {}
-				};
-			},
-			InterruptType::Virtio => {
-				match self.handle_trap(Trap {
-					trap_type: TrapType::SupervisorExternalInterrupt,
-					value: self.pc // dummy
-				}, instruction_address, true) {
-					true => {
-						self.mmu.handle_disk_access();
-						self.wfi = false;
-					},
-					false => {}
-				};
-			},
-			InterruptType::None => {},
-		};
 	}
 
 	fn handle_exception(&mut self, exception: Trap, instruction_address: u64) {
@@ -747,12 +736,12 @@ impl Cpu {
 		// First, determine which privilege mode should handle the trap.
 		// @TODO: Check if this logic is correct
 		let mdeleg = match is_interrupt {
-			true => self.csr[CSR_MIDELEG_ADDRESS as usize],
-			false => self.csr[CSR_MEDELEG_ADDRESS as usize]
+			true => self.read_csr_raw(CSR_MIDELEG_ADDRESS),
+			false => self.read_csr_raw(CSR_MEDELEG_ADDRESS)
 		};
 		let sdeleg = match is_interrupt {
-			true => self.csr[CSR_SIDELEG_ADDRESS as usize],
-			false => self.csr[CSR_SEDELEG_ADDRESS as usize]
+			true => self.read_csr_raw(CSR_SIDELEG_ADDRESS),
+			false => self.read_csr_raw(CSR_SEDELEG_ADDRESS)
 		};
 		let pos = cause & 0xffff;
 		let new_privilege_mode = match ((mdeleg >> pos) & 1) == 0 {
@@ -768,16 +757,16 @@ impl Cpu {
 		// Disposing so far.
 
 		let current_status = match self.privilege_mode {
-			PrivilegeMode::Machine => self.csr[CSR_MSTATUS_ADDRESS as usize],
-			PrivilegeMode::Supervisor => self.csr[CSR_SSTATUS_ADDRESS as usize],
-			PrivilegeMode::User => self.csr[CSR_USTATUS_ADDRESS as usize],
+			PrivilegeMode::Machine => self.read_csr_raw(CSR_MSTATUS_ADDRESS),
+			PrivilegeMode::Supervisor => self.read_csr_raw(CSR_SSTATUS_ADDRESS),
+			PrivilegeMode::User => self.read_csr_raw(CSR_USTATUS_ADDRESS),
 			PrivilegeMode::Reserved => panic!(),
 		};
 
 		let status = match new_privilege_mode {
-			PrivilegeMode::Machine => self.csr[CSR_MSTATUS_ADDRESS as usize],
-			PrivilegeMode::Supervisor => self.csr[CSR_SSTATUS_ADDRESS as usize],
-			PrivilegeMode::User => self.csr[CSR_USTATUS_ADDRESS as usize],
+			PrivilegeMode::Machine => self.read_csr_raw(CSR_MSTATUS_ADDRESS),
+			PrivilegeMode::Supervisor => self.read_csr_raw(CSR_SSTATUS_ADDRESS),
+			PrivilegeMode::User => self.read_csr_raw(CSR_USTATUS_ADDRESS),
 			PrivilegeMode::Reserved => panic!(),
 		};
 
@@ -785,9 +774,9 @@ impl Cpu {
 
 		if is_interrupt {
 			let ie = match new_privilege_mode {
-				PrivilegeMode::Machine => self.csr[CSR_MIE_ADDRESS as usize],
-				PrivilegeMode::Supervisor => self.csr[CSR_SIE_ADDRESS as usize],
-				PrivilegeMode::User => self.csr[CSR_UIE_ADDRESS as usize],
+				PrivilegeMode::Machine => self.read_csr_raw(CSR_MIE_ADDRESS),
+				PrivilegeMode::Supervisor => self.read_csr_raw(CSR_SIE_ADDRESS),
+				PrivilegeMode::User => self.read_csr_raw(CSR_UIE_ADDRESS),
 				PrivilegeMode::Reserved => panic!(),
 			};
 
@@ -922,7 +911,7 @@ impl Cpu {
 		self.write_csr_raw(csr_epc_address, instruction_address);
 		self.write_csr_raw(csr_cause_address, cause);
 		self.write_csr_raw(csr_tval_address, trap.value);
-		self.pc = self.csr[csr_tvec_address as usize];
+		self.pc = self.read_csr_raw(csr_tvec_address);
 
 		// Add 4 * cause if tvec has vector type address
 		if (self.pc & 0x3) != 0 {
@@ -931,14 +920,14 @@ impl Cpu {
 
 		match self.privilege_mode {
 			PrivilegeMode::Machine => {
-				let status = self.csr[CSR_MSTATUS_ADDRESS as usize];
+				let status = self.read_csr_raw(CSR_MSTATUS_ADDRESS);
 				let mie = (status >> 3) & 1;
 				// clear MIE[3], override MPIE[7] with MIE[3], override MPP[12:11] with current privilege encoding
 				let new_status = (status & !0x1888) | (mie << 7) | (current_privilege_encoding << 11);
 				self.write_csr_raw(CSR_MSTATUS_ADDRESS, new_status);
 			},
 			PrivilegeMode::Supervisor => {
-				let status = self.csr[CSR_SSTATUS_ADDRESS as usize];
+				let status = self.read_csr_raw(CSR_SSTATUS_ADDRESS);
 				let sie = (status >> 1) & 1;
 				// clear SIE[1], override SPIE[5] with SIE[1], override SPP[8] with current privilege encoding
 				let new_status = (status & !0x122) | (sie << 5) | ((current_privilege_encoding & 1) << 8);
@@ -971,7 +960,7 @@ impl Cpu {
 
 	fn read_csr(&mut self, address: u16) -> Result<u64, Trap> {
 		match self.has_csr_access_privilege(address) {
-			true => Ok(self.csr[address as usize]),
+			true => Ok(self.read_csr_raw(address)),
 			false => Err(Trap {
 				trap_type: TrapType::IllegalInstruction,
 				value: self.pc.wrapping_sub(4) // @TODO: Is this always correct?
@@ -1002,11 +991,36 @@ impl Cpu {
 		}
 	}
 
+	// SSTATUS, SIE, and SIP are subsets of MSTATUS, MIE, and MIP
+	fn read_csr_raw(&self, address: u16) -> u64 {
+		match address {
+			CSR_SSTATUS_ADDRESS => self.csr[CSR_MSTATUS_ADDRESS as usize] & 0x80000003000de162,
+			CSR_SIE_ADDRESS => self.csr[CSR_MIE_ADDRESS as usize] & 0x222,
+			CSR_SIP_ADDRESS => self.csr[CSR_MIP_ADDRESS as usize] & 0x222,
+			_ => self.csr[address as usize]
+		}
+	}
+
 	fn write_csr_raw(&mut self, address: u16, value: u64) {
-		//println!("Write CSR AD:{:X} VAL:{:X} PC:{:X} CLOCK:{:X}", address, value, self.pc, self.clock);
-		self.csr[address as usize] = match address {
-			CSR_MIDELEG_ADDRESS => value & 0x666, // from qemu
-			_ => value
+		match address {
+			CSR_SSTATUS_ADDRESS => {
+				self.csr[CSR_MSTATUS_ADDRESS as usize] &= !0x80000003000de162;
+				self.csr[CSR_MSTATUS_ADDRESS as usize] |= value & 0x80000003000de162;
+			},
+			CSR_SIE_ADDRESS => {
+				self.csr[CSR_MIE_ADDRESS as usize] &= !0x222;
+				self.csr[CSR_MIE_ADDRESS as usize] |= value & 0x222;
+			},
+			CSR_SIP_ADDRESS => {
+				self.csr[CSR_MIP_ADDRESS as usize] &= !0x222;
+				self.csr[CSR_MIP_ADDRESS as usize] |= value & 0x222;
+			},
+			CSR_MIDELEG_ADDRESS => {
+				self.csr[address as usize] = value & 0x666; // from qemu
+			},
+			_ => {
+				self.csr[address as usize] = value;
+			}
 		};
 	}
 
@@ -2397,7 +2411,7 @@ impl Cpu {
 						};
 						match instruction {
 							Instruction::MRET => {
-								let status = self.csr[CSR_MSTATUS_ADDRESS as usize];
+								let status = self.read_csr_raw(CSR_MSTATUS_ADDRESS);
 								let mpie = (status >> 7) & 1;
 								let mpp = (status >> 11) & 0x3;
 								// Override MIE[3] with MPIE[7], set MPIE[7] to 1, set MPP[12:11] to 0
@@ -2411,7 +2425,7 @@ impl Cpu {
 								};
 							},
 							Instruction::SRET => {
-								let status = self.csr[CSR_SSTATUS_ADDRESS as usize];
+								let status = self.read_csr_raw(CSR_SSTATUS_ADDRESS);
 								let spie = (status >> 5) & 1;
 								let spp = (status >> 8) & 1;
 								// Override SIE[1] with SPIE[5], set SPIE[5] to 1, set SPP[8] to 0
