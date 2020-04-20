@@ -1,3 +1,5 @@
+const DISK_ACCESS_DELAY: u64 = 500;
+
 // Based on Virtual I/O Device (VIRTIO) Version 1.1
 // https://docs.oasis-open.org/virtio/virtio/v1.1/csprd01/virtio-v1.1-csprd01.html
 
@@ -52,19 +54,22 @@ impl VirtioBlockDisk {
 		}
 	}
 
-	pub fn tick(&mut self) {
+	pub fn tick(&mut self) -> bool {
+		let mut do_disk_access = false;
 		// Disk access should be much slower than CPU. To simulate that rising interrupt
 		// 500 cpu clocks away from the notification for now. Maybe disk access is further
 		// slower in reality but we don't support /request queue yet then
 		// we want to finish the first request before next request comes.
 		// @TODO: Support request queue and rise interrupt slower
-		if self.notify_clock > 0 && self.clock > self.notify_clock + 500 {
+		if self.notify_clock > 0 && self.clock == self.notify_clock + DISK_ACCESS_DELAY {
 			// bit 0 in interrupt_status register indicates
 			// the interrupt was asserted because the device has used a buffer
 			// in at least one of the active virtual queues.
 			self.interrupt_status |= 0x1;
+			do_disk_access = true;
 		}
 		self.clock = self.clock.wrapping_add(1);
+		do_disk_access
 	}
 
 	// Load/Store registers.

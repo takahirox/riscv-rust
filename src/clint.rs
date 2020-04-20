@@ -1,3 +1,5 @@
+use cpu::MIP_MTIP;
+
 pub struct Clint {
 	clock: u64,
 	msip: u32,
@@ -15,12 +17,24 @@ impl Clint {
 		}
 	}
 
-	pub fn tick(&mut self) {
+	pub fn tick(&mut self, mip: &mut u64) {
 		self.clock = self.clock.wrapping_add(1);
+
 		// core clock : mtime clock = 8 : 1 is just an arbiraty ratio.
 		// @TODO: Implement more properly
 		if (self.clock % 8) == 0 {
 			self.mtime = self.mtime.wrapping_add(1);
+		}
+
+		// I'm not sure why but if clock interrupt happens while Linux boot
+		// virtio block device access fails. So disable the clock interrupt
+		// until likely Linux boots up as workaround.
+		// @TODO: Figure out the root issue and fix.
+		if self.mtime >= 0x1400000 &&
+			self.mtimecmp > 0 && self.mtime >= self.mtimecmp {
+			*mip |= MIP_MTIP;
+		} else {
+			*mip &= !MIP_MTIP;
 		}
 	}
 
@@ -161,16 +175,5 @@ impl Clint {
 			},
 			_ => {}
 		};
-	}
-
-	pub fn is_interrupting(&self) -> bool {
-		// I'm not sure why but if clock interrupt happens while Linux boot
-		// virtio block device access fails. So disable the clock interrupt
-		// until likely Linux boots up as workaround.
-		// @TODO: Figure out the root issue and fix.
-		match self.mtime < 0x1400000 {
-			true => false,
-			false => self.mtimecmp > 0 && self.mtime >= self.mtimecmp
-		}
 	}
 }
