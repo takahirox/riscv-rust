@@ -43,7 +43,7 @@ const _CSR_MHARTID_ADDRESS: u16 = 0xf14;
 
 const MIP_MEIP: u64 = 0x800;
 pub const MIP_MTIP: u64 = 0x080;
-const MIP_MSIP: u64 = 0x008;
+pub const MIP_MSIP: u64 = 0x008;
 pub const MIP_SEIP: u64 = 0x200;
 const MIP_STIP: u64 = 0x020;
 const MIP_SSIP: u64 = 0x002;
@@ -686,41 +686,68 @@ impl Cpu {
 	}
 
 	fn handle_interrupt(&mut self, instruction_address: u64) {
-		// @TODO: Implement more properly
+		// @TODO: Optimize
 		let minterrupt = self.read_csr_raw(CSR_MIP_ADDRESS) & self.read_csr_raw(CSR_MIE_ADDRESS);
 
+		if (minterrupt & MIP_MEIP) != 0 {
+			if self.handle_trap(Trap {
+				trap_type: TrapType::MachineExternalInterrupt,
+				value: self.pc // dummy
+			}, instruction_address, true) {
+				// Who should fall mip bit?
+				self.write_csr_raw(CSR_MIP_ADDRESS, self.read_csr_raw(CSR_MIP_ADDRESS) & !MIP_MEIP);
+				self.wfi = false;
+				return;
+			}
+		}
+		if (minterrupt & MIP_MSIP) != 0 {
+			if self.handle_trap(Trap {
+				trap_type: TrapType::MachineSoftwareInterrupt,
+				value: self.pc // dummy
+			}, instruction_address, true) {
+				self.write_csr_raw(CSR_MIP_ADDRESS, self.read_csr_raw(CSR_MIP_ADDRESS) & !MIP_MSIP);
+				self.wfi = false;
+				return;
+			}
+		}
 		if (minterrupt & MIP_MTIP) != 0 {
 			if self.handle_trap(Trap {
 				trap_type: TrapType::MachineTimerInterrupt,
 				value: self.pc // dummy
 			}, instruction_address, true) {
-				// Who should fall mip bit?
 				self.write_csr_raw(CSR_MIP_ADDRESS, self.read_csr_raw(CSR_MIP_ADDRESS) & !MIP_MTIP);
 				self.wfi = false;
+				return;
 			}
-		} else if (minterrupt & MIP_SEIP) != 0 {
+		}
+		if (minterrupt & MIP_SEIP) != 0 {
 			if self.handle_trap(Trap {
 				trap_type: TrapType::SupervisorExternalInterrupt,
 				value: self.pc // dummy
 			}, instruction_address, true) {
 				self.write_csr_raw(CSR_MIP_ADDRESS, self.read_csr_raw(CSR_MIP_ADDRESS) & !MIP_SEIP);
 				self.wfi = false;
+				return;
 			}
-		} else if (minterrupt & MIP_STIP) != 0 {
-			if self.handle_trap(Trap {
-				trap_type: TrapType::SupervisorTimerInterrupt,
-				value: self.pc // dummy
-			}, instruction_address, true) {
-				self.write_csr_raw(CSR_MIP_ADDRESS, self.read_csr_raw(CSR_MIP_ADDRESS) & !MIP_STIP);
-				self.wfi = false;
-			}
-		} else if (minterrupt & MIP_SSIP) != 0 {
+		}
+		if (minterrupt & MIP_SSIP) != 0 {
 			if self.handle_trap(Trap {
 				trap_type: TrapType::SupervisorSoftwareInterrupt,
 				value: self.pc // dummy
 			}, instruction_address, true) {
 				self.write_csr_raw(CSR_MIP_ADDRESS, self.read_csr_raw(CSR_MIP_ADDRESS) & !MIP_SEIP);
 				self.wfi = false;
+				return;
+			}
+		}
+		if (minterrupt & MIP_STIP) != 0 {
+			if self.handle_trap(Trap {
+				trap_type: TrapType::SupervisorTimerInterrupt,
+				value: self.pc // dummy
+			}, instruction_address, true) {
+				self.write_csr_raw(CSR_MIP_ADDRESS, self.read_csr_raw(CSR_MIP_ADDRESS) & !MIP_STIP);
+				self.wfi = false;
+				return;
 			}
 		}
 	}
@@ -752,9 +779,6 @@ impl Cpu {
 			}
 		};
 		let new_privilege_encoding = get_privilege_encoding(&new_privilege_mode) as u64;
-
-		// @TODO: Which we should do, dispose or pend, if trap is disabled?
-		// Disposing so far.
 
 		let current_status = match self.privilege_mode {
 			PrivilegeMode::Machine => self.read_csr_raw(CSR_MSTATUS_ADDRESS),
