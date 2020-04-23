@@ -48,7 +48,7 @@ impl Plic {
 		for i in 0..2 {
 			if interruptings[i] && enables[i] &&
 				priorities[i] > self.threshold &&
-				(irq == 0 || priorities[i] > priority) {
+				priorities[i] > priority {
 					irq = irqs[i];
 					priority = priorities[i];
 			}
