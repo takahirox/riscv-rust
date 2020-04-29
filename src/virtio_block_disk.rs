@@ -1,10 +1,15 @@
+// 0x2000 is an arbitary number.
+const MAX_QUEUE_NUM: u64 = 0x2000;
+
+// To simulate disk access time.
+// @TODO: Set more proper number. 500 core clocks may be too short.
 const DISK_ACCESS_DELAY: u64 = 500;
 
 // Based on Virtual I/O Device (VIRTIO) Version 1.1
 // https://docs.oasis-open.org/virtio/virtio/v1.1/csprd01/virtio-v1.1-csprd01.html
 
 pub struct VirtioBlockDisk {
-	id: u16,
+	used_index: u16,
 	clock: u64,
 	device_features: u64, // read only
 	device_features_sel: u32, // write only
@@ -18,14 +23,14 @@ pub struct VirtioBlockDisk {
 	queue_notify: u32, // write only
 	interrupt_status: u32, // read only
 	status: u32, // read and write
-	notify_clock: u64,
+	notify_clocks: Vec::<u64>,
 	contents: Vec<u8>
 }
 
 impl VirtioBlockDisk {
 	pub fn new() -> Self {
 		VirtioBlockDisk {
-			id: 0,
+			used_index: 0,
 			clock: 0,
 			device_features: 0,
 			device_features_sel: 0,
@@ -34,12 +39,12 @@ impl VirtioBlockDisk {
 			guest_page_size: 0,
 			queue_select: 0,
 			queue_num: 0,
-			queue_align: 0,
+			queue_align: 0x1000,
 			queue_pfn: 0,
 			queue_notify: 0,
 			status: 0,
 			interrupt_status: 0,
-			notify_clock: 0,
+			notify_clocks: Vec::new(),
 			contents: vec![]
 		}
 	}
@@ -56,17 +61,13 @@ impl VirtioBlockDisk {
 
 	pub fn tick(&mut self) -> bool {
 		let mut do_disk_access = false;
-		// Disk access should be much slower than CPU. To simulate that rising interrupt
-		// 500 cpu clocks away from the notification for now. Maybe disk access is further
-		// slower in reality but we don't support /request queue yet then
-		// we want to finish the first request before next request comes.
-		// @TODO: Support request queue and rise interrupt slower
-		if self.notify_clock > 0 && self.clock == self.notify_clock + DISK_ACCESS_DELAY {
+		if self.notify_clocks.len() > 0 && (self.clock == self.notify_clocks[0] + DISK_ACCESS_DELAY) {
 			// bit 0 in interrupt_status register indicates
 			// the interrupt was asserted because the device has used a buffer
 			// in at least one of the active virtual queues.
 			self.interrupt_status |= 0x1;
 			do_disk_access = true;
+			self.notify_clocks.remove(0);
 		}
 		self.clock = self.clock.wrapping_add(1);
 		do_disk_access
@@ -77,7 +78,6 @@ impl VirtioBlockDisk {
 
 	pub fn load(&mut self, address: u64) -> u8 {
 		//println!("Disk Load AD:{:X}", address);
-		// Legacy virtio Interface
 		match address {
 			// Magic number: 0x74726976
 			0x10001000 => 0x76,
@@ -98,8 +98,11 @@ impl VirtioBlockDisk {
 			0x10001011 => (((self.device_features >> (self.device_features_sel * 32)) >> 8) & 0xff) as u8,
 			0x10001012 => (((self.device_features >> (self.device_features_sel * 32)) >> 16) & 0xff) as u8,
 			0x10001013 => (((self.device_features >> (self.device_features_sel * 32)) >> 24) & 0xff) as u8,
-			// Maximum virtual queue size: 8 so far
-			0x10001034 => 8,
+			// Maximum virtual queue size
+			0x10001034 => MAX_QUEUE_NUM as u8,
+			0x10001035 => (MAX_QUEUE_NUM >> 8) as u8,
+			0x10001036 => (MAX_QUEUE_NUM >> 16) as u8,
+			0x10001037 => (MAX_QUEUE_NUM >> 24) as u8,
 			// Guest physical page number of the virtual queue
 			0x10001040 => self.queue_pfn as u8,
 			0x10001041 => (self.queue_pfn >> 8) as u8,
@@ -230,16 +233,14 @@ impl VirtioBlockDisk {
 			},
 			0x10001053 => {
 				self.queue_notify = (self.queue_notify & !(0xff << 24)) | ((value as u32) << 24);
-				if self.notify_clock != 0 || (self.interrupt_status & 0x1) == 1 {
-					panic!("Virtio: Overlap notification. Queue request is not supported yet.");
-				}
-				self.notify_clock = self.clock;
+				self.notify_clocks.push(self.clock);
 			},
 			0x10001064 => {
 				// interrupt ack
 				if (value & 0x1) == 1 {
 					self.interrupt_status &= !0x1;
-					self.notify_clock = 0;
+				} else {
+					panic!("Unknown ack");
 				}
 			},
 			0x10001070 => {
@@ -258,24 +259,26 @@ impl VirtioBlockDisk {
 		};
 	}
 
+	pub fn get_queue_num(&self) -> u32 {
+		self.queue_num
+	}
+
 	pub fn get_page_address(&self) -> u64 {
 		self.queue_pfn as u64 * self.guest_page_size as u64
 	}
 
-	// desc = pages -- num * VRingDesc
-	// avail = pages + 0x40 -- 2 * uint16, then num * uint16
-	// used = pages + 4096 -- 2 * uint16, then num * vRingUsedElem
-	
 	pub fn get_desc_address(&self) -> u64 {
 		self.get_page_address()
 	}
 
 	pub fn get_avail_address(&self) -> u64 {
-		self.get_page_address() + 0x40
+		self.get_page_address() + self.queue_num as u64 * 16
 	}
 
 	pub fn get_used_address(&self) -> u64 {
-		self.get_page_address() + 4096
+		let align = self.queue_align as u64;
+		let queue_num = self.queue_num as u64;
+		((self.get_avail_address() + 4 + queue_num * 2 + align - 1) / align) * align
 	}
 
 	pub fn read_from_disk(&mut self, address: u64) -> u8 {
@@ -286,8 +289,12 @@ impl VirtioBlockDisk {
 		self.contents[address as usize] = value
 	}
 
-	pub fn get_new_id(&mut self) -> u16 {
-		self.id = self.id.wrapping_add(1);
-		self.id
+	pub fn get_used_index(&self) -> u16 {
+		self.used_index
+	}
+
+	pub fn get_next_used_index(&mut self) -> u16 {
+		self.used_index = self.used_index.wrapping_add(1) % self.queue_num as u16;
+		self.used_index
 	}
 }
