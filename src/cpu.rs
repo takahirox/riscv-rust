@@ -642,12 +642,7 @@ impl Cpu {
 		self.mmu.tick(&mut self.csr[CSR_MIP_ADDRESS as usize]);
 		self.handle_interrupt(self.pc);
 		self.clock = self.clock.wrapping_add(1);
-		self.write_csr_raw(CSR_CYCLE_ADDRESS, self.read_csr_raw(CSR_CYCLE_ADDRESS).wrapping_add(1));
-		self.write_csr_raw(CSR_MCYCLE_ADDRESS, self.read_csr_raw(CSR_MCYCLE_ADDRESS).wrapping_add(1));
-		if self.clock % 8 == 0 {
-			self.write_csr_raw(CSR_TIME_ADDRESS, self.read_csr_raw(CSR_TIME_ADDRESS).wrapping_add(1));
-		}
-		self.write_csr_raw(CSR_INSERT_ADDRESS, self.read_csr_raw(CSR_INSERT_ADDRESS).wrapping_add(1));
+		self.write_csr_raw(CSR_CYCLE_ADDRESS, self.clock);
 	}
 
 	// @TODO: Rename
@@ -1021,6 +1016,7 @@ impl Cpu {
 			CSR_SSTATUS_ADDRESS => self.csr[CSR_MSTATUS_ADDRESS as usize] & 0x80000003000de162,
 			CSR_SIE_ADDRESS => self.csr[CSR_MIE_ADDRESS as usize] & 0x222,
 			CSR_SIP_ADDRESS => self.csr[CSR_MIP_ADDRESS as usize] & 0x222,
+			CSR_TIME_ADDRESS => self.mmu.get_clint().read_mtime(),
 			_ => self.csr[address as usize]
 		}
 	}
@@ -1041,6 +1037,9 @@ impl Cpu {
 			},
 			CSR_MIDELEG_ADDRESS => {
 				self.csr[address as usize] = value & 0x666; // from qemu
+			},
+			CSR_TIME_ADDRESS => {
+				self.mmu.get_mut_clint().write_mtime(value);
 			},
 			_ => {
 				self.csr[address as usize] = value;

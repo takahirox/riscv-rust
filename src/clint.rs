@@ -30,14 +30,8 @@ impl Clint {
 			*mip |= MIP_MSIP;
 		}
 
-		// I'm not sure why but if clock interrupt happens while Linux boot
-		// virtio block device access fails. So disable the clock interrupt
-		// until likely Linux boots up as workaround.
-		// @TODO: Figure out the root issue and fix.
-		if self.mtime > 0x1000000 && self.mtimecmp > 0 && self.mtime > self.mtimecmp {
+		if self.mtimecmp > 0 && self.mtime >= self.mtimecmp {
 			*mip |= MIP_MTIP;
-		} else {
-			*mip &= !MIP_MTIP;
 		}
 	}
 
@@ -113,18 +107,9 @@ impl Clint {
 	pub fn store(&mut self, address: u64, value: u8) {
 		//println!("CLINT Store AD:{:X} VAL:{:X}", address, value);
 		match address {
-			// MSIP register 4 bytes
+			// MSIP register 4 bytes. Upper 31 bits are hardwired to zero.
 			0x02000000 => {
-				self.msip = (self.msip & !0xff) | (value as u32);
-			},
-			0x02000001 => {
-				self.msip = (self.msip & !(0xff << 8)) | ((value as u32) << 8);
-			},
-			0x02000002 => {
-				self.msip = (self.msip & !(0xff << 16)) | ((value as u32) << 16);
-			},
-			0x02000003 => {
-				self.msip = (self.msip & !(0xff << 24)) | ((value as u32) << 24);
+				self.msip = (self.msip & !0x1) | ((value & 1) as u32);
 			},
 			// MTIMECMP Registers 8 bytes
 			0x02004000 => {
@@ -178,5 +163,13 @@ impl Clint {
 			},
 			_ => {}
 		};
+	}
+
+	pub fn read_mtime(&self) -> u64 {
+		self.mtime
+	}
+
+	pub fn write_mtime(&mut self, value: u64) {
+		self.mtime = value;
 	}
 }
