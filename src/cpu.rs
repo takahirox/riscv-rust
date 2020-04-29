@@ -60,6 +60,8 @@ pub struct Cpu {
 	pc: u64,
 	csr: [u64; CSR_CAPACITY],
 	mmu: Mmu,
+	reservation: u64, // @TODO: Should support multiple address reservations
+	is_reservation_set: bool,
 	dump_flag: bool
 }
 
@@ -583,6 +585,8 @@ impl Cpu {
 			pc: 0,
 			csr: [0; CSR_CAPACITY],
 			mmu: Mmu::new(Xlen::Bit64, terminal),
+			reservation: 0,
+			is_reservation_set: false,
 			dump_flag: false
 		};
 		cpu.x[0xb] = 0x1020; // I don't know why but Linux boot seems to require this initialization
@@ -2406,14 +2410,22 @@ impl Cpu {
 					Instruction::LRD => {
 						// @TODO: Implement properly
 						self.x[rd as usize] = match self.mmu.load_doubleword(self.x[rs1 as usize] as u64) {
-							Ok(data) => data as i64,
+							Ok(data) => {
+								self.is_reservation_set = true;
+								self.reservation = self.x[rs1 as usize] as u64; // Is virtual address ok?
+								data as i64
+							},
 							Err(e) => return Err(e)
 						};
 					},
 					Instruction::LRW => {
 						// @TODO: Implement properly
 						self.x[rd as usize] = match self.mmu.load_word(self.x[rs1 as usize] as u64) {
-							Ok(data) => data as i32 as i64,
+							Ok(data) => {
+								self.is_reservation_set = true;
+								self.reservation = self.x[rs1 as usize] as u64; // Is virtual address ok?
+								data as i32 as i64
+							},
 							Err(e) => return Err(e)
 						};
 					},
@@ -2532,19 +2544,33 @@ impl Cpu {
 					},
 					Instruction::SCD => {
 						// @TODO: Implement properly
-						match self.mmu.store_doubleword(self.x[rs1 as usize] as u64, self.x[rs2 as usize] as u64) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
+						match self.is_reservation_set && self.reservation == (self.x[rs1 as usize] as u64) {
+							true => match self.mmu.store_doubleword(self.x[rs1 as usize] as u64, self.x[rs2 as usize] as u64) {
+								Ok(()) => {
+									self.x[rd as usize] = 0;
+									self.is_reservation_set = false;
+								},
+								Err(e) => return Err(e)
+							},
+							false => {
+								self.x[rd as usize] = 1;
+							}
 						};
-						self.x[rd as usize] = 0;
 					},
 					Instruction::SCW => {
 						// @TODO: Implement properly
-						match self.mmu.store_word(self.x[rs1 as usize] as u64, self.x[rs2 as usize] as u32) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
+						match self.is_reservation_set && self.reservation == (self.x[rs1 as usize] as u64) {
+							true => match self.mmu.store_word(self.x[rs1 as usize] as u64, self.x[rs2 as usize] as u32) {
+								Ok(()) => {
+									self.x[rd as usize] = 0;
+									self.is_reservation_set = false;
+								},
+								Err(e) => return Err(e)
+							},
+							false => {
+								self.x[rd as usize] = 1;
+							}
 						};
-						self.x[rd as usize] = 0;
 					},
 					Instruction::SFENCEVMA => {
 						// @TODO: Implement
