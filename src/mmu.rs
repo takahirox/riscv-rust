@@ -495,24 +495,27 @@ impl Mmu {
 
 	//
 
-	// Follow the virtio block specification more propertly.
-	pub fn handle_disk_access(&mut self) {
+	// @TODO: Move into virtio_block_disk.rs
+	// @TODO: Follow the virtio block specification more propertly.
+	fn handle_disk_access(&mut self) {
 		let base_desc_address = self.disk.get_desc_address() as u64;
 		let avail_address = self.disk.get_avail_address();
 		let base_used_address = self.disk.get_used_address();
+		let queue_num = self.disk.get_queue_num() as u64;
 
 		let _flag = self.load_halfword_raw(avail_address);
-		let queue_num = self.load_halfword_raw(avail_address.wrapping_add(2)) as u64 % 8;
-		let index = self.load_halfword_raw(avail_address.wrapping_add(4).wrapping_add(queue_num * 2)) % 8;
+		let avail_index = self.load_halfword_raw(avail_address.wrapping_add(2)) as u64 % queue_num;
+		let used_index = self.disk.get_used_index() as u64;
+		let index = self.load_halfword_raw(avail_address.wrapping_add(4).wrapping_add(used_index * 2)) % (queue_num as u16);
 		let desc_size = 16;
 
 		/*
-		println!("Avail AD:{:X}", avail_address);
 		println!("Desc AD:{:X}", base_desc_address);
-
+		println!("Avail AD:{:X}", avail_address);
 		println!("Used AD:{:X}", base_used_address);
 		println!("Flag:{:X}", _flag);
-		println!("Queue num:{:X}", queue_num);
+		println!("Avail index:{:X}", avail_index);
+		println!("Used index:{:X}", used_index);
 		println!("Index:{:X}", index);
 		*/
 
@@ -546,7 +549,7 @@ impl Mmu {
 			let addr = self.load_doubleword_raw(desc_address);
 			let len = self.load_word_raw(desc_address.wrapping_add(8));
 			let flags = self.load_halfword_raw(desc_address.wrapping_add(12));
-			next = self.load_halfword_raw(desc_address.wrapping_add(14)) % 8;
+			next = self.load_halfword_raw(desc_address.wrapping_add(14)) % (queue_num as u16);
 
 			/*
 			println!("addr:{:X}", addr);
@@ -600,10 +603,17 @@ impl Mmu {
 			}
 		}
 
-		let new_id = self.disk.get_new_id();
-		self.store_halfword_raw(base_used_address.wrapping_add(2), new_id);
-		self.store_word_raw(base_used_address.wrapping_add(4).wrapping_add(new_id.wrapping_sub(1) as u64 * 8), index as u32);
-		self.store_word_raw(base_used_address.wrapping_add(4).wrapping_add(new_id.wrapping_sub(1) as u64 * 8).wrapping_add(4), 3);
+		let next_used_index = self.disk.get_next_used_index();
+		self.store_halfword_raw(base_used_address.wrapping_add(2), next_used_index);
+		self.store_word_raw(base_used_address.wrapping_add(4).wrapping_add(used_index as u64 * 8), index as u32);
+	}
+
+	pub fn get_clint(&self) -> &Clint {
+		&self.clint
+	}
+
+	pub fn get_mut_clint(&mut self) -> &mut Clint {
+		&mut self.clint
 	}
 
 	// Wasm specific methods
