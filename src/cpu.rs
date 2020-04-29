@@ -652,10 +652,7 @@ impl Cpu {
 	// @TODO: Rename
 	fn tick_operate(&mut self) -> Result<(), Trap> {
 		if self.wfi {
-			// If WFI hint instruction is executed it should be ok to do nothing
-			// until an interrupt comes. But the emulator freezes at login prompt on Linux.
-			// So commenting out so far.
-			// return Ok(());
+			return Ok(());
 		}
 		let word = match self.fetch() {
 			Ok(word) => word,
