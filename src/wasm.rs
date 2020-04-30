@@ -2,6 +2,7 @@ extern crate wasm_bindgen;
 use wasm_bindgen::prelude::*;
 
 mod application;
+mod memory;
 mod cpu;
 mod mmu;
 mod plic;

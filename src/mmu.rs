@@ -1,3 +1,4 @@
+use memory::Memory;
 use cpu::{PrivilegeMode, Trap, TrapType, Xlen};
 use virtio_block_disk::VirtioBlockDisk;
 use plic::Plic;
@@ -5,15 +6,13 @@ use clint::Clint;
 use uart::Uart;
 use terminal::Terminal;
 
-const DRAM_BASE: usize = 0x80000000;
-
 pub struct Mmu {
 	clock: u64,
 	xlen: Xlen,
 	ppn: u64,
 	addressing_mode: AddressingMode,
 	privilege_mode: PrivilegeMode,
-	memory: Vec<u8>,
+	memory: Memory,
 	dtb: Vec<u8>,
 	disk: VirtioBlockDisk,
 	plic: Plic,
@@ -51,7 +50,7 @@ impl Mmu {
 			ppn: 0,
 			addressing_mode: AddressingMode::None,
 			privilege_mode: PrivilegeMode::Machine,
-			memory: vec![],
+			memory: Memory::new(),
 			dtb: vec![],
 			disk: VirtioBlockDisk::new(),
 			plic: Plic::new(),
@@ -65,9 +64,7 @@ impl Mmu {
 	}
 
 	pub fn init_memory(&mut self, capacity: u64) {
-		for _i in 0..capacity {
-			self.memory.push(0);
-		}
+		self.memory.init(capacity);
 	}
 	
 	pub fn init_disk(&mut self, data: Vec<u8>) {
@@ -286,10 +283,7 @@ impl Mmu {
 			0x10000000..=0x100000ff => self.uart.load(effective_address),
 			0x10001000..=0x10001FFF => self.disk.load(effective_address),
 			_ => {
-				if effective_address < DRAM_BASE as u64 {
-					panic!("No memory map support yet to load AD:{:X}", effective_address);
-				}
-				self.memory[effective_address as usize - DRAM_BASE]
+				self.memory.read_byte(effective_address)
 			}
 		}
 	}
@@ -335,10 +329,7 @@ impl Mmu {
 				self.disk.store(effective_address, value);
 			},
 			_ => {
-				if effective_address < DRAM_BASE as u64 {
-					panic!("No memory map support yet to store AD:{:X}", effective_address);
-				}
-				self.memory[effective_address as usize - DRAM_BASE] = value;
+				self.memory.write_byte(effective_address, value);
 			}
 		};
 	}
