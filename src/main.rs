@@ -1,6 +1,7 @@
 extern crate getopts;
 
 mod application;
+mod memory;
 mod cpu;
 mod mmu;
 mod plic;
