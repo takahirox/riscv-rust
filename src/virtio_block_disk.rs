@@ -1,15 +1,25 @@
+use memory::Memory;
+
+// Based on Virtual I/O Device (VIRTIO) Version 1.1
+// https://docs.oasis-open.org/virtio/virtio/v1.1/csprd01/virtio-v1.1-csprd01.html
+
 // 0x2000 is an arbitary number.
-const MAX_QUEUE_NUM: u64 = 0x2000;
+const MAX_QUEUE_SIZE: u64 = 0x2000;
 
 // To simulate disk access time.
 // @TODO: Set more proper number. 500 core clocks may be too short.
 const DISK_ACCESS_DELAY: u64 = 500;
 
-// Based on Virtual I/O Device (VIRTIO) Version 1.1
-// https://docs.oasis-open.org/virtio/virtio/v1.1/csprd01/virtio-v1.1-csprd01.html
+const VIRTQ_DESC_F_NEXT: u64 = 1;
+
+// 0: buffer is write-only = read from disk operation
+// 1: buffer is read-only = write to disk operation
+const VIRTQ_DESC_F_WRITE: u64 = 2;
+
+const SECTOR_SIZE: u64 = 512;
 
 pub struct VirtioBlockDisk {
-	used_index: u16,
+	used_ring_index: u16,
 	clock: u64,
 	device_features: u64, // read only
 	device_features_sel: u32, // write only
@@ -17,7 +27,7 @@ pub struct VirtioBlockDisk {
 	driver_features_sel: u32, // write only
 	guest_page_size: u32, // write only
 	queue_select: u32, // write only
-	queue_num: u32, // write only
+	queue_size: u32, // write only
 	queue_align: u32, // write only
 	queue_pfn: u32, // read and write
 	queue_notify: u32, // write only
@@ -30,7 +40,7 @@ pub struct VirtioBlockDisk {
 impl VirtioBlockDisk {
 	pub fn new() -> Self {
 		VirtioBlockDisk {
-			used_index: 0,
+			used_ring_index: 0,
 			clock: 0,
 			device_features: 0,
 			device_features_sel: 0,
@@ -38,8 +48,8 @@ impl VirtioBlockDisk {
 			driver_features_sel: 0,
 			guest_page_size: 0,
 			queue_select: 0,
-			queue_num: 0,
-			queue_align: 0x1000,
+			queue_size: 0,
+			queue_align: 0x1000, // xv6 seems to expect this default value
 			queue_pfn: 0,
 			queue_notify: 0,
 			status: 0,
@@ -59,18 +69,16 @@ impl VirtioBlockDisk {
 		}
 	}
 
-	pub fn tick(&mut self) -> bool {
-		let mut do_disk_access = false;
+	pub fn tick(&mut self, memory: &mut Memory) {
 		if self.notify_clocks.len() > 0 && (self.clock == self.notify_clocks[0] + DISK_ACCESS_DELAY) {
 			// bit 0 in interrupt_status register indicates
 			// the interrupt was asserted because the device has used a buffer
 			// in at least one of the active virtual queues.
 			self.interrupt_status |= 0x1;
-			do_disk_access = true;
+			self.handle_disk_access(memory);
 			self.notify_clocks.remove(0);
 		}
 		self.clock = self.clock.wrapping_add(1);
-		do_disk_access
 	}
 
 	// Load/Store registers.
@@ -99,10 +107,10 @@ impl VirtioBlockDisk {
 			0x10001012 => (((self.device_features >> (self.device_features_sel * 32)) >> 16) & 0xff) as u8,
 			0x10001013 => (((self.device_features >> (self.device_features_sel * 32)) >> 24) & 0xff) as u8,
 			// Maximum virtual queue size
-			0x10001034 => MAX_QUEUE_NUM as u8,
-			0x10001035 => (MAX_QUEUE_NUM >> 8) as u8,
-			0x10001036 => (MAX_QUEUE_NUM >> 16) as u8,
-			0x10001037 => (MAX_QUEUE_NUM >> 24) as u8,
+			0x10001034 => MAX_QUEUE_SIZE as u8,
+			0x10001035 => (MAX_QUEUE_SIZE >> 8) as u8,
+			0x10001036 => (MAX_QUEUE_SIZE >> 16) as u8,
+			0x10001037 => (MAX_QUEUE_SIZE >> 24) as u8,
 			// Guest physical page number of the virtual queue
 			0x10001040 => self.queue_pfn as u8,
 			0x10001041 => (self.queue_pfn >> 8) as u8,
@@ -186,16 +194,16 @@ impl VirtioBlockDisk {
 				}
 			},
 			0x10001038 => {
-				self.queue_num = (self.queue_num & !0xff) | (value as u32);
+				self.queue_size = (self.queue_size & !0xff) | (value as u32);
 			},
 			0x10001039 => {
-				self.queue_num = (self.queue_num & !(0xff << 8)) | ((value as u32) << 8);
+				self.queue_size = (self.queue_size & !(0xff << 8)) | ((value as u32) << 8);
 			},
 			0x1000103a => {
-				self.queue_num = (self.queue_num & !(0xff << 16)) | ((value as u32) << 16);			
+				self.queue_size = (self.queue_size & !(0xff << 16)) | ((value as u32) << 16);
 			},
 			0x1000103b => {
-				self.queue_num = (self.queue_num & !(0xff << 24)) | ((value as u32) << 24);
+				self.queue_size = (self.queue_size & !(0xff << 24)) | ((value as u32) << 24);
 			},
 			0x1000103c => {
 				self.queue_align = (self.queue_align & !0xff) | (value as u32);
@@ -240,7 +248,7 @@ impl VirtioBlockDisk {
 				if (value & 0x1) == 1 {
 					self.interrupt_status &= !0x1;
 				} else {
-					panic!("Unknown ack");
+					panic!("Unknown ack {:X}", value);
 				}
 			},
 			0x10001070 => {
@@ -259,42 +267,170 @@ impl VirtioBlockDisk {
 		};
 	}
 
-	pub fn get_queue_num(&self) -> u32 {
-		self.queue_num
-	}
-
-	pub fn get_page_address(&self) -> u64 {
-		self.queue_pfn as u64 * self.guest_page_size as u64
-	}
-
-	pub fn get_desc_address(&self) -> u64 {
-		self.get_page_address()
-	}
-
-	pub fn get_avail_address(&self) -> u64 {
-		self.get_page_address() + self.queue_num as u64 * 16
-	}
-
-	pub fn get_used_address(&self) -> u64 {
-		let align = self.queue_align as u64;
-		let queue_num = self.queue_num as u64;
-		((self.get_avail_address() + 4 + queue_num * 2 + align - 1) / align) * align
-	}
-
-	pub fn read_from_disk(&mut self, address: u64) -> u8 {
+	fn read_from_disk(&mut self, address: u64) -> u8 {
 		self.contents[address as usize]
 	}
-	
-	pub fn write_to_disk(&mut self, address: u64, value: u8) {
+
+	fn write_to_disk(&mut self, address: u64, value: u8) {
 		self.contents[address as usize] = value
 	}
 
-	pub fn get_used_index(&self) -> u16 {
-		self.used_index
+	fn get_page_address(&self) -> u64 {
+		self.queue_pfn as u64 * self.guest_page_size as u64
 	}
 
-	pub fn get_next_used_index(&mut self) -> u16 {
-		self.used_index = self.used_index.wrapping_add(1) % self.queue_num as u16;
-		self.used_index
+	// Virtqueue layout: Starting at page address
+	//
+	// struct virtq {
+	//   struct virtq_desc desc[queue_size]; // queue_size * 16bytes
+	//   struct virtq_avail avail;           // 2 * 2bytes + queue_size * 2bytes
+	//   uint8 pad[padding];                 // until queue_align
+	//   struct virtq_used used;             // 2 * 2bytes + queue_size * 8bytes
+	// }
+	//
+	// struct virtq_desc {
+	//   uint64 addr;
+	//   uint32 len;
+	//   uint16 flags;
+	//   uint16 next;
+	// }
+	//
+	// struct virtq_avail {
+	//   uint16 flags;
+	//   uint16 idx;
+	//   uint16 ring[queue_size];
+	// }
+	//
+	// struct virtq_used {
+	//   uint16 flags;
+	//   uint16 idx;
+	//   struct virtq_used_elem ring[queue_size];
+	// }
+	//
+	// struct virtq_used_elem {
+	//   uint32 id;
+	//   uint32 len;
+	// }
+
+	fn get_base_desc_address(&self) -> u64 {
+		self.get_page_address()
+	}
+
+	fn get_base_avail_address(&self) -> u64 {
+		self.get_base_desc_address() + self.queue_size as u64 * 16
+	}
+
+	fn get_base_used_address(&self) -> u64 {
+		let align = self.queue_align as u64;
+		let queue_size = self.queue_size as u64;
+		((self.get_base_avail_address() + 4 + queue_size * 2 + align - 1) / align) * align
+	}
+
+	// @TODO: Follow the virtio block specification more propertly.
+	fn handle_disk_access(&mut self, memory: &mut Memory) {
+		let base_desc_address = self.get_base_desc_address();
+		let base_avail_address = self.get_base_avail_address();
+		let base_used_address = self.get_base_used_address();
+		let queue_size = self.queue_size as u64;
+
+		let avail_flag = memory.read_bytes(base_avail_address, 2);
+		let avail_index = memory.read_bytes(base_avail_address.wrapping_add(2), 2) % queue_size;
+		let desc_index_address = base_avail_address.wrapping_add(4).wrapping_add(self.used_ring_index as u64 * 2);
+		let desc_head_index = memory.read_bytes(desc_index_address, 2) % queue_size;
+
+		/*
+		println!("Desc AD:{:X}", base_desc_address);
+		println!("Avail AD:{:X}", base_avail_address);
+		println!("Used AD:{:X}", base_used_address);
+		println!("Avail flag:{:X}", avail_flag);
+		println!("Avail index:{:X}", avail_index);
+		println!("Used ring index:{:X}", self.used_ring_index);
+		println!("Desc head index:{:X}", desc_head_index);
+		*/
+
+		let mut _blk_type = 0;
+		let mut _blk_reserved = 0;
+		let mut blk_sector = 0;
+		let mut desc_num = 0;
+		let mut desc_next = desc_head_index;
+		while true {
+			let desc_element_address = base_desc_address + 16 * desc_next;
+			let desc_addr = memory.read_bytes(desc_element_address, 8);
+			let desc_len = memory.read_bytes(desc_element_address.wrapping_add(8), 4);
+			let desc_flags = memory.read_bytes(desc_element_address.wrapping_add(12), 2);
+			desc_next = memory.read_bytes(desc_element_address.wrapping_add(14), 2) % queue_size;
+
+			/*
+			println!("Desc addr:{:X}", desc_addr);
+			println!("Desc len:{:X}", desc_len);
+			println!("Desc flags:{:X}", desc_flags);
+			println!("Desc next:{:X}", desc_next);
+			*/
+
+			match desc_num {
+				0 => {
+					// First descriptor: Block description
+					// struct virtio_blk_req {
+					//   uint32 type;
+					//   uint32 reserved;
+					//   uint64 sector;
+					// }
+
+					// Read/Write operation can be distinguished with the second descriptor flags
+					// so we can ignore blk_type?
+					_blk_type = memory.read_bytes(desc_addr, 4);
+					_blk_reserved = memory.read_bytes(desc_addr.wrapping_add(4), 4);
+					blk_sector = memory.read_bytes(desc_addr.wrapping_add(8), 8);
+					/*
+					println!("Blk type:{:X}", _blk_type);
+					println!("Blk reserved:{:X}", _blk_reserved);
+					println!("Blk sector:{:X}", blk_sector);
+					*/
+				},
+				1 => {
+					// Second descriptor: Read/Write disk
+					match (desc_flags & VIRTQ_DESC_F_WRITE) == 0 {
+						true => { // write to disk
+							for i in 0..desc_len as u64 {
+								let data = memory.read_byte(desc_addr + i);
+								self.write_to_disk(blk_sector * SECTOR_SIZE + i, data);
+							}
+						},
+						false => { // read from disk
+							for i in 0..desc_len as u64 {
+								let data = self.read_from_disk(blk_sector * SECTOR_SIZE + i);
+								memory.write_byte(desc_addr + i, data);
+							}
+						}
+					};
+				},
+				2 => {
+					// Third descriptor: Result status
+					if (desc_flags & VIRTQ_DESC_F_WRITE) == 0 {
+						panic!("Third descriptor should be write.");
+					}
+					if desc_len != 1 {
+						panic!("Third descriptor length should be one.");
+					}
+					memory.write_byte(desc_addr, 0); // 0 means succeeded
+				},
+				_ => {}
+			};
+
+			desc_num += 1;
+
+			if (desc_flags & VIRTQ_DESC_F_NEXT) == 0 {
+				break;
+			}
+		}
+
+		if desc_num != 3 {
+			panic!("Descript chain length should be three.");
+		}
+
+		memory.write_bytes(base_used_address.wrapping_add(4).wrapping_add(self.used_ring_index as u64 * 8), desc_head_index, 4);
+
+		self.used_ring_index = self.used_ring_index.wrapping_add(1) % self.queue_size as u16;
+		memory.write_bytes(base_used_address.wrapping_add(2), self.used_ring_index as u64, 2);
 	}
 }

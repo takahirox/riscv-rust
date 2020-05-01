@@ -1,4 +1,4 @@
-pub const DRAM_BASE: u64 = 0x80000000;
+const DRAM_BASE: u64 = 0x80000000;
 
 pub struct Memory {
 	data: Vec<u8>
