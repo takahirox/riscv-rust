@@ -271,7 +271,7 @@ impl Mmu {
 
 	pub fn load_raw(&mut self, address: u64) -> u8 {
 		let effective_address = self.get_effective_address(address);
-		// @TODO: Map from dtb file
+		// @TODO: Mapping should be configurable with dtb
 		match address {
 			// I don't know why but dtb data seems to be stored from 0x1020 on Linux.
 			// It might be from self.x[0xb] initialization?
@@ -284,14 +284,6 @@ impl Mmu {
 				self.memory.read_byte(effective_address)
 			}
 		}
-	}
-
-	pub fn load_halfword_raw(&mut self, address: u64) -> u16 {
-		let mut data = 0 as u16;
-		for i in 0..2 {
-			data |= (self.load_raw(address.wrapping_add(i)) as u16) << (i * 8)
-		}
-		data
 	}
 
 	pub fn load_word_raw(&mut self, address: u64) -> u32 {
@@ -312,30 +304,14 @@ impl Mmu {
 
 	pub fn store_raw(&mut self, address: u64, value: u8) {
 		let effective_address = self.get_effective_address(address);
-		// @TODO: Check memory map
+		// @TODO: Mapping should be configurable with dtb
 		match address {
-			0x02000000..=0x0200ffff => {
-				self.clint.store(effective_address, value);
-			},
-			0x0c000000..=0x0fffffff => {
-				self.plic.store(effective_address, value);
-			},
-			0x10000000..=0x100000ff => {
-				self.uart.store(effective_address, value);
-			},
-			0x10001000..=0x10001FFF => {
-				self.disk.store(effective_address, value);
-			},
-			_ => {
-				self.memory.write_byte(effective_address, value);
-			}
+			0x02000000..=0x0200ffff => self.clint.store(effective_address, value),
+			0x0c000000..=0x0fffffff => self.plic.store(effective_address, value),
+			0x10000000..=0x100000ff => self.uart.store(effective_address, value),
+			0x10001000..=0x10001FFF => self.disk.store(effective_address, value),
+			_ => self.memory.write_byte(effective_address, value)
 		};
-	}
-
-	pub fn store_halfword_raw(&mut self, address: u64, value: u16) {
-		for i in 0..2 {
-			self.store_raw(address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8);
-		}
 	}
 
 	pub fn store_word_raw(&mut self, address: u64, value: u32) {
@@ -490,17 +466,7 @@ impl Mmu {
 		&mut self.clint
 	}
 
-	// Wasm specific methods
-
-	pub fn get_uart_output(&mut self) -> u8 {
-		self.uart.get_output()
-	}
-
-	pub fn put_uart_output(&mut self, data: u8) {
-		self.uart.put_output(data);
-	}
-
-	pub fn put_uart_input(&mut self, data: u8) {
-		self.uart.put_input(data);
+	pub fn get_mut_uart(&mut self) -> &mut Uart {
+		&mut self.uart
 	}
 }

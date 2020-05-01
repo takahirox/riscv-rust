@@ -24,7 +24,7 @@ pub struct VirtioBlockDisk {
 	device_features: u64, // read only
 	device_features_sel: u32, // write only
 	driver_features: u32, // write only
-	driver_features_sel: u32, // write only
+	_driver_features_sel: u32, // write only
 	guest_page_size: u32, // write only
 	queue_select: u32, // write only
 	queue_size: u32, // write only
@@ -45,7 +45,7 @@ impl VirtioBlockDisk {
 			device_features: 0,
 			device_features_sel: 0,
 			driver_features: 0,
-			driver_features_sel: 0,
+			_driver_features_sel: 0,
 			guest_page_size: 0,
 			queue_select: 0,
 			queue_size: 0,
@@ -333,8 +333,8 @@ impl VirtioBlockDisk {
 		let base_used_address = self.get_base_used_address();
 		let queue_size = self.queue_size as u64;
 
-		let avail_flag = memory.read_bytes(base_avail_address, 2);
-		let avail_index = memory.read_bytes(base_avail_address.wrapping_add(2), 2) % queue_size;
+		let _avail_flag = memory.read_bytes(base_avail_address, 2);
+		let _avail_index = memory.read_bytes(base_avail_address.wrapping_add(2), 2) % queue_size;
 		let desc_index_address = base_avail_address.wrapping_add(4).wrapping_add(self.used_ring_index as u64 * 2);
 		let desc_head_index = memory.read_bytes(desc_index_address, 2) % queue_size;
 
@@ -342,8 +342,8 @@ impl VirtioBlockDisk {
 		println!("Desc AD:{:X}", base_desc_address);
 		println!("Avail AD:{:X}", base_avail_address);
 		println!("Used AD:{:X}", base_used_address);
-		println!("Avail flag:{:X}", avail_flag);
-		println!("Avail index:{:X}", avail_index);
+		println!("Avail flag:{:X}", _avail_flag);
+		println!("Avail index:{:X}", _avail_index);
 		println!("Used ring index:{:X}", self.used_ring_index);
 		println!("Desc head index:{:X}", desc_head_index);
 		*/
@@ -353,7 +353,7 @@ impl VirtioBlockDisk {
 		let mut blk_sector = 0;
 		let mut desc_num = 0;
 		let mut desc_next = desc_head_index;
-		while true {
+		loop {
 			let desc_element_address = base_desc_address + 16 * desc_next;
 			let desc_addr = memory.read_bytes(desc_element_address, 8);
 			let desc_len = memory.read_bytes(desc_element_address.wrapping_add(8), 4);

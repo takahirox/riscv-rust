@@ -119,17 +119,7 @@ impl Uart {
 		};
 	}
 
-	// Wasm specific
-
-	pub fn get_output(&mut self) -> u8 {
-		self.terminal.get_output()
-	}
-
-	pub fn put_output(&mut self, data: u8) {
-		self.terminal.put_byte(data);
-	}
-
-	pub fn put_input(&mut self, data: u8) {
-		self.terminal.put_input(data);
+	pub fn get_mut_terminal(&mut self) -> &mut Box<dyn Terminal> {
+		&mut self.terminal
 	}
 }
