@@ -80,9 +80,7 @@ impl Mmu {
 
 	pub fn tick(&mut self, mip: &mut u64) {
 		self.clint.tick(mip);
-		if self.disk.tick() {
-			self.handle_disk_access();
-		}
+		self.disk.tick(&mut self.memory);
 		self.uart.tick();
 		self.plic.tick(self.disk.is_interrupting(), self.uart.is_interrupting(), mip);
 		self.clock = self.clock.wrapping_add(1);
@@ -482,121 +480,6 @@ impl Mmu {
 		};
 		// println!("PA:{:X}", p_address);
 		Ok(p_address)
-	}
-
-	//
-
-	// @TODO: Move into virtio_block_disk.rs
-	// @TODO: Follow the virtio block specification more propertly.
-	fn handle_disk_access(&mut self) {
-		let base_desc_address = self.disk.get_desc_address() as u64;
-		let avail_address = self.disk.get_avail_address();
-		let base_used_address = self.disk.get_used_address();
-		let queue_num = self.disk.get_queue_num() as u64;
-
-		let _flag = self.load_halfword_raw(avail_address);
-		let avail_index = self.load_halfword_raw(avail_address.wrapping_add(2)) as u64 % queue_num;
-		let used_index = self.disk.get_used_index() as u64;
-		let index = self.load_halfword_raw(avail_address.wrapping_add(4).wrapping_add(used_index * 2)) % (queue_num as u16);
-		let desc_size = 16;
-
-		/*
-		println!("Desc AD:{:X}", base_desc_address);
-		println!("Avail AD:{:X}", avail_address);
-		println!("Used AD:{:X}", base_used_address);
-		println!("Flag:{:X}", _flag);
-		println!("Avail index:{:X}", avail_index);
-		println!("Used index:{:X}", used_index);
-		println!("Index:{:X}", index);
-		*/
-
-		let desc_address = base_desc_address + desc_size * index as u64;
-		let addr = self.load_doubleword_raw(desc_address);
-		let len = self.load_word_raw(desc_address.wrapping_add(8));
-		let flags = self.load_halfword_raw(desc_address.wrapping_add(12));
-		let next = self.load_halfword_raw(desc_address.wrapping_add(14));
-
-		/*
-		println!("addr:{:X}", addr);
-		println!("len:{:X}", len);
-		println!("flags:{:X}", flags);
-		println!("next:{:X}", next);
-		*/
-
-		let blk_type = self.load_word_raw(addr);
-		let blk_reserved = self.load_word_raw(addr.wrapping_add(4));
-		let blk_sector = self.load_doubleword_raw(addr.wrapping_add(8));
-
-		/*
-		println!("Blk type:{:X}", blk_type);
-		println!("Blk reserved:{:X}", blk_reserved);
-		println!("Blk sector:{:X}", blk_sector);
-		*/
-
-		let mut next = index;
-		let mut desc_num = 0;
-		while true {
-			let desc_address = base_desc_address + desc_size * next as u64;
-			let addr = self.load_doubleword_raw(desc_address);
-			let len = self.load_word_raw(desc_address.wrapping_add(8));
-			let flags = self.load_halfword_raw(desc_address.wrapping_add(12));
-			next = self.load_halfword_raw(desc_address.wrapping_add(14)) % (queue_num as u16);
-
-			/*
-			println!("addr:{:X}", addr);
-			println!("len:{:X}", len);
-			println!("flags:{:X}", flags);
-			println!("next:{:X}", next);
-			*/
-
-			if desc_num == 1 {
-				match (flags & 2) == 0 {
-					true => { // write to disk
-						//println!("Write to disk DiskAD:{:X} MemAd:{:X}", blk_sector * 512, addr);
-						for i in 0..len as u64 {
-							let data = self.load_raw(addr + i);
-							self.disk.write_to_disk(blk_sector * 512 + i, data);
-							//print!("{:02X} ", data);
-						}
-						//println!();
-					},
-					false => { // read from disk
-						//println!("Read from disk DiskAD:{:X} MemAd:{:X}", blk_sector * 512, addr);
-						for i in 0..len as u64 {
-							let data = self.disk.read_from_disk(blk_sector * 512 + i);
-							self.store_raw(addr + i, data);
-							//print!("{:02X} ", data);
-						}
-						//println!();
-					}
-				};
-			}
-
-			if desc_num == 2 {
-				match (flags & 2) == 0 {
-					true => panic!("Third descriptor should be write."),
-					false => { // read from disk
-						//println!("Read from disk DiskAD:{:X} MemAd:{:X}", blk_sector * 512, addr);
-						for i in 0..len as u64 {
-							let data = self.disk.read_from_disk(blk_sector * 512 + i);
-							self.store_raw(addr + i, 0);
-							//print!("{:02X} ", data);
-						}
-						//println!();
-					}
-				};
-			}
-
-			desc_num += 1;
-
-			if (flags & 1) == 0 {
-				break;
-			}
-		}
-
-		let next_used_index = self.disk.get_next_used_index();
-		self.store_halfword_raw(base_used_address.wrapping_add(2), next_used_index);
-		self.store_word_raw(base_used_address.wrapping_add(4).wrapping_add(used_index as u64 * 8), index as u32);
 	}
 
 	pub fn get_clint(&self) -> &Clint {
