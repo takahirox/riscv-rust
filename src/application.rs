@@ -457,13 +457,9 @@ impl Application {
 		self.cpu.update_xlen(xlen);
 	}
 
-	// Wasm speicific methods
+	// Wasm speicific method
 
-	pub fn get_output(&mut self) -> u8 {
-		self.cpu.get_output()
-	}
-
-	pub fn put_input(&mut self, data: u8) {
-		self.cpu.put_input(data);
+	pub fn get_mut_terminal(&mut self) -> &mut Box<dyn Terminal> {
+		self.cpu.get_mut_terminal()
 	}
 }

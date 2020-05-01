@@ -35,10 +35,10 @@ const CSR_MTVAL_ADDRESS: u16 = 0x343;
 const CSR_MIP_ADDRESS: u16 = 0x344;
 const _CSR_PMPCFG0_ADDRESS: u16 = 0x3a0;
 const _CSR_PMPADDR0_ADDRESS: u16 = 0x3b0;
-const CSR_MCYCLE_ADDRESS: u16 = 0xb00;
+const _CSR_MCYCLE_ADDRESS: u16 = 0xb00;
 const CSR_CYCLE_ADDRESS: u16 = 0xc00;
 const CSR_TIME_ADDRESS: u16 = 0xc01;
-const CSR_INSERT_ADDRESS: u16 = 0xc02;
+const _CSR_INSERT_ADDRESS: u16 = 0xc02;
 const _CSR_MHARTID_ADDRESS: u16 = 0xf14;
 
 const MIP_MEIP: u64 = 0x800;
@@ -62,7 +62,7 @@ pub struct Cpu {
 	mmu: Mmu,
 	reservation: u64, // @TODO: Should support multiple address reservations
 	is_reservation_set: bool,
-	dump_flag: bool
+	_dump_flag: bool
 }
 
 #[derive(Clone)]
@@ -260,7 +260,7 @@ fn get_privilege_encoding(mode: &PrivilegeMode) -> u8 {
 	}
 }
 
-fn get_trap_type_name(trap_type: &TrapType) -> &'static str {
+fn _get_trap_type_name(trap_type: &TrapType) -> &'static str {
 	match trap_type {
 		TrapType::InstructionAddressMisaligned => "InstructionAddressMisaligned",
 		TrapType::InstructionAccessFault => "InstructionAccessFault",
@@ -317,21 +317,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 		TrapType::UserExternalInterrupt => interrupt_bit + 8,
 		TrapType::SupervisorExternalInterrupt => interrupt_bit + 9,
 		TrapType::MachineExternalInterrupt => interrupt_bit + 11
-	}
-}
-
-fn get_interrupt_privilege_mode(trap: &Trap) -> PrivilegeMode {
-	match trap.trap_type {
-		TrapType::MachineSoftwareInterrupt |
-		TrapType::MachineTimerInterrupt |
-		TrapType::MachineExternalInterrupt => PrivilegeMode::Machine,
-		TrapType::SupervisorSoftwareInterrupt |
-		TrapType::SupervisorTimerInterrupt |
-		TrapType::SupervisorExternalInterrupt => PrivilegeMode::Supervisor,
-		TrapType::UserSoftwareInterrupt |
-		TrapType::UserTimerInterrupt |
-		TrapType::UserExternalInterrupt => PrivilegeMode::User,
-		_ => panic!("{} is not an interrupt", get_trap_type_name(&trap.trap_type))
 	}
 }
 
@@ -587,7 +572,7 @@ impl Cpu {
 			mmu: Mmu::new(Xlen::Bit64, terminal),
 			reservation: 0,
 			is_reservation_set: false,
-			dump_flag: false
+			_dump_flag: false
 		};
 		cpu.x[0xb] = 0x1020; // I don't know why but Linux boot seems to require this initialization
 		cpu.write_csr_raw(CSR_MISA_ADDRESS, 0x800000008014312f);
@@ -598,10 +583,6 @@ impl Cpu {
 
 	pub fn store_raw(&mut self, address: u64, value: u8) {
 		self.mmu.store_raw(address, value);
-	}
-
-	pub fn store_doubleword_raw(&mut self, address: u64, value: u64) {
-		self.mmu.store_doubleword_raw(address, value);
 	}
 
 	pub fn update_pc(&mut self, value: u64) {
@@ -625,14 +606,10 @@ impl Cpu {
 		self.mmu.init_dtb(data);
 	}
 
-	// Two public methods for running riscv-tests
+	// One public method for running riscv-tests
 
 	pub fn load_word_raw(&mut self, address: u64) -> u32 {
 		self.mmu.load_word_raw(address)
-	}
-
-	pub fn load_doubleword_raw(&mut self, address: u64) -> u64 {
-		self.mmu.load_doubleword_raw(address)
 	}
 
 	//
@@ -777,13 +754,6 @@ impl Cpu {
 		let new_privilege_encoding = get_privilege_encoding(&new_privilege_mode) as u64;
 
 		let current_status = match self.privilege_mode {
-			PrivilegeMode::Machine => self.read_csr_raw(CSR_MSTATUS_ADDRESS),
-			PrivilegeMode::Supervisor => self.read_csr_raw(CSR_SSTATUS_ADDRESS),
-			PrivilegeMode::User => self.read_csr_raw(CSR_USTATUS_ADDRESS),
-			PrivilegeMode::Reserved => panic!(),
-		};
-
-		let status = match new_privilege_mode {
 			PrivilegeMode::Machine => self.read_csr_raw(CSR_MSTATUS_ADDRESS),
 			PrivilegeMode::Supervisor => self.read_csr_raw(CSR_SSTATUS_ADDRESS),
 			PrivilegeMode::User => self.read_csr_raw(CSR_USTATUS_ADDRESS),
@@ -1923,7 +1893,7 @@ impl Cpu {
 						};
 					},
 					Instruction::CSRRS => {
-						let mut data = match self.read_csr(csr) {
+						let data = match self.read_csr(csr) {
 							Ok(data) => data,
 							Err(e) => return Err(e)
 						};
@@ -2303,12 +2273,6 @@ impl Cpu {
 						// @TODO: Implement
 					},
 					Instruction::ECALL => {
-						let csr_epc_address = match self.privilege_mode {
-							PrivilegeMode::User => CSR_UEPC_ADDRESS,
-							PrivilegeMode::Supervisor => CSR_SEPC_ADDRESS,
-							PrivilegeMode::Machine => CSR_MEPC_ADDRESS,
-							PrivilegeMode::Reserved => panic!()
-						};
 						let exception_type = match self.privilege_mode {
 							PrivilegeMode::User => TrapType::EnvironmentCallFromUMode,
 							PrivilegeMode::Supervisor => TrapType::EnvironmentCallFromSMode,
@@ -2751,16 +2715,11 @@ impl Cpu {
 
 	pub fn put_bytes_to_terminal(&mut self, bytes: &[u8]) {
 		for i in 0..bytes.len() {
-			self.mmu.put_uart_output(bytes[i]);
+			self.get_mut_terminal().put_byte(bytes[i]);
 		}
 	}
-	
-	// Wasm specific
-	pub fn get_output(&mut self) -> u8 {
-		self.mmu.get_uart_output()
-	}
 
-	pub fn put_input(&mut self, data: u8) {
-		self.mmu.put_uart_input(data);
+	pub fn get_mut_terminal(&mut self) -> &mut Box<dyn Terminal> {
+		self.mmu.get_mut_uart().get_mut_terminal()
 	}
 }

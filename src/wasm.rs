@@ -43,12 +43,12 @@ impl WasmRiscv {
 			self.application.tick();
 		}
 	}
-	
+
 	pub fn get_output(&mut self) -> u8 {
-		self.application.get_output()
+		self.application.get_mut_terminal().get_output()
 	}
 
 	pub fn put_input(&mut self, data: u8) {
-		self.application.put_input(data);
+		self.application.get_mut_terminal().put_input(data);
 	}
 }
