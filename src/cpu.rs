@@ -235,7 +235,7 @@ enum InstructionFormat {
 	C, // CSR
 	I,
 	J,
-	O, // Other, temporal
+	O, // Other, temporal format name
 	R,
 	S,
 	U
@@ -579,7 +579,7 @@ impl Cpu {
 		cpu
 	}
 
-	// Seven public methods for setting up from outside
+	// Six public methods for setting up from outside
 
 	pub fn store_raw(&mut self, address: u64, value: u8) {
 		self.mmu.store_raw(address, value);
@@ -631,30 +631,20 @@ impl Cpu {
 		if self.wfi {
 			return Ok(());
 		}
-		let word = match self.fetch() {
+		let mut word = match self.fetch() {
 			Ok(word) => word,
 			Err(e) => return Err(e)
 		};
 		let instruction_address = self.pc;
-		// First try to decode as non-compressed instruction
+		if (word & 0x3) == 0x3 {
+			self.pc = self.pc.wrapping_add(4); // 32-bit length non-compressed instruction
+		} else {
+			self.pc = self.pc.wrapping_add(2); // 16-bit length compressed instruction
+			word = self.uncompress(word & 0xffff);
+		}
 		match self.decode(word) {
-			Ok(instruction) => {
-				self.pc = self.pc.wrapping_add(4); // 32-bit length instruction
-				self.operate(word, instruction, instruction_address)
-			},
-			Err(()) => {
-				// If fails to decode as non-compressed instruction,
-				// try to decode as compressed instruction
-				// @TODO: Optimize
-				let uncompressed_word = self.uncompress(word & 0xffff);
-				match self.decode(uncompressed_word) {
-					Ok(instruction) => {
-						self.pc = self.pc.wrapping_add(2); // 16-bit length instruction
-						self.operate(uncompressed_word, instruction, instruction_address)
-					},
-					Err(()) => panic!("Unknown instruction PC:{:X} WORD:{:X}", instruction_address, word)
-				}
-			}
+			Ok(instruction) => self.operate(word, instruction, instruction_address),
+			Err(()) => panic!("Unknown instruction PC:{:X} WORD:{:X}", instruction_address, word)
 		}
 	}
 
@@ -984,6 +974,7 @@ impl Cpu {
 	// SSTATUS, SIE, and SIP are subsets of MSTATUS, MIE, and MIP
 	fn read_csr_raw(&self, address: u16) -> u64 {
 		match address {
+			// @TODO: Mask shuld consider of 32-bit mode
 			CSR_SSTATUS_ADDRESS => self.csr[CSR_MSTATUS_ADDRESS as usize] & 0x80000003000de162,
 			CSR_SIE_ADDRESS => self.csr[CSR_MIE_ADDRESS as usize] & 0x222,
 			CSR_SIP_ADDRESS => self.csr[CSR_MIP_ADDRESS as usize] & 0x222,
