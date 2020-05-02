@@ -114,9 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	ADD,
-	ADDI,
-	ADDIW,
 	ADDW,
 	AMOADDD,
 	AMOADDW,
@@ -221,7 +218,6 @@ enum Instruction {
 	SRLI,
 	SRLIW,
 	SRLW,
-	SUB,
 	SUBW,
 	SW,
 	URET,
@@ -322,9 +318,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::ADD => "ADD",
-		Instruction::ADDI => "ADDI",
-		Instruction::ADDIW => "ADDIW",
 		Instruction::ADDW => "ADDW",
 		Instruction::AMOADDD => "AMOADDD",
 		Instruction::AMOADDW => "AMOADD.W",
@@ -429,7 +422,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::SRLI => "SRLI",
 		Instruction::SRLIW => "SRLIW",
 		Instruction::SRLW => "SRLW",
-		Instruction::SUB => "SUB",
 		Instruction::SUBW => "SUBW",
 		Instruction::SW => "SW",
 		Instruction::URET => "URET",
@@ -453,8 +445,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::CSRRSI |
 		Instruction::CSRRW |
 		Instruction::CSRRWI => InstructionFormat::C,
-		Instruction::ADDI |
-		Instruction::ADDIW |
 		Instruction::ANDI |
 		Instruction::FLD |
 		Instruction::FLW |
@@ -478,7 +468,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
 		Instruction::FENCE => InstructionFormat::O,
-		Instruction::ADD |
 		Instruction::ADDW |
 		Instruction::AMOADDD |
 		Instruction::AMOADDW |
@@ -532,7 +521,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::REMW |
 		Instruction::SCD |
 		Instruction::SCW |
-		Instruction::SUB |
 		Instruction::SUBW |
 		Instruction::SFENCEVMA |
 		Instruction::SLL |
@@ -642,6 +630,17 @@ impl Cpu {
 			self.pc = self.pc.wrapping_add(2); // 16-bit length compressed instruction
 			word = self.uncompress(word & 0xffff);
 		}
+
+		// New decode and operate system
+		for i in 0..INSTRUCTION_NUM {
+			let inst = &INSTRUCTIONS[i];
+			if (word & inst.mask) == inst.data {
+				return (inst.operation)(self, word);
+			}
+		}
+
+		// Old decode and operate system
+		// @TODO: Move all the instructions to the new system
 		match self.decode(word) {
 			Ok(instruction) => self.operate(word, instruction, instruction_address),
 			Err(()) => panic!("Unknown instruction PC:{:X} WORD:{:X}", instruction_address, word)
@@ -1559,7 +1558,6 @@ impl Cpu {
 			},
 			0x0f => Instruction::FENCE,
 			0x13 => match funct3 {
-				0 => Instruction::ADDI,
 				1 => Instruction::SLLI,
 				2 => Instruction::SLTI,
 				3 => Instruction::SLTIU,
@@ -1576,7 +1574,6 @@ impl Cpu {
 			},
 			0x17 => Instruction::AUIPC,
 			0x1b => match funct3 {
-				0 => Instruction::ADDIW,
 				1 => Instruction::SLLIW,
 				5 => match funct7 {
 					0 => Instruction::SRLIW,
@@ -1625,9 +1622,7 @@ impl Cpu {
 			}
 			0x33 => match funct3 {
 				0 => match funct7 {
-					0 => Instruction::ADD,
 					1 => Instruction::MUL,
-					0x20 => Instruction::SUB,
 					_ => return Err(())
 				},
 				1 => match funct7 {
@@ -1951,12 +1946,6 @@ impl Cpu {
 					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
 				) as i32 as i64;
 				match instruction {
-					Instruction::ADDI => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize].wrapping_add(imm));
-					},
-					Instruction::ADDIW => {
-						self.x[rd as usize] = self.x[rs1 as usize].wrapping_add(imm) as i32 as i64;
-					},
 					Instruction::ANDI => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] & imm);
 					},
@@ -2124,9 +2113,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::ADD => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize].wrapping_add(self.x[rs2 as usize]));
-					},
 					Instruction::ADDW => {
 						self.x[rd as usize] = self.x[rs1 as usize].wrapping_add(self.x[rs2 as usize]) as i32 as i64;
 					},
@@ -2527,9 +2513,6 @@ impl Cpu {
 					Instruction::SFENCEVMA => {
 						// @TODO: Implement
 					},
-					Instruction::SUB => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize].wrapping_sub(self.x[rs2 as usize]));
-					},
 					Instruction::SUBW => {
 						self.x[rd as usize] = self.x[rs1 as usize].wrapping_sub(self.x[rs2 as usize]) as i32 as i64;
 					},
@@ -2714,3 +2697,92 @@ impl Cpu {
 		self.mmu.get_mut_uart().get_mut_terminal()
 	}
 }
+
+// @TODO: Rename to Instruction
+struct InstructionData {
+	mask: u32,
+	data: u32, // @TODO: rename
+	name: &'static str,
+	operation: fn(cpu: &mut Cpu, word: u32) -> Result<(), Trap>
+}
+
+struct FormatI {
+	rd: usize,
+	rs1: usize,
+	imm: i64
+}
+
+fn parse_format_i (word: u32) -> FormatI {
+	FormatI {
+		rd: ((word >> 7) & 0x1f) as usize, // [11:7]
+		rs1: ((word >> 15) & 0x1f) as usize, // [19:15]
+		imm: (
+			match word & 0x80000000 { // imm[31:11] = [31]
+				0x80000000 => 0xfffff800,
+				_ => 0
+			} |
+			((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
+		) as i32 as i64
+	}
+}
+
+struct FormatR {
+	rd: usize,
+	rs1: usize,
+	rs2: usize
+}
+
+fn parse_format_r (word: u32) -> FormatR {
+	FormatR {
+		rd: ((word >> 7) & 0x1f) as usize, // [11:7]
+		rs1: ((word >> 15) & 0x1f) as usize, // [19:15]
+		rs2: ((word >> 20) & 0x1f) as usize // [24:20]
+	}
+}
+
+const INSTRUCTION_NUM: usize = 4;
+
+// @TODO: Reorder in often used order as 
+// @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
+const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x00000033,
+		name: "ADD",
+		operation: |cpu, word| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_add(cpu.x[f.rs2]));
+			Ok(())
+		}
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00000013,
+		name: "ADDI",
+		operation: |cpu, word| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_add(f.imm));
+			Ok(())
+		}
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x0000001b,
+		name: "ADDIW",
+		operation: |cpu, word| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = cpu.x[f.rs1].wrapping_add(f.imm) as i32 as i64;
+			Ok(())
+		}
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x40000033,
+		name: "SUB",
+		operation: |cpu, word| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_sub(cpu.x[f.rs2]));
+			Ok(())
+		}
+	},
+];
