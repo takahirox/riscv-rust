@@ -57,9 +57,8 @@
           fsBuffer = await fsResponse.arrayBuffer();
           dtbBuffer = new ArrayBuffer(0); // dummy
 		} else {
-          fsBuffer = new ArrayBuffer(0); // dummy
-          dtbBuffer = new ArrayBuffer(0); // dummy
-		}
+          throw new Error('Unknown program.');
+        }
 
         const riscv = WasmRiscv.new();
         currentRiscv = riscv;
@@ -82,24 +81,19 @@
           }
 		};
 
-        if (!isXv6 && !isLinux) {
-          riscv.run();
+        const run_cycles = () => {
+          if (!riscv.running) {
+            return;
+          }
+          setTimeout(run_cycles, 0);
+          riscv.run_cycles(0x10000);
           outputToTerminal();
-		} else {
-          const run_cycles = () => {
-            if (!riscv.running) {
-              return;
-		    }
-            setTimeout(run_cycles, 0);
-            riscv.run_cycles(0x10000);
-            outputToTerminal();
-            while (inputs.length > 0) {
-              riscv.put_input(inputs.shift());
-            }
-          };
-          riscv.running = true;
-          run_cycles();
-        }
+          while (inputs.length > 0) {
+            riscv.put_input(inputs.shift());
+          }
+        };
+        riscv.running = true;
+        run_cycles();
       };
 
       const setupTerminal = () => {
@@ -164,141 +158,23 @@
     <select id="file-select">
       <option value="linux/bbl" selected>Linux</option>
       <option value="xv6/kernel">xv6 (tiny OS)</option>
-      <option value="riscv-tests/rv32ui-p-add">rv32ui-p-add test</option>
-      <option value="riscv-tests/rv32ui-p-addi">rv32ui-p-addi test</option>
-      <option value="riscv-tests/rv32ui-p-and">rv32ui-p-and test</option>
-      <option value="riscv-tests/rv32ui-p-andi">rv32ui-p-andi test</option>
-      <option value="riscv-tests/rv32ui-p-auipc">rv32ui-p-auipc test</option>
-      <option value="riscv-tests/rv32ui-p-beq">rv32ui-p-beq test</option>
-      <option value="riscv-tests/rv32ui-p-bge">rv32ui-p-bge test</option>
-      <option value="riscv-tests/rv32ui-p-bgeu">rv32ui-p-bgeu test</option>
-      <option value="riscv-tests/rv32ui-p-blt">rv32ui-p-blt test</option>
-      <option value="riscv-tests/rv32ui-p-bltu">rv32ui-p-bltu test</option>
-      <option value="riscv-tests/rv32ui-p-bne">rv32ui-p-bne test</option>
-      <option value="riscv-tests/rv32ui-p-fence_i">rv32ui-p-fence_i test</option>
-      <option value="riscv-tests/rv32ui-p-jal">rv32ui-p-jal test</option>
-      <option value="riscv-tests/rv32ui-p-jalr">rv32ui-p-jalr test</option>
-      <option value="riscv-tests/rv32ui-p-lb">rv32ui-p-lb test</option>
-      <option value="riscv-tests/rv32ui-p-lbu">rv32ui-p-lbu test</option>
-      <option value="riscv-tests/rv32ui-p-lh">rv32ui-p-lh test</option>
-      <option value="riscv-tests/rv32ui-p-lhu">rv32ui-p-lhu test</option>
-      <option value="riscv-tests/rv32ui-p-lui">rv32ui-p-lui test</option>
-      <option value="riscv-tests/rv32ui-p-lw">rv32ui-p-lw test</option>
-      <option value="riscv-tests/rv32ui-p-or">rv32ui-p-or test</option>
-      <option value="riscv-tests/rv32ui-p-ori">rv32ui-p-ori test</option>
-      <option value="riscv-tests/rv32ui-p-sb">rv32ui-p-sb test</option>
-      <option value="riscv-tests/rv32ui-p-sh">rv32ui-p-sh test</option>
-      <option value="riscv-tests/rv32ui-p-simple">rv32ui-p-simple test</option>
-      <option value="riscv-tests/rv32ui-p-sll">rv32ui-p-sll test</option>
-      <option value="riscv-tests/rv32ui-p-slli">rv32ui-p-slli test</option>
-      <option value="riscv-tests/rv32ui-p-slt">rv32ui-p-slt test</option>
-      <option value="riscv-tests/rv32ui-p-slti">rv32ui-p-slti test</option>
-      <option value="riscv-tests/rv32ui-p-sltiu">rv32ui-p-sltiu test</option>
-      <option value="riscv-tests/rv32ui-p-sltu">rv32ui-p-sltu test</option>
-      <option value="riscv-tests/rv32ui-p-sra">rv32ui-p-sra test</option>
-      <option value="riscv-tests/rv32ui-p-srai">rv32ui-p-srai test</option>
-      <option value="riscv-tests/rv32ui-p-srl">rv32ui-p-srl test</option>
-      <option value="riscv-tests/rv32ui-p-srli">rv32ui-p-srli test</option>
-      <option value="riscv-tests/rv32ui-p-sub">rv32ui-p-sub test</option>
-      <option value="riscv-tests/rv32ui-p-sw">rv32ui-p-sw test</option>
-      <option value="riscv-tests/rv32ui-p-xor">rv32ui-p-xor test</option>
-      <option value="riscv-tests/rv32ui-p-xori">rv32ui-p-xori test</option>
-      <option value="riscv-tests/rv32um-p-div">rv32um-p-div test</option>
-      <option value="riscv-tests/rv32um-p-divu">rv32um-p-divu test</option>
-      <option value="riscv-tests/rv32um-p-mul">rv32um-p-mul test</option>
-      <option value="riscv-tests/rv32um-p-mulh">rv32um-p-mulh test</option>
-      <option value="riscv-tests/rv32um-p-mulhsu">rv32um-p-mulhsu test</option>
-      <option value="riscv-tests/rv32um-p-mulhu">rv32um-p-mulhu test</option>
-      <option value="riscv-tests/rv32um-p-rem">rv32um-p-rem test</option>
-      <option value="riscv-tests/rv32um-p-remu">rv32um-p-remu test</option>
-      <option value="riscv-tests/rv64ui-p-add">rv64ui-p-add test</option>
-      <option value="riscv-tests/rv64ui-p-addi">rv64ui-p-addi test</option>
-      <option value="riscv-tests/rv64ui-p-addiw">rv64ui-p-addiw test</option>
-      <option value="riscv-tests/rv64ui-p-addw">rv64ui-p-addw test</option>
-      <option value="riscv-tests/rv64ui-p-and">rv64ui-p-and test</option>
-      <option value="riscv-tests/rv64ui-p-andi">rv64ui-p-andi test</option>
-      <option value="riscv-tests/rv64ui-p-auipc">rv64ui-p-auipc test</option>
-      <option value="riscv-tests/rv64ui-p-beq">rv64ui-p-beq test</option>
-      <option value="riscv-tests/rv64ui-p-bge">rv64ui-p-bge test</option>
-      <option value="riscv-tests/rv64ui-p-bgeu">rv64ui-p-bgeu test</option>
-      <option value="riscv-tests/rv64ui-p-blt">rv64ui-p-blt test</option>
-      <option value="riscv-tests/rv64ui-p-bltu">rv64ui-p-bltu test</option>
-      <option value="riscv-tests/rv64ui-p-bne">rv64ui-p-bne test</option>
-      <option value="riscv-tests/rv64ui-p-fence_i">rv64ui-p-fence_i test</option>
-      <option value="riscv-tests/rv64ui-p-jal">rv64ui-p-jal test</option>
-      <option value="riscv-tests/rv64ui-p-jalr">rv64ui-p-jalr test</option>
-      <option value="riscv-tests/rv64ui-p-lb">rv64ui-p-lb test</option>
-      <option value="riscv-tests/rv64ui-p-lbu">rv64ui-p-lbu test</option>
-      <option value="riscv-tests/rv64ui-p-ld">rv64ui-p-ld test</option>
-      <option value="riscv-tests/rv64ui-p-lh">rv64ui-p-lh test</option>
-      <option value="riscv-tests/rv64ui-p-lhu">rv64ui-p-lhu test</option>
-      <option value="riscv-tests/rv64ui-p-lui">rv64ui-p-lui test</option>
-      <option value="riscv-tests/rv64ui-p-lw">rv64ui-p-lw test</option>
-      <option value="riscv-tests/rv64ui-p-lwu">rv64ui-p-lwu test</option>
-      <option value="riscv-tests/rv64ui-p-or">rv64ui-p-or test</option>
-      <option value="riscv-tests/rv64ui-p-ori">rv64ui-p-ori test</option>
-      <option value="riscv-tests/rv64ui-p-sb">rv64ui-p-sb test</option>
-      <option value="riscv-tests/rv64ui-p-sd">rv64ui-p-sd test</option>
-      <option value="riscv-tests/rv64ui-p-sh">rv64ui-p-sh test</option>
-      <option value="riscv-tests/rv64ui-p-simple">rv64ui-p-simple test</option>
-      <option value="riscv-tests/rv64ui-p-sll">rv64ui-p-sll test</option>
-      <option value="riscv-tests/rv64ui-p-slli">rv64ui-p-slli test</option>
-      <option value="riscv-tests/rv64ui-p-slliw">rv64ui-p-slliw test</option>
-      <option value="riscv-tests/rv64ui-p-sllw">rv64ui-p-sllw test</option>
-      <option value="riscv-tests/rv64ui-p-slt">rv64ui-p-slt test</option>
-      <option value="riscv-tests/rv64ui-p-slti">rv64ui-p-slti test</option>
-      <option value="riscv-tests/rv64ui-p-sltiu">rv64ui-p-sltiu test</option>
-      <option value="riscv-tests/rv64ui-p-sltu">rv64ui-p-sltu test</option>
-      <option value="riscv-tests/rv64ui-p-sra">rv64ui-p-sra test</option>
-      <option value="riscv-tests/rv64ui-p-srai">rv64ui-p-srai test</option>
-      <option value="riscv-tests/rv64ui-p-sraiw">rv64ui-p-sraiw test</option>
-      <option value="riscv-tests/rv64ui-p-sraw">rv64ui-p-sraw test</option>
-      <option value="riscv-tests/rv64ui-p-srl">rv64ui-p-srl test</option>
-      <option value="riscv-tests/rv64ui-p-srli">rv64ui-p-srli test</option>
-      <option value="riscv-tests/rv64ui-p-srliw">rv64ui-p-srliw test</option>
-      <option value="riscv-tests/rv64ui-p-srlw">rv64ui-p-srlw test</option>
-      <option value="riscv-tests/rv64ui-p-sub">rv64ui-p-sub test</option>
-      <option value="riscv-tests/rv64ui-p-subw">rv64ui-p-subw test</option>
-      <option value="riscv-tests/rv64ui-p-sw">rv64ui-p-sw test</option>
-      <option value="riscv-tests/rv64ui-p-xor">rv64ui-p-xor test</option>
-      <option value="riscv-tests/rv64ui-p-xori">rv64ui-p-xori test</option>
-      <option value="riscv-tests/rv64um-p-div">rv64um-p-div test</option>
-      <option value="riscv-tests/rv64um-p-divu">rv64um-p-divu test</option>
-      <option value="riscv-tests/rv64um-p-divuw">rv64um-p-divuw test</option>
-      <option value="riscv-tests/rv64um-p-divw">rv64um-p-divw test</option>
-      <option value="riscv-tests/rv64um-p-mul">rv64um-p-mul test</option>
-      <option value="riscv-tests/rv64um-p-mulh">rv64um-p-mulh test</option>
-      <option value="riscv-tests/rv64um-p-mulhsu">rv64um-p-mulhsu test</option>
-      <option value="riscv-tests/rv64um-p-mulhu">rv64um-p-mulhu test</option>
-      <option value="riscv-tests/rv64um-p-mulw">rv64um-p-mulw test</option>
-      <option value="riscv-tests/rv64um-p-rem">rv64um-p-rem test</option>
-      <option value="riscv-tests/rv64um-p-remu">rv64um-p-remu test</option>
-      <option value="riscv-tests/rv64um-p-remuw">rv64um-p-remuw test</option>
-      <option value="riscv-tests/rv64um-p-remw">rv64um-p-remw test</option>
     </select>
 	<button id="run-button" disabled>Run</button>
 <textarea id="terminal" readonly>
 Message from the emulator author Takahiro:
 
 This is RISC-V processor emulator written in Rust and compiled to WebAssembly.
-You can run the RISC-V port of Linux, xv6 (UNIX V6 rewritten by MIT for x86) or
-basic ISA verification test set riscv-tests. Select what you want to run from the
-list and press Run button.
+You can run the RISC-V port of Linux or xv6 (UNIX V6 rewritten by MIT for x86)
+on your browser. Select OS from the list and press Run button.
 
-Note for Linux and xv6:
 The emulator is still very slow. It takes time to boot. Thank you for your
 patience. Some special character inputs are not handled correctly yet.
-
-Note for riscv-tests:
-Only p tests are in the list although the emulator also passes v tests because
-v tests take time on browser. If you want to run v tests clone the repository
-and run on command line.
 
 Enjoy RISC-V and Operating System on browser!
 
 </textarea><br />
     <div>
-      <a href="https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html">Linux</a>, <a href="https://github.com/mit-pdos/xv6-riscv" target="_blank">xv6</a> and <a href="https://github.com/riscv/riscv-tests" target="_blank">riscv-tests</a> on <a href="https://github.com/takahirox/riscv-rust" target="_blank">RISC-V processor emulator in Rust+WASM</a>
+      <a href="https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html">Linux</a>, <a href="https://github.com/mit-pdos/xv6-riscv" target="_blank">xv6</a> on <a href="https://github.com/takahirox/riscv-rust" target="_blank">RISC-V processor emulator in Rust+WASM</a>
     </div>
   </body>
 </html>
