@@ -123,7 +123,6 @@ enum Instruction {
 	AMOORW,
 	AMOSWAPD,
 	AMOSWAPW,
-	AND,
 	ANDI,
 	AUIPC,
 	BEQ,
@@ -326,7 +325,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::AMOORW => "AMOOR.W",
 		Instruction::AMOSWAPD => "AMOSWAP.D",
 		Instruction::AMOSWAPW => "AMOSWAP.W",
-		Instruction::AND => "AND",
 		Instruction::ANDI => "ANDI",
 		Instruction::AUIPC => "AUIPC",
 		Instruction::BEQ => "BEQ",
@@ -475,7 +473,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::AMOORW |
 		Instruction::AMOSWAPD |
 		Instruction::AMOSWAPW |
-		Instruction::AND |
 		Instruction::DIV |
 		Instruction::DIVU |
 		Instruction::DIVUW |
@@ -1654,7 +1651,6 @@ impl Cpu {
 					_ => return Err(())
 				},
 				7 => match funct7 {
-					0 => Instruction::AND,
 					1 => Instruction::REMU,
 					_ => return Err(())
 				},
@@ -2212,9 +2208,6 @@ impl Cpu {
 						};
 						self.x[rd as usize] = tmp as i32 as i64;
 					},
-					Instruction::AND => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] & self.x[rs2 as usize]);
-					},
 					Instruction::DIV => {
 						self.x[rd as usize] = match self.x[rs2 as usize] {
 							0 => -1,
@@ -2733,7 +2726,7 @@ fn parse_format_r (word: u32) -> FormatR {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 6;
+const INSTRUCTION_NUM: usize = 7;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -2797,6 +2790,16 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 				Err(e) => return Err(e)
 			};
 			cpu.x[f.rd] = tmp as i64;
+			Ok(())
+		}
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x00007033,
+		name: "AND",
+		operation: |cpu, word| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] & cpu.x[f.rs2]);
 			Ok(())
 		}
 	},
