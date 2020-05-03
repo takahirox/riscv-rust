@@ -629,7 +629,7 @@ impl Cpu {
 		for i in 0..INSTRUCTION_NUM {
 			let inst = &INSTRUCTIONS[i];
 			if (word & inst.mask) == inst.data {
-				return (inst.operation)(self, word);
+				return (inst.operation)(self, word, instruction_address);
 			}
 		}
 
@@ -2689,7 +2689,7 @@ struct InstructionData {
 	mask: u32,
 	data: u32, // @TODO: rename
 	name: &'static str,
-	operation: fn(cpu: &mut Cpu, word: u32) -> Result<(), Trap>
+	operation: fn(cpu: &mut Cpu, word: u32, address: u64) -> Result<(), Trap>
 }
 
 struct FormatI {
@@ -2735,7 +2735,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		mask: 0xfe00707f,
 		data: 0x00000033,
 		name: "ADD",
-		operation: |cpu, word| {
+		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_add(cpu.x[f.rs2]));
 			Ok(())
@@ -2745,7 +2745,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		mask: 0x0000707f,
 		data: 0x00000013,
 		name: "ADDI",
-		operation: |cpu, word| {
+		operation: |cpu, word, _address| {
 			let f = parse_format_i(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_add(f.imm));
 			Ok(())
@@ -2755,7 +2755,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		mask: 0x0000707f,
 		data: 0x0000001b,
 		name: "ADDIW",
-		operation: |cpu, word| {
+		operation: |cpu, word, _address| {
 			let f = parse_format_i(word);
 			cpu.x[f.rd] = cpu.x[f.rs1].wrapping_add(f.imm) as i32 as i64;
 			Ok(())
@@ -2765,7 +2765,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		mask: 0xfe00707f,
 		data: 0x0000003b,
 		name: "ADDW",
-		operation: |cpu, word| {
+		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.x[f.rs1].wrapping_add(cpu.x[f.rs2]) as i32 as i64;
 			Ok(())
@@ -2775,7 +2775,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		mask: 0xf800707f,
 		data: 0xe000302f,
 		name: "AMOMAXU.D",
-		operation: |cpu, word| {
+		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			let tmp = match cpu.mmu.load_doubleword(cpu.x[f.rs1] as u64) {
 				Ok(data) => data,
@@ -2797,7 +2797,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		mask: 0xfe00707f,
 		data: 0x00007033,
 		name: "AND",
-		operation: |cpu, word| {
+		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] & cpu.x[f.rs2]);
 			Ok(())
@@ -2807,7 +2807,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		mask: 0xfe00707f,
 		data: 0x40000033,
 		name: "SUB",
-		operation: |cpu, word| {
+		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_sub(cpu.x[f.rs2]));
 			Ok(())
