@@ -31,7 +31,7 @@
       terminal.writeln('on your browser. Select OS from the list and press Run button.');
       terminal.writeln('');
       terminal.writeln('The emulator is still very slow. It takes time to boot. Thank you for your');
-      terminal.writeln('patience. Some special character inputs are not handled correctly yet.');
+      terminal.writeln('patience.');
       terminal.writeln('');
       terminal.writeln('Enjoy RISC-V and Operating System on browser!');
       terminal.writeln('');
@@ -106,7 +106,21 @@
 
       const setupInputEventHandlers = () => {
         terminal.onKey(event => {
+          // xterm.js doesn't handle function keys so
+          // handling by myself here
           switch (event.domEvent.keyCode) {
+            case 33: // Page up
+              inputs.push(27, 91, 53, 126);
+              break;
+            case 34: // Page down
+              inputs.push(27, 91, 54, 126);
+              break;
+            case 35: // End
+              inputs.push(27, 91, 52, 126);
+              break;
+            case 36: // Home
+              inputs.push(27, 91, 49, 126);
+              break;
             case 37: // Arrow Left
               inputs.push(27, 91, 68);
               break;
@@ -118,6 +132,48 @@
               break;
             case 40: // Arrow Down
               inputs.push(27, 91, 66);
+              break;
+            case 45: // Insert
+              inputs.push(27, 91, 50, 126);
+              break;
+            case 46: // Delete
+              inputs.push(127);
+              break;
+            case 112: // F1
+              inputs.push(27, 79, 80);
+              break;
+            case 113: // F2
+              inputs.push(27, 79, 81);
+              break;
+            case 114: // F3
+              inputs.push(27, 79, 82);
+              break;
+            case 115: // F4
+              inputs.push(27, 79, 83);
+              break;
+            case 116: // F5
+              inputs.push(27, 91, 49, 53, 126);
+              break;
+            case 117: // F6
+              inputs.push(27, 91, 49, 55, 126);
+              break;
+            case 118: // F7
+              inputs.push(27, 91, 49, 6, 126);
+              break;
+            case 119: // F8
+              inputs.push(27, 91, 49, 57, 126);
+              break;
+            case 120: // F9
+              inputs.push(27, 91, 50, 48, 126);
+              break;
+            case 121: // F10
+              inputs.push(27, 91, 50, 49, 126);
+              break;
+            case 122: // F11
+              inputs.push(27, 91, 50, 50, 126);
+              break;
+            case 123: // F12
+              inputs.push(27, 91, 50, 51, 126);
               break;
             default:
               inputs.push(event.key.charCodeAt(0));
