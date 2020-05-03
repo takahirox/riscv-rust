@@ -629,7 +629,9 @@ impl Cpu {
 		for i in 0..INSTRUCTION_NUM {
 			let inst = &INSTRUCTIONS[i];
 			if (word & inst.mask) == inst.data {
-				return (inst.operation)(self, word, instruction_address);
+				let result = (inst.operation)(self, word, instruction_address);
+				self.x[0] = 0; // hardwired zero
+				return result;
 			}
 		}
 
