@@ -170,7 +170,6 @@ enum Instruction {
 	FSGNJXD,
 	FSUBD,
 	JAL,
-	JALR,
 	LB,
 	LBU,
 	LD,
@@ -372,7 +371,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 		Instruction::FSGNJXD => "FSGNJXD",
 		Instruction::FSUBD => "FSUBD",
 		Instruction::JAL => "JAL",
-		Instruction::JALR => "JALR",
 		Instruction::LB => "LB",
 		Instruction::LBU => "LBU",
 		Instruction::LD => "LD",
@@ -444,7 +442,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::ANDI |
 		Instruction::FLD |
 		Instruction::FLW |
-		Instruction::JALR |
 		Instruction::LB |
 		Instruction::LBU |
 		Instruction::LD |
@@ -1755,7 +1752,6 @@ impl Cpu {
 				7 => Instruction::BGEU,
 				_ => return Err(())
 			},
-			0x67 => Instruction::JALR,
 			0x6f => Instruction::JAL,
 			0x73 => match funct3 {
 				0 => {
@@ -1959,11 +1955,6 @@ impl Cpu {
 							},
 							Err(e) => return Err(e)
 						};
-					},
-					Instruction::JALR => {
-						let tmp = self.sign_extend(self.pc as i64);
-						self.pc = (self.x[rs1 as usize] as u64).wrapping_add(imm as u64);
-						self.x[rd as usize] = tmp;
 					},
 					Instruction::LB => {
 						self.x[rd as usize] = match self.mmu.load(self.x[rs1 as usize].wrapping_add(imm) as u64) {
@@ -2728,7 +2719,7 @@ fn parse_format_r (word: u32) -> FormatR {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 7;
+const INSTRUCTION_NUM: usize = 8;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -2802,6 +2793,18 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] & cpu.x[f.rs2]);
+			Ok(())
+		}
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00000067,
+		name: "JALR",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			let tmp = cpu.sign_extend(cpu.pc as i64);
+			cpu.pc = (cpu.x[f.rs1] as u64).wrapping_add(f.imm as u64);
+			cpu.x[f.rd] = tmp;
 			Ok(())
 		}
 	},
