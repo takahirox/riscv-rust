@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	ADDW,
 	AMOADDD,
 	AMOADDW,
 	AMOANDD,
@@ -318,7 +317,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::ADDW => "ADDW",
 		Instruction::AMOADDD => "AMOADDD",
 		Instruction::AMOADDW => "AMOADD.W",
 		Instruction::AMOANDD => "AMOAND.D",
@@ -468,7 +466,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
 		Instruction::FENCE => InstructionFormat::O,
-		Instruction::ADDW |
 		Instruction::AMOADDD |
 		Instruction::AMOADDW |
 		Instruction::AMOANDD |
@@ -1666,7 +1663,6 @@ impl Cpu {
 			0x37 => Instruction::LUI,
 			0x3b => match funct3 {
 				0 => match funct7 {
-					0 => Instruction::ADDW,
 					1 => Instruction::MULW,
 					0x20 => Instruction::SUBW,
 					_ => return Err(())
@@ -2113,9 +2109,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::ADDW => {
-						self.x[rd as usize] = self.x[rs1 as usize].wrapping_add(self.x[rs2 as usize]) as i32 as i64;
-					},
 					Instruction::AMOADDD => {
 						let tmp = match self.mmu.load_doubleword(self.unsigned_data(self.x[rs1 as usize])) {
 							Ok(data) => data,
@@ -2740,7 +2733,7 @@ fn parse_format_r (word: u32) -> FormatR {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 5;
+const INSTRUCTION_NUM: usize = 6;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -2772,6 +2765,16 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word| {
 			let f = parse_format_i(word);
 			cpu.x[f.rd] = cpu.x[f.rs1].wrapping_add(f.imm) as i32 as i64;
+			Ok(())
+		}
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x0000003b,
+		name: "ADDW",
+		operation: |cpu, word| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.x[f.rs1].wrapping_add(cpu.x[f.rs2]) as i32 as i64;
 			Ok(())
 		}
 	},
