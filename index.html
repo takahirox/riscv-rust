@@ -1,15 +1,12 @@
 <html>
   <head>
-    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type" />
+    <link rel="stylesheet" href="xtermjs/xterm.css" />
+    <script src="xtermjs/xterm.js"></script>
     <style>
-    #terminal {
-      background-color: #000;
-      color: #fff;
-      border-style: none;
-      resize: none;
-      width: 100%;
-      height: 90%;
-    }
+      #terminal {
+        height: 90%;
+      }
     </style>
   </head>
   <body>
@@ -17,17 +14,34 @@
       import init, { WasmRiscv } from "./wasm/riscv_rust.js";
 
       let wasm;
-      let currentRiscv;
       const inputs = [];
 
-      const run = async () => {
-        const terminal = document.getElementById('terminal');
-        terminal.value = '';
+      const COLUMNS = 80;
+      const MINIMUM_ROWS = 24;
 
-        if (currentRiscv) {
-          currentRiscv.running = false;
-          currentRiscv.free();
-        }
+      const terminal = new Terminal();
+      terminal.setOption('cursorBlink', true);
+      terminal.setOption('convertEol', true);
+      terminal.open(document.getElementById('terminal'));
+
+      terminal.writeln('Message from the emulator author Takahiro:');
+      terminal.writeln('');
+      terminal.writeln('This is RISC-V processor emulator written in Rust and compiled to WebAssembly.');
+      terminal.writeln('You can run the RISC-V port of Linux or xv6 (UNIX V6 rewritten by MIT for x86)');
+      terminal.writeln('on your browser. Select OS from the list and press Run button.');
+      terminal.writeln('');
+      terminal.writeln('The emulator is still very slow. It takes time to boot. Thank you for your');
+      terminal.writeln('patience. Some special character inputs are not handled correctly yet.');
+      terminal.writeln('');
+      terminal.writeln('Enjoy RISC-V and Operating System on browser!');
+      terminal.writeln('');
+
+      const run = async () => {
+        document.getElementById('run-button').disabled = true;
+        document.getElementById('file-select').disabled = true;
+
+        terminal.clear();
+        setupInputEventHandlers();
 
         const selectElement = document.getElementById('file-select');
         const selectedOption = selectElement.selectedOptions[0];
@@ -36,9 +50,10 @@
         const isXv6 = filename === 'xv6/kernel';
 
         if (isLinux) {
-          terminal.value += 'login name: root\n';
-          terminal.value += 'Password: busybear\n';
-          terminal.value += 'It takes time to boot. Thank you for your patience.\n\n';
+          terminal.writeln('login name: root');
+          terminal.writeln('Password: busybear');
+          terminal.writeln('It takes time to boot. Thank you for your patience.');
+          terminal.writeln('');
         }
 
         const elfResponse = await fetch(filename);
@@ -61,8 +76,6 @@
         }
 
         const riscv = WasmRiscv.new();
-        currentRiscv = riscv;
-        riscv.running = false;
         riscv.init(new Uint8Array(elfBuffer), new Uint8Array(fsBuffer), new Uint8Array(dtbBuffer));
 
         const outputToTerminal = () => {
@@ -76,15 +89,11 @@
             }
           }
           if (output_bytes.length > 0) {
-            terminal.value += u8s_to_strings(output_bytes);
-            terminal.scrollTop = terminal.scrollHeight ;
+            terminal.write(u8s_to_strings(output_bytes));
           }
 		};
 
         const run_cycles = () => {
-          if (!riscv.running) {
-            return;
-          }
           setTimeout(run_cycles, 0);
           riscv.run_cycles(0x10000);
           outputToTerminal();
@@ -92,46 +101,63 @@
             riscv.put_input(inputs.shift());
           }
         };
-        riscv.running = true;
         run_cycles();
       };
 
-      const setupTerminal = () => {
-        const terminal = document.getElementById('terminal');
-        terminal.addEventListener('keydown', event => {
-          if (!currentRiscv || !currentRiscv.running) {
-            return;
-		  }
-          let value = 0;
-          switch (event.keyCode) {
-            // @TODO: Support more special characters
-            case 13: // new line
-              value = 0xa;
+      const setupInputEventHandlers = () => {
+        terminal.onKey(event => {
+          switch (event.domEvent.keyCode) {
+            case 37: // Arrow Left
+              inputs.push(27, 91, 68);
               break;
-            case 16: // shift
-            case 37: // cursors
-            case 38:
-            case 39:
-            case 40:
+            case 38: // Arrow Up
+              inputs.push(27, 91, 65);
               break;
-            case 32: // space
-              value = 0x20;
+            case 39: // Arrow Right
+              inputs.push(27, 91, 67);
+              break;
+            case 40: // Arrow Down
+              inputs.push(27, 91, 66);
               break;
             default:
-              value = event.key.charCodeAt(0);
-              break;
-          }
-          if (value > 0) {
-            inputs.push(value);
+              inputs.push(event.key.charCodeAt(0));
+		  }
+        });
+        // I don't know why but terminal.onKey doesn't catch
+        // space key so handling in document keydown event listener.
+        document.addEventListener('keydown', event => {
+          switch (event.keyCode) {
+            case 32: // Space
+			  inputs.push(32);
           }
           event.preventDefault();
-        }, false);
+        });
 	  };
+
+      // From https://github.com/xtermjs/xterm.js/tree/master/addons/xterm-addon-fit
+      const onResize = event => {
+        // @TODO: Remove reliance on private API
+        const core = terminal._core;
+
+        const parentElementStyle = window.getComputedStyle(terminal.element.parentElement);
+        const parentElementHeight = parseInt(parentElementStyle.getPropertyValue('height'));
+        const elementStyle = window.getComputedStyle(terminal.element);
+        const elementPadding = {
+          top: parseInt(elementStyle.getPropertyValue('padding-top')),
+          bottom: parseInt(elementStyle.getPropertyValue('padding-bottom'))
+        };
+        const elementPaddingVer = elementPadding.top + elementPadding.bottom;
+        const availableHeight = parentElementHeight - elementPaddingVer;
+        const rows = Math.max(MINIMUM_ROWS, Math.floor(availableHeight / core._renderService.dimensions.actualCellHeight));
+        terminal.resize(COLUMNS, rows);
+      };
+
+      window.addEventListener('resize', onResize);
+      onResize();
 
       init()
         .then(_wasm => {
           wasm = _wasm;
-          setupTerminal();
           const runButton = document.getElementById('run-button');
           runButton.addEventListener('click', run);
           runButton.disabled = false;
@@ -160,19 +186,7 @@
       <option value="xv6/kernel">xv6 (tiny OS)</option>
     </select>
 	<button id="run-button" disabled>Run</button>
-<textarea id="terminal" readonly>
-Message from the emulator author Takahiro:
-
-This is RISC-V processor emulator written in Rust and compiled to WebAssembly.
-You can run the RISC-V port of Linux or xv6 (UNIX V6 rewritten by MIT for x86)
-on your browser. Select OS from the list and press Run button.
-
-The emulator is still very slow. It takes time to boot. Thank you for your
-patience. Some special character inputs are not handled correctly yet.
-
-Enjoy RISC-V and Operating System on browser!
-
-</textarea><br />
+    <div id="terminal"></div>
     <div>
       <a href="https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html">Linux</a>, <a href="https://github.com/mit-pdos/xv6-riscv" target="_blank">xv6</a> on <a href="https://github.com/takahirox/riscv-rust" target="_blank">RISC-V processor emulator in Rust+WASM</a>
     </div>
