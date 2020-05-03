@@ -2740,7 +2740,7 @@ fn parse_format_r (word: u32) -> FormatR {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 4;
+const INSTRUCTION_NUM: usize = 5;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -2772,6 +2772,28 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word| {
 			let f = parse_format_i(word);
 			cpu.x[f.rd] = cpu.x[f.rs1].wrapping_add(f.imm) as i32 as i64;
+			Ok(())
+		}
+	},
+	InstructionData {
+		mask: 0xf800707f,
+		data: 0xe000302f,
+		name: "AMOMAXU.D",
+		operation: |cpu, word| {
+			let f = parse_format_r(word);
+			let tmp = match cpu.mmu.load_doubleword(cpu.x[f.rs1] as u64) {
+				Ok(data) => data,
+				Err(e) => return Err(e)
+			};
+			let max = match cpu.x[f.rs2] as u64 >= tmp {
+				true => cpu.x[f.rs2] as u64,
+				false => tmp
+			};
+			match cpu.mmu.store_doubleword(cpu.x[f.rs1] as u64, max) {
+				Ok(()) => {},
+				Err(e) => return Err(e)
+			};
+			cpu.x[f.rd] = tmp as i64;
 			Ok(())
 		}
 	},
