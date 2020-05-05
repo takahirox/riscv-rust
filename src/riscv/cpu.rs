@@ -1,4 +1,4 @@
-use emulator::mmu::{AddressingMode, Mmu};
+use riscv::mmu::{AddressingMode, Mmu};
 use terminal::Terminal;
 
 const CSR_CAPACITY: usize = 4096;

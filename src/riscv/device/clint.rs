@@ -1,4 +1,4 @@
-use emulator::cpu::{MIP_MSIP, MIP_MTIP};
+use riscv::cpu::{MIP_MSIP, MIP_MTIP};
 
 pub struct Clint {
 	clock: u64,

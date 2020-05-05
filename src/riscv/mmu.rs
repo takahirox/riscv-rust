@@ -1,9 +1,9 @@
-use emulator::memory::Memory;
-use emulator::cpu::{PrivilegeMode, Trap, TrapType, Xlen};
-use emulator::device::virtio_block_disk::VirtioBlockDisk;
-use emulator::device::plic::Plic;
-use emulator::device::clint::Clint;
-use emulator::device::uart::Uart;
+use riscv::memory::Memory;
+use riscv::cpu::{PrivilegeMode, Trap, TrapType, Xlen};
+use riscv::device::virtio_block_disk::VirtioBlockDisk;
+use riscv::device::plic::Plic;
+use riscv::device::clint::Clint;
+use riscv::device::uart::Uart;
 use terminal::Terminal;
 
 pub struct Mmu {

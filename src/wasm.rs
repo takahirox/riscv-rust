@@ -1,48 +1,47 @@
 extern crate wasm_bindgen;
 use wasm_bindgen::prelude::*;
 
-mod emulator;
-mod application;
+mod riscv;
 mod terminal;
 mod wasm_terminal;
 
+use riscv::emulator::Emulator;
 use wasm_terminal::wasm_terminal::WasmTerminal;
-use application::Application;
 
 #[wasm_bindgen]
 pub struct WasmRiscv {
-	application: Application
+	emulator: Emulator
 }
 
 #[wasm_bindgen]
 impl WasmRiscv {
 	pub fn new() -> Self {
 		WasmRiscv {
-			application: Application::new(Box::new(WasmTerminal::new()))
+			emulator: Emulator::new(Box::new(WasmTerminal::new()))
 		}
 	}
 
 	pub fn init(&mut self, kernel_contents: Vec<u8>, fs_contents: Vec<u8>, dtb_contents: Vec<u8>) {
-		self.application.setup_from_elf(kernel_contents);
-		self.application.setup_filesystem(fs_contents);
-		self.application.setup_dtb(dtb_contents);
+		self.emulator.setup_from_elf(kernel_contents);
+		self.emulator.setup_filesystem(fs_contents);
+		self.emulator.setup_dtb(dtb_contents);
 	}
 
 	pub fn run(&mut self) {
-		self.application.run();
+		self.emulator.run();
 	}
 
 	pub fn run_cycles(&mut self, cycles: u32) {
 		for _i in 0..cycles {
-			self.application.tick();
+			self.emulator.tick();
 		}
 	}
 
 	pub fn get_output(&mut self) -> u8 {
-		self.application.get_mut_terminal().get_output()
+		self.emulator.get_mut_terminal().get_output()
 	}
 
 	pub fn put_input(&mut self, data: u8) {
-		self.application.get_mut_terminal().put_input(data);
+		self.emulator.get_mut_terminal().put_input(data);
 	}
 }

@@ -2,10 +2,10 @@
 const TEST_MEMORY_CAPACITY: u64 = 1024 * 512;
 const PROGRAM_MEMORY_CAPACITY: u64 = 1024 * 1024 * 128; // big enough to run Linux and xv6
 
-use emulator::cpu::{Cpu, Xlen};
+use riscv::cpu::{Cpu, Xlen};
 use terminal::Terminal;
 
-pub struct Application {
+pub struct Emulator {
 	cpu: Cpu,
 
 	// riscv-tests specific properties
@@ -26,9 +26,9 @@ struct SectionHeader {
 	_sh_entsize: u64
 }
 
-impl Application {
+impl Emulator {
 	pub fn new(terminal: Box<dyn Terminal>) -> Self {
-		Application {
+		Emulator {
 			cpu: Cpu::new(terminal),
 
 			// These can be updated in setup_from_elf

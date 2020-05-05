@@ -1,15 +1,14 @@
 extern crate getopts;
 
-mod application;
-mod emulator;
+mod riscv;
 mod terminal;
 mod cli_terminal;
 
-use emulator::cpu::Xlen;
+use riscv::emulator::Emulator;
+use riscv::cpu::Xlen;
 use terminal::Terminal;
 use cli_terminal::popup_terminal::PopupTerminal;
 use cli_terminal::dummy_terminal::DummyTerminal;
-use application::Application;
 
 use std::env;
 use std::fs::File;
@@ -99,18 +98,18 @@ fn main () -> std::io::Result<()> {
 		false => TerminalType::PopupTerminal
 	};
 
-	let mut application = Application::new(get_terminal(terminal_type));
-	application.setup_from_elf(elf_contents);
+	let mut emulator = Emulator::new(get_terminal(terminal_type));
+	emulator.setup_from_elf(elf_contents);
 	
 	match matches.opt_str("x") {
 		Some(x) => match x.as_str() {
 			"32" => {
 				println!("Force to 32-bit mode.");
-				application.update_xlen(Xlen::Bit32);
+				emulator.update_xlen(Xlen::Bit32);
 			},
 			"64" => {
 				println!("Force to 64-bit mode.");
-				application.update_xlen(Xlen::Bit64);
+				emulator.update_xlen(Xlen::Bit64);
 			},
 			_ => {
 				print_usage(&program, opts);
@@ -121,8 +120,8 @@ fn main () -> std::io::Result<()> {
 		None => {}
 	};
 
-	application.setup_filesystem(fs_contents);
-	application.setup_dtb(dtb_contents);
-	application.run();
+	emulator.setup_filesystem(fs_contents);
+	emulator.setup_dtb(dtb_contents);
+	emulator.run();
 	Ok(())
 }
