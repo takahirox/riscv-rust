@@ -1,21 +1,14 @@
 extern crate getopts;
 
 mod application;
-mod memory;
-mod cpu;
-mod mmu;
-mod plic;
-mod clint;
-mod uart;
-mod virtio_block_disk;
+mod emulator;
 mod terminal;
-mod dummy_terminal;
-mod popup_terminal;
+mod cli_terminal;
 
-use cpu::Xlen;
+use emulator::cpu::Xlen;
 use terminal::Terminal;
-use popup_terminal::PopupTerminal;
-use dummy_terminal::DummyTerminal;
+use cli_terminal::popup_terminal::PopupTerminal;
+use cli_terminal::dummy_terminal::DummyTerminal;
 use application::Application;
 
 use std::env;
