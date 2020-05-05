@@ -1,18 +1,12 @@
 extern crate wasm_bindgen;
 use wasm_bindgen::prelude::*;
 
+mod emulator;
 mod application;
-mod memory;
-mod cpu;
-mod mmu;
-mod plic;
-mod clint;
-mod uart;
-mod virtio_block_disk;
 mod terminal;
 mod wasm_terminal;
 
-use wasm_terminal::WasmTerminal;
+use wasm_terminal::wasm_terminal::WasmTerminal;
 use application::Application;
 
 #[wasm_bindgen]
@@ -27,7 +21,7 @@ impl WasmRiscv {
 			application: Application::new(Box::new(WasmTerminal::new()))
 		}
 	}
-	
+
 	pub fn init(&mut self, kernel_contents: Vec<u8>, fs_contents: Vec<u8>, dtb_contents: Vec<u8>) {
 		self.application.setup_from_elf(kernel_contents);
 		self.application.setup_filesystem(fs_contents);

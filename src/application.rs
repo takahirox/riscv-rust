@@ -2,7 +2,7 @@
 const TEST_MEMORY_CAPACITY: u64 = 1024 * 512;
 const PROGRAM_MEMORY_CAPACITY: u64 = 1024 * 1024 * 128; // big enough to run Linux and xv6
 
-use cpu::{Cpu, Xlen};
+use emulator::cpu::{Cpu, Xlen};
 use terminal::Terminal;
 
 pub struct Application {
