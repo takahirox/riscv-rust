@@ -6,16 +6,20 @@ riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written 
 
 You can run Linux or xv6 on the emulator in your browser. [Online demo is here](https://takahirox.github.io/riscv-rust/wasm/public/index.html)
 
+## Screenshots
+
+![animation](./screenshots/animation.gif)
+
+## Document
+
+https://docs.rs/riscv_emu_rust/0.1.0/riscv_emu_rust/
+
 ## Features
 
 - Emulate RISC-V processor and peripheral devices
 - Stable as [Linux](https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html) and [xv6-riscv](https://github.com/mit-pdos/xv6-riscv) run on it
 - Runnable locally
 - Also runnable in browser with WebAssembly
-
-## Screenshots
-
-![animation](./screenshots/animation.gif)
 
 ## Instructions/Features support status
 
@@ -35,6 +39,19 @@ You can run Linux or xv6 on the emulator in your browser. [Online demo is here](
 - [ ] PMP
 
 etc...
+
+
+## How to import into your Rust project
+
+This module is released at [crates.io](https://crates.io/crates/riscv_emu_rust
+). Add the following line into Cargo.toml of your Rust project.
+
+```
+[dependencies]
+riscv_emu_rust = "0.1.0"
+```
+
+Refer to [cli/src/main.rs](https://github.com/takahirox/riscv-rust/blob/master/cli/src/main.rs) as sample code.
 
 ## How to build riscv-rust and run Linux or xv6
 
