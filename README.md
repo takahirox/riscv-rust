@@ -53,9 +53,7 @@ riscv_emu_rust = "0.1.0"
 
 Refer to [cli/src/main.rs](https://github.com/takahirox/riscv-rust/blob/master/cli/src/main.rs) as sample code.
 
-## How to build riscv-rust and run Linux or xv6
-
-### Build core library
+## How to build core library
 
 ```sh
 $ git clone https://github.com/takahirox/riscv-rust.git
@@ -63,7 +61,7 @@ $ cd riscv-rust
 $ cargo build --release
 ```
 
-### Run CLI application
+## How to run Linux or xv6 as CLI application
 
 ```sh
 $ cd riscv-rust/cli
@@ -73,7 +71,7 @@ $ cargo run --release ../resources/linux/bbl -f ../resources/linux/busybear.bin 
 $ cargo run --release ../resources/xv6/kernel -f ../resources/xv6/fs.img
 ```
 
-### Build WebAssembly and run in the browser
+## How to build WebAssembly and run in the browser
 
 Prerequirements
 - Install [wasm-bindgen client](https://rustwasm.github.io/docs/wasm-bindgen/)
@@ -84,7 +82,7 @@ $ bash build_wasm.sh
 # boot local server and access riscv-rust/wasm/public/index.html
 ```
 
-## How to build and run riscv-tests
+## How run riscv-tests
 
 Prerequirements
 - Install [riscv-gnu-toolchain](https://github.com/riscv/riscv-gnu-toolchain)
