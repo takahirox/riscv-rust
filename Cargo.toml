@@ -1,20 +1,4 @@
 [package]
-name = "rust-riscv"
+name = "riscv_emu_rust"
 version = "0.1.0"
 authors = ["Takahiro"]
-
-[target.'cfg(not(target_arch="wasm32"))'.dependencies]
-getopts = "0.2"
-pancurses = "0.16.1"
-
-[dependencies]
-wasm-bindgen = "0.2.55"
-
-[[bin]]
-name = "standalone"
-path = "src/main.rs"
-
-[lib]
-name = "riscv_rust"
-path = "src/wasm.rs"
-crate-type = ["cdylib"]
