@@ -93,7 +93,7 @@
           if (output_bytes.length > 0) {
             terminal.write(u8s_to_strings(output_bytes));
           }
-		};
+        };
 
         const run_cycles = () => {
           setTimeout(run_cycles, 0);
@@ -179,18 +179,18 @@
               break;
             default:
               inputs.push(event.key.charCodeAt(0));
-		  }
+          }
         });
         // I don't know why but terminal.onKey doesn't catch
         // space key so handling in document keydown event listener.
         document.addEventListener('keydown', event => {
           switch (event.keyCode) {
             case 32: // Space
-			  inputs.push(32);
+              inputs.push(32);
           }
           event.preventDefault();
         });
-	  };
+      };
 
       // From https://github.com/xtermjs/xterm.js/tree/master/addons/xterm-addon-fit
       const onResize = event => {
@@ -243,7 +243,7 @@
       <option value="linux/bbl" selected>Linux</option>
       <option value="xv6/kernel">xv6 (tiny OS)</option>
     </select>
-	<button id="run-button" disabled>Run</button>
+    <button id="run-button" disabled>Run</button>
     <div id="terminal"></div>
     <div>
       <a href="https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html">Linux</a>, <a href="https://github.com/mit-pdos/xv6-riscv" target="_blank">xv6</a> on <a href="https://github.com/takahirox/riscv-rust" target="_blank">RISC-V processor emulator in Rust+WASM</a>
