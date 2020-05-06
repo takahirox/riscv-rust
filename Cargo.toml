@@ -1,4 +1,14 @@
 [package]
 name = "riscv_emu_rust"
 version = "0.1.0"
-authors = ["Takahiro"]
+description = "RISC-V emulator written in Rust"
+authors = ["Takahiro <hogehoge@gachapin.jp>"]
+license = "MIT"
+homepage = "https://github.com/takahirox/riscv-rust"
+repository = "https://github.com/takahirox/riscv-rust"
+exclude = [
+  "resources/*",
+  "screenshots/*",
+  "cli/*",
+  "wasm/*"
+]
