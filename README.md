@@ -4,14 +4,14 @@ riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written 
 
 ## Demo
 
-[Online demo with Linux and xv6-riscv](https://takahirox.github.io/riscv-rust/index.html)
+You can run Linux or xv6 on the emulator in your browser. [Online demo is here](https://takahirox.github.io/riscv-rust/wasm/public/index.html)
 
 ## Features
 
 - Emulate RISC-V processor and peripheral devices
 - Stable as [Linux](https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html) and [xv6-riscv](https://github.com/mit-pdos/xv6-riscv) run on it
 - Runnable locally
-- Also runnable on browser with WebAssembly
+- Also runnable in browser with WebAssembly
 
 ## Screenshots
 
@@ -38,28 +38,33 @@ etc...
 
 ## How to build riscv-rust and run Linux or xv6
 
-### Standalone
+### Build core library
 
 ```sh
 $ git clone https://github.com/takahirox/riscv-rust.git
 $ cd riscv-rust
-# Run Linux
-$ cargo run --release linux/bbl -f linux/busybear.bin -d linux/dtb.dtb
-# Run xv6
-$ cargo run --release xv6/kernel -f xv6/fs.img
+$ cargo build --release
 ```
 
-### WebAssembly
+### Run CLI application
+
+```sh
+$ cd riscv-rust/cli
+# Run Linux
+$ cargo run --release ../resources/linux/bbl -f ../resources/linux/busybear.bin -d ../resources/linux/dtb.dtb
+# Run xv6
+$ cargo run --release ../resources/xv6/kernel -f ../resources/xv6/fs.img
+```
+
+### Build WebAssembly and run in the browser
 
 Prerequirements
 - Install [wasm-bindgen client](https://rustwasm.github.io/docs/wasm-bindgen/)
 
 ```sh
-$ git clone https://github.com/takahirox/riscv-rust.git
-$ cd riscv-rust
-$ cargo build --release --lib --target wasm32-unknown-unknown
-$ wasm-bindgen ./target/wasm32-unknown-unknown/release/riscv_rust.wasm --out-dir ./wasm/ --target web --no-typescript
-# boot local server and access index.html
+$ cd riscv-rust/wasm
+$ bash build_wasm.sh
+# boot local server and access riscv-rust/wasm/public/index.html
 ```
 
 ## How to build and run riscv-tests
@@ -69,8 +74,7 @@ Prerequirements
 - Install [riscv-tests](https://github.com/riscv/riscv-tests)
 
 ```sh
-$ git clone https://github.com/takahirox/riscv-rust.git
-$ cd riscv-rust
+$ cd riscv-rust/cli
 $ cargo run $path_to_riscv_tets/isa/rv32ui-p-add -n
 ```
 

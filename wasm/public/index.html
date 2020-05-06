@@ -1,0 +1,252 @@
+<html>
+  <head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type" />
+    <link rel="stylesheet" href="xtermjs/xterm.css" />
+    <script src="xtermjs/xterm.js"></script>
+    <style>
+      #terminal {
+        height: 90%;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      import init, { WasmRiscv } from "../riscv_emu_rust_wasm.js";
+
+      const resourcePath = '../../resources/';
+
+      let wasm;
+      const inputs = [];
+
+      const COLUMNS = 80;
+      const MINIMUM_ROWS = 24;
+
+      const terminal = new Terminal();
+      terminal.setOption('cursorBlink', true);
+      terminal.setOption('convertEol', true);
+      terminal.open(document.getElementById('terminal'));
+
+      terminal.writeln('Message from the emulator author Takahiro:');
+      terminal.writeln('');
+      terminal.writeln('This is RISC-V processor emulator written in Rust and compiled to WebAssembly.');
+      terminal.writeln('You can run the RISC-V port of Linux or xv6 (UNIX V6 rewritten by MIT for x86)');
+      terminal.writeln('on your browser. Select OS from the list and press Run button.');
+      terminal.writeln('');
+      terminal.writeln('The emulator is still very slow. It takes time to boot. Thank you for your');
+      terminal.writeln('patience.');
+      terminal.writeln('');
+      terminal.writeln('Enjoy RISC-V and Operating System on browser!');
+      terminal.writeln('');
+
+      const run = async () => {
+        document.getElementById('run-button').disabled = true;
+        document.getElementById('file-select').disabled = true;
+
+        terminal.clear();
+        setupInputEventHandlers();
+
+        const selectElement = document.getElementById('file-select');
+        const selectedOption = selectElement.selectedOptions[0];
+        const filename = selectedOption.value;
+        const isLinux = filename === 'linux/bbl';
+        const isXv6 = filename === 'xv6/kernel';
+
+        if (isLinux) {
+          terminal.writeln('login name: root');
+          terminal.writeln('Password: busybear');
+          terminal.writeln('It takes time to boot. Thank you for your patience.');
+          terminal.writeln('');
+        }
+
+        const elfResponse = await fetch(resourcePath + filename);
+        const elfBuffer = await elfResponse.arrayBuffer();
+
+        let fsBuffer;
+        let dtbBuffer;
+
+        if (isLinux) {
+          const fsResponse = await fetch(resourcePath + 'linux/busybear.bin');
+          fsBuffer = await fsResponse.arrayBuffer();
+          const dtbResponse = await fetch(resourcePath + 'linux/dtb.dtb');
+          dtbBuffer = await dtbResponse.arrayBuffer();
+        } else if (isXv6) {
+          const fsResponse = await fetch(resourcePath + 'xv6/fs.img');
+          fsBuffer = await fsResponse.arrayBuffer();
+          dtbBuffer = new ArrayBuffer(0); // dummy
+		} else {
+          throw new Error('Unknown program.');
+        }
+
+        const riscv = WasmRiscv.new();
+        riscv.init(new Uint8Array(elfBuffer), new Uint8Array(fsBuffer), new Uint8Array(dtbBuffer));
+
+        const outputToTerminal = () => {
+          const output_bytes = [];
+          while (true) {
+            const output_data = riscv.get_output();
+            if (output_data !== 0) {
+              output_bytes.push(output_data);
+            } else {
+              break;
+            }
+          }
+          if (output_bytes.length > 0) {
+            terminal.write(u8s_to_strings(output_bytes));
+          }
+		};
+
+        const run_cycles = () => {
+          setTimeout(run_cycles, 0);
+          riscv.run_cycles(0x10000);
+          outputToTerminal();
+          while (inputs.length > 0) {
+            riscv.put_input(inputs.shift());
+          }
+        };
+        run_cycles();
+      };
+
+      const setupInputEventHandlers = () => {
+        terminal.onKey(event => {
+          // xterm.js doesn't handle function keys so
+          // handling by myself here
+          switch (event.domEvent.keyCode) {
+            case 33: // Page up
+              inputs.push(27, 91, 53, 126);
+              break;
+            case 34: // Page down
+              inputs.push(27, 91, 54, 126);
+              break;
+            case 35: // End
+              inputs.push(27, 91, 52, 126);
+              break;
+            case 36: // Home
+              inputs.push(27, 91, 49, 126);
+              break;
+            case 37: // Arrow Left
+              inputs.push(27, 91, 68);
+              break;
+            case 38: // Arrow Up
+              inputs.push(27, 91, 65);
+              break;
+            case 39: // Arrow Right
+              inputs.push(27, 91, 67);
+              break;
+            case 40: // Arrow Down
+              inputs.push(27, 91, 66);
+              break;
+            case 45: // Insert
+              inputs.push(27, 91, 50, 126);
+              break;
+            case 46: // Delete
+              inputs.push(127);
+              break;
+            case 112: // F1
+              inputs.push(27, 79, 80);
+              break;
+            case 113: // F2
+              inputs.push(27, 79, 81);
+              break;
+            case 114: // F3
+              inputs.push(27, 79, 82);
+              break;
+            case 115: // F4
+              inputs.push(27, 79, 83);
+              break;
+            case 116: // F5
+              inputs.push(27, 91, 49, 53, 126);
+              break;
+            case 117: // F6
+              inputs.push(27, 91, 49, 55, 126);
+              break;
+            case 118: // F7
+              inputs.push(27, 91, 49, 6, 126);
+              break;
+            case 119: // F8
+              inputs.push(27, 91, 49, 57, 126);
+              break;
+            case 120: // F9
+              inputs.push(27, 91, 50, 48, 126);
+              break;
+            case 121: // F10
+              inputs.push(27, 91, 50, 49, 126);
+              break;
+            case 122: // F11
+              inputs.push(27, 91, 50, 50, 126);
+              break;
+            case 123: // F12
+              inputs.push(27, 91, 50, 51, 126);
+              break;
+            default:
+              inputs.push(event.key.charCodeAt(0));
+		  }
+        });
+        // I don't know why but terminal.onKey doesn't catch
+        // space key so handling in document keydown event listener.
+        document.addEventListener('keydown', event => {
+          switch (event.keyCode) {
+            case 32: // Space
+			  inputs.push(32);
+          }
+          event.preventDefault();
+        });
+	  };
+
+      // From https://github.com/xtermjs/xterm.js/tree/master/addons/xterm-addon-fit
+      const onResize = event => {
+        // @TODO: Remove reliance on private API
+        const core = terminal._core;
+
+        const parentElementStyle = window.getComputedStyle(terminal.element.parentElement);
+        const parentElementHeight = parseInt(parentElementStyle.getPropertyValue('height'));
+        const elementStyle = window.getComputedStyle(terminal.element);
+        const elementPadding = {
+          top: parseInt(elementStyle.getPropertyValue('padding-top')),
+          bottom: parseInt(elementStyle.getPropertyValue('padding-bottom'))
+        };
+        const elementPaddingVer = elementPadding.top + elementPadding.bottom;
+        const availableHeight = parentElementHeight - elementPaddingVer;
+        const rows = Math.max(MINIMUM_ROWS, Math.floor(availableHeight / core._renderService.dimensions.actualCellHeight));
+        terminal.resize(COLUMNS, rows);
+      };
+
+      window.addEventListener('resize', onResize);
+      onResize();
+
+      init()
+        .then(_wasm => {
+          wasm = _wasm;
+          const runButton = document.getElementById('run-button');
+          runButton.addEventListener('click', run);
+          runButton.disabled = false;
+        })
+        .catch(error => console.error(error));
+
+      const charTable = {};
+
+      const u8_to_char = u8 => {
+        if (charTable[u8] === undefined) {
+          charTable[u8] = String.fromCharCode(u8);
+        }
+        return charTable[u8];
+      };
+
+      const u8s_to_strings = u8s => {
+        let s = '';
+        for (const u8 of u8s) {
+          s += u8_to_char(u8);
+        }
+        return s;
+      };
+    </script>
+    <select id="file-select">
+      <option value="linux/bbl" selected>Linux</option>
+      <option value="xv6/kernel">xv6 (tiny OS)</option>
+    </select>
+	<button id="run-button" disabled>Run</button>
+    <div id="terminal"></div>
+    <div>
+      <a href="https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html">Linux</a>, <a href="https://github.com/mit-pdos/xv6-riscv" target="_blank">xv6</a> on <a href="https://github.com/takahirox/riscv-rust" target="_blank">RISC-V processor emulator in Rust+WASM</a>
+    </div>
+  </body>
+</html>

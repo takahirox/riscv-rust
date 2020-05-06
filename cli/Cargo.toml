@@ -1,0 +1,9 @@
+[package]
+name = "riscv_emu_rust_cli"
+version = "0.1.0"
+authors = ["Takahiro"]
+
+[dependencies]
+getopts = "0.2"
+pancurses = "0.16.1"
+riscv_emu_rust = {path = "../"}
