@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	AMOMAXUW,
 	AMOORD,
 	AMOORW,
 	AMOSWAPD,
@@ -311,7 +310,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::AMOMAXUW => "AMOMAXU.W",
 		Instruction::AMOORD => "AMOOR.D",
 		Instruction::AMOORW => "AMOOR.W",
 		Instruction::AMOSWAPD => "AMOSWAP.D",
@@ -453,7 +451,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
 		Instruction::FENCE => InstructionFormat::O,
-		Instruction::AMOMAXUW |
 		Instruction::AMOORD |
 		Instruction::AMOORW |
 		Instruction::AMOSWAPD |
@@ -1582,7 +1579,6 @@ impl Cpu {
 						2 => Instruction::LRW,
 						3 => Instruction::SCW,
 						8 => Instruction::AMOORW,
-						0x1c => Instruction::AMOMAXUW,
 						_ => return Err(())
 					}
 				},
@@ -2082,21 +2078,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::AMOMAXUW => {
-						let tmp = match self.mmu.load_word(self.unsigned_data(self.x[rs1 as usize])) {
-							Ok(data) => data,
-							Err(e) => return Err(e)
-						};
-						let max = match self.x[rs2 as usize] as u32 >= tmp {
-							true => self.x[rs2 as usize] as u32,
-							false => tmp
-						};
-						match self.mmu.store_word(self.unsigned_data(self.x[rs1 as usize]), max) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-						self.x[rd as usize] = tmp as i32 as i64;
-					},
 					Instruction::AMOORD => {
 						let tmp = match self.mmu.load_doubleword(self.unsigned_data(self.x[rs1 as usize])) {
 							Ok(data) => data,
@@ -2659,7 +2640,7 @@ fn parse_format_r (word: u32) -> FormatR {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 12;
+const INSTRUCTION_NUM: usize = 13;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -2795,6 +2776,28 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 				Err(e) => return Err(e)
 			};
 			cpu.x[f.rd] = tmp as i64;
+			Ok(())
+		}
+	},
+	InstructionData {
+		mask: 0xf800707f,
+		data: 0xe000202f,
+		name: "AMOMAXU.W",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let tmp = match cpu.mmu.load_word(cpu.x[f.rs1] as u64) {
+				Ok(data) => data,
+				Err(e) => return Err(e)
+			};
+			let max = match cpu.x[f.rs2] as u32 >= tmp {
+				true => cpu.x[f.rs2] as u32,
+				false => tmp
+			};
+			match cpu.mmu.store_word(cpu.x[f.rs1] as u64, max) {
+				Ok(()) => {},
+				Err(e) => return Err(e)
+			};
+			cpu.x[f.rd] = tmp as i32 as i64;
 			Ok(())
 		}
 	},
