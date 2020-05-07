@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	AMOANDW,
 	AMOMAXUW,
 	AMOORD,
 	AMOORW,
@@ -312,7 +311,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::AMOANDW => "AMOAND.W",
 		Instruction::AMOMAXUW => "AMOMAXU.W",
 		Instruction::AMOORD => "AMOOR.D",
 		Instruction::AMOORW => "AMOOR.W",
@@ -455,7 +453,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
 		Instruction::FENCE => InstructionFormat::O,
-		Instruction::AMOANDW |
 		Instruction::AMOMAXUW |
 		Instruction::AMOORD |
 		Instruction::AMOORW |
@@ -1585,7 +1582,6 @@ impl Cpu {
 						2 => Instruction::LRW,
 						3 => Instruction::SCW,
 						8 => Instruction::AMOORW,
-						0xc => Instruction::AMOANDW,
 						0x1c => Instruction::AMOMAXUW,
 						_ => return Err(())
 					}
@@ -2086,17 +2082,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::AMOANDW => {
-						let tmp = match self.mmu.load_word(self.unsigned_data(self.x[rs1 as usize])) {
-							Ok(data) => data,
-							Err(e) => return Err(e)
-						};
-						match self.mmu.store_word(self.unsigned_data(self.x[rs1 as usize]), (self.x[rs2 as usize] & (tmp as i64)) as u32) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-						self.x[rd as usize] = tmp as i32 as i64;
-					},
 					Instruction::AMOMAXUW => {
 						let tmp = match self.mmu.load_word(self.unsigned_data(self.x[rs1 as usize])) {
 							Ok(data) => data,
@@ -2674,7 +2659,7 @@ fn parse_format_r (word: u32) -> FormatR {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 11;
+const INSTRUCTION_NUM: usize = 12;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -2766,6 +2751,24 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 				Err(e) => return Err(e)
 			};
 			match cpu.mmu.store_doubleword(cpu.x[f.rs1] as u64, (cpu.x[f.rs2] & tmp) as u64) {
+				Ok(()) => {},
+				Err(e) => return Err(e)
+			};
+			cpu.x[f.rd] = tmp;
+			Ok(())
+		}
+	},
+	InstructionData {
+		mask: 0xf800707f,
+		data: 0x6000202f,
+		name: "AMOAND.W",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let tmp = match cpu.mmu.load_word(cpu.x[f.rs1] as u64) {
+				Ok(data) => data as i32 as i64,
+				Err(e) => return Err(e)
+			};
+			match cpu.mmu.store_word(cpu.x[f.rs1] as u64, (cpu.x[f.rs2] & tmp) as u32) {
 				Ok(()) => {},
 				Err(e) => return Err(e)
 			};
