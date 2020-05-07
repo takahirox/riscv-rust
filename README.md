@@ -78,7 +78,7 @@ Prerequirements
 
 ```sh
 $ cd riscv-rust/wasm
-$ bash build_wasm.sh
+$ bash build.sh
 # boot local server and access riscv-rust/wasm/public/index.html
 ```
 
