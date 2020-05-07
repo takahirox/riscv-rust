@@ -82,7 +82,13 @@ $ bash build.sh
 # boot local server and access riscv-rust/wasm/public/index.html
 ```
 
-## How run riscv-tests
+## How to install WebAssembly npm package
+
+```sh
+$ npm install riscv_emu_rust_wasm
+```
+
+## How to run riscv-tests
 
 Prerequirements
 - Install [riscv-gnu-toolchain](https://github.com/riscv/riscv-gnu-toolchain)
