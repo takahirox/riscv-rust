@@ -4,7 +4,7 @@ riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written 
 
 ## Demo
 
-You can run Linux or xv6 on the emulator in your browser. [Online demo is here](https://takahirox.github.io/riscv-rust/wasm/public/index.html)
+You can run Linux or xv6 on the emulator in your browser. [Online demo is here](https://takahirox.github.io/riscv-rust/wasm/web/index.html)
 
 ## Screenshots
 
@@ -79,7 +79,7 @@ Prerequirements
 ```sh
 $ cd riscv-rust/wasm
 $ bash build.sh
-# boot local server and access riscv-rust/wasm/public/index.html
+# boot local server and access riscv-rust/wasm/web/index.html
 ```
 
 ## How to install WebAssembly npm package
