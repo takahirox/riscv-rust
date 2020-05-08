@@ -12,3 +12,6 @@ exclude = [
   "cli/*",
   "wasm/*"
 ]
+
+[workspace]
+members = [".", "cli", "wasm"]
