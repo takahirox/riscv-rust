@@ -1,5 +1,9 @@
 # riscv-rust
 
+[![Build Status](https://travis-ci.org/takahirox/riscv-rust.svg?branch=master)](https://travis-ci.org/takahirox/riscv-rust)
+[![Crate](https://img.shields.io/crates/v/riscv_emu_rust.svg)](https://crates.io/crates/riscv_emu_rust)
+[![npm version](https://badge.fury.io/js/riscv_emu_rust_wasm.svg)](https://badge.fury.io/js/riscv_emu_rust_wasm)
+
 riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written in Rust.
 
 ## Demo
