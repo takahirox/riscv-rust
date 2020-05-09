@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	DIVW,
 	EBREAK,
 	ECALL,
 	FADDD,
@@ -287,7 +286,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::DIVW => "DIVW",
 		Instruction::EBREAK => "EBREAK",
 		Instruction::ECALL => "ECALL",
 		Instruction::FADDD => "FADD.D",
@@ -394,7 +392,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
 		Instruction::FENCE => InstructionFormat::O,
-		Instruction::DIVW |
 		Instruction::ECALL |
 		Instruction::EBREAK |
 		Instruction::FADDD |
@@ -1578,7 +1575,6 @@ impl Cpu {
 					_ => return Err(())
 				},
 				1 => Instruction::SLLW,
-				4 => Instruction::DIVW,
 				5 => match funct7 {
 					0 => Instruction::SRLW,
 					0x20 => Instruction::SRAW,
@@ -1853,12 +1849,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::DIVW => {
-						self.x[rd as usize] = match self.x[rs2 as usize] {
-							0 => -1,
-							_ => self.sign_extend((self.x[rs1 as usize] as i32).wrapping_div(self.x[rs2 as usize] as i32) as i64)
-						};
-					},
 					Instruction::EBREAK => {
 						// @TODO: Implement
 					},
@@ -2490,7 +2480,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 34;
+const INSTRUCTION_NUM: usize = 35;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3011,6 +3001,25 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			let divisor = cpu.unsigned_data(cpu.x[f.rs2]) as u32;
 			if divisor == 0 {
 				cpu.x[f.rd] = -1;
+			} else {
+				cpu.x[f.rd] = dividend.wrapping_div(divisor) as i32 as i64
+			}
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x0200403b,
+		name: "DIVW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let dividend = cpu.x[f.rs1] as i32;
+			let divisor = cpu.x[f.rs2] as i32;
+			if divisor == 0 {
+				cpu.x[f.rd] = -1;
+			} else if dividend == std::i32::MIN && divisor == -1 {
+				cpu.x[f.rd] = dividend as i32 as i64;
 			} else {
 				cpu.x[f.rd] = dividend.wrapping_div(divisor) as i32 as i64
 			}
