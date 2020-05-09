@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	ANDI,
 	AUIPC,
 	BEQ,
 	BGE,
@@ -306,7 +305,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::ANDI => "ANDI",
 		Instruction::AUIPC => "AUIPC",
 		Instruction::BEQ => "BEQ",
 		Instruction::BGE => "BGE",
@@ -421,7 +419,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::CSRRSI |
 		Instruction::CSRRW |
 		Instruction::CSRRWI => InstructionFormat::C,
-		Instruction::ANDI |
 		Instruction::FLD |
 		Instruction::FLW |
 		Instruction::LB |
@@ -1535,7 +1532,6 @@ impl Cpu {
 					_ => return Err(())
 				}
 				6 => Instruction::ORI,
-				7 => Instruction::ANDI,
 				_ => return Err(())
 			},
 			0x17 => Instruction::AUIPC,
@@ -1900,9 +1896,6 @@ impl Cpu {
 					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
 				) as i32 as i64;
 				match instruction {
-					Instruction::ANDI => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] & imm);
-					},
 					Instruction::FLD => {
 						self.f[rd as usize] = match self.mmu.load_doubleword(self.x[rs1 as usize].wrapping_add(imm) as u64) {
 							Ok(data) => {
@@ -2621,7 +2614,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 17;
+const INSTRUCTION_NUM: usize = 18;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -2878,6 +2871,17 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00007013,
+		name: "ANDI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] & f.imm);
+			Ok(())
+		},
+		disassemble: dump_format_i
 	},
 	InstructionData {
 		mask: 0x0000707f,
