@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	CSRRWI,
 	DIV,
 	DIVU,
 	DIVUW,
@@ -202,7 +201,6 @@ enum Instruction {
 }
 
 enum InstructionFormat {
-	C, // CSR
 	I,
 	J,
 	O, // Other, temporal format name
@@ -292,7 +290,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::CSRRWI => "CSRRWI",
 		Instruction::DIV => "DIV",
 		Instruction::DIVU => "DIVU",
 		Instruction::DIVUW => "DIVUW",
@@ -382,7 +379,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::CSRRWI => InstructionFormat::C,
 		Instruction::FLD |
 		Instruction::FLW |
 		Instruction::LB |
@@ -1681,7 +1677,6 @@ impl Cpu {
 						}
 					}
 				}
-				5 => Instruction::CSRRWI,
 				_ => return Err(())
 			},
 			_ => return Err(())
@@ -1692,31 +1687,6 @@ impl Cpu {
 	fn operate(&mut self, word: u32, instruction: Instruction, instruction_address: u64) -> Result<(), Trap> {
 		let instruction_format = get_instruction_format(&instruction);
 		match instruction_format {
-			InstructionFormat::C => {
-				let csr = ((word >> 20) & 0xfff) as u16; // [31:20];
-				let rs = (word >> 15) & 0x1f; // [19:15];
-				let rd = (word >> 7) & 0x1f; // [11:7];
-				// @TODO: Don't write if csr bits aren't writable
-				match instruction {
-					Instruction::CSRRWI => {
-						let data = match self.read_csr(csr) {
-							Ok(data) => data,
-							Err(e) => return Err(e)
-						};
-						self.x[rd as usize] = self.sign_extend(data as i64);
-						//self.x[0] = 0; // hard-wired zero
-						match self.write_csr(csr, rs as u64) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-					},
-					_ => {
-						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(instruction_address);
-						panic!();
-					}
-				};
-			},
 			InstructionFormat::I => {
 				let rd = (word >> 7) & 0x1f; // [11:7]
 				let rs1 = (word >> 15) & 0x1f; // [19:15]
@@ -2415,8 +2385,8 @@ struct FormatCSR {
 fn parse_format_csr(word: u32) -> FormatCSR {
 	FormatCSR {
 		csr: ((word >> 20) & 0xfff) as u16, // [31:20]
-		rs: ((word >> 15) & 0x1f) as usize, // [19:15];
-		rd: ((word >> 7) & 0x1f) as usize // [11:7];
+		rs: ((word >> 15) & 0x1f) as usize, // [19:15], also uimm
+		rd: ((word >> 7) & 0x1f) as usize // [11:7]
 	}
 }
 
@@ -2542,7 +2512,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 30;
+const INSTRUCTION_NUM: usize = 31;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -2991,6 +2961,25 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			let tmp = cpu.x[f.rs];
 			cpu.x[f.rd] = cpu.sign_extend(data);
 			match cpu.write_csr(f.csr, cpu.unsigned_data(tmp)) {
+				Ok(()) => {},
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_csr
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00005073,
+		name: "CSRRWI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_csr(word);
+			let data = match cpu.read_csr(f.csr) {
+				Ok(data) => data as i64,
+				Err(e) => return Err(e)
+			};
+			cpu.x[f.rd] = cpu.sign_extend(data);
+			match cpu.write_csr(f.csr, f.rs as u64) {
 				Ok(()) => {},
 				Err(e) => return Err(e)
 			};
