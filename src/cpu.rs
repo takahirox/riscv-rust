@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	EBREAK,
 	ECALL,
 	FADDD,
 	FCVTDL,
@@ -286,7 +285,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::EBREAK => "EBREAK",
 		Instruction::ECALL => "ECALL",
 		Instruction::FADDD => "FADD.D",
 		Instruction::FCVTDL => "FCVT.D.L",
@@ -393,7 +391,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::JAL => InstructionFormat::J,
 		Instruction::FENCE => InstructionFormat::O,
 		Instruction::ECALL |
-		Instruction::EBREAK |
 		Instruction::FADDD |
 		Instruction::FCVTDL |
 		Instruction::FCVTDS |
@@ -1660,7 +1657,6 @@ impl Cpu {
 						9 => Instruction::SFENCEVMA,
 						_ => match word {
 							0x00000073 => Instruction::ECALL,
-							0x00100073 => Instruction::EBREAK,
 							0x00200073 => Instruction::URET,
 							0x10200073 => Instruction::SRET,
 							0x10500073 => Instruction::WFI,
@@ -1849,9 +1845,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::EBREAK => {
-						// @TODO: Implement
-					},
 					Instruction::ECALL => {
 						let exception_type = match self.privilege_mode {
 							PrivilegeMode::User => TrapType::EnvironmentCallFromUMode,
@@ -2473,6 +2466,10 @@ fn dump_format_u(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> Str
 	s
 }
 
+fn dump_empty(_cpu: &mut Cpu, _word: u32, _address: u64, _evaluate: bool) -> String {
+	String::new()
+}
+
 fn get_register_name(num: usize) -> &'static str {
 	match num {
 		0 => "zero",
@@ -2480,7 +2477,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 35;
+const INSTRUCTION_NUM: usize = 36;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3026,6 +3023,16 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xffffffff,
+		data: 0x00100073,
+		name: "EBREAK",
+		operation: |_cpu, _word, _address| {
+			// @TODO: Implement
+			Ok(())
+		},
+		disassemble: dump_empty
 	},
 	InstructionData {
 		mask: 0x0000707f,
