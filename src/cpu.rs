@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	BGEU,
 	BLT,
 	BLTU,
 	BNE,
@@ -302,7 +301,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::BGEU => "BGEU",
 		Instruction::BLT => "BLT",
 		Instruction::BLTU => "BLTU",
 		Instruction::BNE => "BNE",
@@ -401,7 +399,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::BGEU |
 		Instruction::BLT |
 		Instruction::BLTU |
 		Instruction::BNE => InstructionFormat::B,
@@ -1697,7 +1694,6 @@ impl Cpu {
 				1 => Instruction::BNE,
 				4 => Instruction::BLT,
 				6 => Instruction::BLTU,
-				7 => Instruction::BGEU,
 				_ => return Err(())
 			},
 			0x6f => Instruction::JAL,
@@ -1745,11 +1741,6 @@ impl Cpu {
 					((word & 0x00000f00) >> 7) // imm[4:1] = [11:8]
 				) as i32 as i64 as u64;
 				match instruction {
-					Instruction::BGEU => {
-						if self.unsigned_data(self.x[rs1 as usize]) >= self.unsigned_data(self.x[rs2 as usize]) {
-							self.pc = instruction_address.wrapping_add(imm);
-						}
-					},
 					Instruction::BLT => {
 						if self.sign_extend(self.x[rs1 as usize]) < self.sign_extend(self.x[rs2 as usize]) {
 							self.pc = instruction_address.wrapping_add(imm);
@@ -2652,7 +2643,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 21;
+const INSTRUCTION_NUM: usize = 22;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -2952,6 +2943,19 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, address| {
 			let f = parse_format_b(word);
 			if cpu.sign_extend(cpu.x[f.rs1]) >= cpu.sign_extend(cpu.x[f.rs2]) {
+				cpu.pc = address.wrapping_add(f.imm);
+			}
+			Ok(())
+		},
+		disassemble: dump_format_b
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00007063,
+		name: "BGEU",
+		operation: |cpu, word, address| {
+			let f = parse_format_b(word);
+			if cpu.unsigned_data(cpu.x[f.rs1]) >= cpu.unsigned_data(cpu.x[f.rs2]) {
 				cpu.pc = address.wrapping_add(f.imm);
 			}
 			Ok(())
