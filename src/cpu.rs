@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	BLTU,
 	BNE,
 	CSRRC,
 	CSRRCI,
@@ -300,7 +299,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::BLTU => "BLTU",
 		Instruction::BNE => "BNE",
 		Instruction::CSRRC => "CSRRC",
 		Instruction::CSRRCI => "CSRRCI",
@@ -397,7 +395,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::BLTU |
 		Instruction::BNE => InstructionFormat::B,
 		Instruction::CSRRC |
 		Instruction::CSRRCI |
@@ -1689,7 +1686,6 @@ impl Cpu {
 			},
 			0x63 => match funct3 {
 				1 => Instruction::BNE,
-				6 => Instruction::BLTU,
 				_ => return Err(())
 			},
 			0x6f => Instruction::JAL,
@@ -1737,11 +1733,6 @@ impl Cpu {
 					((word & 0x00000f00) >> 7) // imm[4:1] = [11:8]
 				) as i32 as i64 as u64;
 				match instruction {
-					Instruction::BLTU => {
-						if self.unsigned_data(self.x[rs1 as usize]) < self.unsigned_data(self.x[rs2 as usize]) {
-							self.pc = instruction_address.wrapping_add(imm);
-						}
-					},
 					Instruction::BNE => {
 						if self.sign_extend(self.x[rs1 as usize]) != self.sign_extend(self.x[rs2 as usize]) {
 							self.pc = instruction_address.wrapping_add(imm);
@@ -2634,7 +2625,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 23;
+const INSTRUCTION_NUM: usize = 24;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -2960,6 +2951,19 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, address| {
 			let f = parse_format_b(word);
 			if cpu.sign_extend(cpu.x[f.rs1]) < cpu.sign_extend(cpu.x[f.rs2]) {
+				cpu.pc = address.wrapping_add(f.imm);
+			}
+			Ok(())
+		},
+		disassemble: dump_format_b
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00006063,
+		name: "BLTU",
+		operation: |cpu, word, address| {
+			let f = parse_format_b(word);
+			if cpu.unsigned_data(cpu.x[f.rs1]) < cpu.unsigned_data(cpu.x[f.rs2]) {
 				cpu.pc = address.wrapping_add(f.imm);
 			}
 			Ok(())
