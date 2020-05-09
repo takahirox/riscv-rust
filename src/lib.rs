@@ -90,6 +90,7 @@ impl Emulator {
 	}
 
 	// Expecting this method is called only once
+	// @TODO: Make ElfAnalyzer and move this method there.
 	pub fn setup_from_elf(&mut self, data: Vec<u8>) {
 		// analyze elf header
 
@@ -462,8 +463,6 @@ impl Emulator {
 	pub fn update_xlen(&mut self, xlen: Xlen) {
 		self.cpu.update_xlen(xlen);
 	}
-
-	// Wasm speicific method
 
 	pub fn get_mut_terminal(&mut self) -> &mut Box<dyn Terminal> {
 		self.cpu.get_mut_terminal()

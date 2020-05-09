@@ -2543,7 +2543,8 @@ struct InstructionData {
 	mask: u32,
 	data: u32, // @TODO: rename
 	name: &'static str,
-	operation: fn(cpu: &mut Cpu, word: u32, address: u64) -> Result<(), Trap>
+	operation: fn(cpu: &mut Cpu, word: u32, address: u64) -> Result<(), Trap>,
+	disassemble: fn(cpu: &mut Cpu, word: u32, address: u64, evaluate: bool) -> String
 }
 
 struct FormatI {
@@ -2552,7 +2553,7 @@ struct FormatI {
 	imm: i64
 }
 
-fn parse_format_i (word: u32) -> FormatI {
+fn parse_format_i(word: u32) -> FormatI {
 	FormatI {
 		rd: ((word >> 7) & 0x1f) as usize, // [11:7]
 		rs1: ((word >> 15) & 0x1f) as usize, // [19:15]
@@ -2566,17 +2567,57 @@ fn parse_format_i (word: u32) -> FormatI {
 	}
 }
 
+fn dump_format_i(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> String {
+	let f = parse_format_i(word);
+	let mut s = String::new();
+	s += &format!("{}", get_register_name(f.rd));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rd]);
+	}
+	s += &format!(",{}", get_register_name(f.rs1));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs1]);
+	}
+	s += &format!(",{:X}", f.imm);
+	s
+}
+
 struct FormatR {
 	rd: usize,
 	rs1: usize,
 	rs2: usize
 }
 
-fn parse_format_r (word: u32) -> FormatR {
+fn parse_format_r(word: u32) -> FormatR {
 	FormatR {
 		rd: ((word >> 7) & 0x1f) as usize, // [11:7]
 		rs1: ((word >> 15) & 0x1f) as usize, // [19:15]
 		rs2: ((word >> 20) & 0x1f) as usize // [24:20]
+	}
+}
+
+fn dump_format_r(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> String {
+	let f = parse_format_r(word);
+	let mut s = String::new();
+	s += &format!("{}", get_register_name(f.rd));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rd]);
+	}
+	s += &format!(",{}", get_register_name(f.rs1));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs1]);
+	}
+	s += &format!(",{}", get_register_name(f.rs2));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs2]);
+	}
+	s
+}
+
+fn get_register_name(num: usize) -> &'static str {
+	match num {
+		0 => "zero",
+		_ => panic!("Unknown register num {:X}", num)
 	}
 }
 
@@ -2593,7 +2634,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_add(cpu.x[f.rs2]));
 			Ok(())
-		}
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0x0000707f,
@@ -2603,7 +2645,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			let f = parse_format_i(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_add(f.imm));
 			Ok(())
-		}
+		},
+		disassemble: dump_format_i
 	},
 	InstructionData {
 		mask: 0x0000707f,
@@ -2613,7 +2656,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			let f = parse_format_i(word);
 			cpu.x[f.rd] = cpu.x[f.rs1].wrapping_add(f.imm) as i32 as i64;
 			Ok(())
-		}
+		},
+		disassemble: dump_format_i
 	},
 	InstructionData {
 		mask: 0xfe00707f,
@@ -2623,7 +2667,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.x[f.rs1].wrapping_add(cpu.x[f.rs2]) as i32 as i64;
 			Ok(())
-		}
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xf800707f,
@@ -2641,7 +2686,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			};
 			cpu.x[f.rd] = tmp;
 			Ok(())
-		}
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xf800707f,
@@ -2659,7 +2705,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			};
 			cpu.x[f.rd] = tmp;
 			Ok(())
-		}
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xf800707f,
@@ -2677,7 +2724,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			};
 			cpu.x[f.rd] = tmp;
 			Ok(())
-		}
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xf800707f,
@@ -2695,7 +2743,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			};
 			cpu.x[f.rd] = tmp;
 			Ok(())
-		}
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xf800707f,
@@ -2717,7 +2766,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			};
 			cpu.x[f.rd] = tmp as i64;
 			Ok(())
-		}
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xf800707f,
@@ -2739,7 +2789,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			};
 			cpu.x[f.rd] = tmp as i32 as i64;
 			Ok(())
-		}
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xf800707f,
@@ -2757,7 +2808,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			};
 			cpu.x[f.rd] = tmp;
 			Ok(())
-		}
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xf800707f,
@@ -2775,7 +2827,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			};
 			cpu.x[f.rd] = tmp;
 			Ok(())
-		}
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xf800707f,
@@ -2793,7 +2846,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			};
 			cpu.x[f.rd] = tmp;
 			Ok(())
-		}
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xf800707f,
@@ -2811,7 +2865,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			};
 			cpu.x[f.rd] = tmp;
 			Ok(())
-		}
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xfe00707f,
@@ -2821,7 +2876,8 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] & cpu.x[f.rs2]);
 			Ok(())
-		}
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0x0000707f,
@@ -2833,6 +2889,16 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			cpu.pc = (cpu.x[f.rs1] as u64).wrapping_add(f.imm as u64);
 			cpu.x[f.rd] = tmp;
 			Ok(())
+		},
+		disassemble: |cpu, word, _address, evaluate| {
+			let f = parse_format_i(word);
+			let mut s = String::new();
+			s += &format!("{:X}({}", f.imm, get_register_name(f.rs1));
+			if evaluate {
+				s += &format!(":{:X}", cpu.x[f.rs1]);
+			}
+			s += &format!(")");
+			s
 		}
 	},
 	InstructionData {
@@ -2843,6 +2909,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_sub(cpu.x[f.rs2]));
 			Ok(())
-		}
+		},
+		disassemble: dump_format_r
 	},
 ];
