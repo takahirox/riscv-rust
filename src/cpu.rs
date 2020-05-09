@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	AUIPC,
 	BEQ,
 	BGE,
 	BGEU,
@@ -305,7 +304,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::AUIPC => "AUIPC",
 		Instruction::BEQ => "BEQ",
 		Instruction::BGE => "BGE",
 		Instruction::BGEU => "BGEU",
@@ -502,7 +500,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SD |
 		Instruction::SH |
 		Instruction::SW => InstructionFormat::S,
-		Instruction::AUIPC |
 		Instruction::LUI => InstructionFormat::U
 	}
 }
@@ -1534,7 +1531,6 @@ impl Cpu {
 				6 => Instruction::ORI,
 				_ => return Err(())
 			},
-			0x17 => Instruction::AUIPC,
 			0x1b => match funct3 {
 				1 => Instruction::SLLIW,
 				5 => match funct7 {
@@ -2457,9 +2453,6 @@ impl Cpu {
 					((word as u64) & 0xfffff000) // imm[31:12] = [31:12]
 				) as u64;
 				match instruction {
-					Instruction::AUIPC => {
-						self.x[rd as usize] = self.sign_extend(instruction_address.wrapping_add(imm) as i64);
-					},
 					Instruction::LUI => {
 						self.x[rd as usize] = imm as i64;
 					}
@@ -2607,6 +2600,35 @@ fn dump_format_r(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> Str
 	s
 }
 
+struct FormatU {
+	rd: usize,
+	imm: u64
+}
+
+fn parse_format_u(word: u32) -> FormatU {
+	FormatU {
+		rd: ((word >> 7) & 0x1f) as usize, // [11:7]
+		imm: (
+			match word & 0x80000000 {
+				0x80000000 => 0xffffffff00000000,
+				_ => 0
+			} | // imm[63:32] = [31]
+			((word as u64) & 0xfffff000) // imm[31:12] = [31:12]
+		) as u64
+	}
+}
+
+fn dump_format_u(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> String {
+	let f = parse_format_u(word);
+	let mut s = String::new();
+	s += &format!("{}", get_register_name(f.rd));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rd]);
+	}
+	s += &format!(",{:X}", f.imm);
+	s
+}
+
 fn get_register_name(num: usize) -> &'static str {
 	match num {
 		0 => "zero",
@@ -2614,7 +2636,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 18;
+const INSTRUCTION_NUM: usize = 19;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -2882,6 +2904,17 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_i
+	},
+	InstructionData {
+		mask: 0x0000007f,
+		data: 0x00000017,
+		name: "AUIPC",
+		operation: |cpu, word, address| {
+			let f = parse_format_u(word);
+			cpu.x[f.rd] = cpu.sign_extend(address.wrapping_add(f.imm) as i64);
+			Ok(())
+		},
+		disassemble: dump_format_u
 	},
 	InstructionData {
 		mask: 0x0000707f,
