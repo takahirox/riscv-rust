@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	DIVUW,
 	DIVW,
 	EBREAK,
 	ECALL,
@@ -288,7 +287,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::DIVUW => "DIVUW",
 		Instruction::DIVW => "DIVW",
 		Instruction::EBREAK => "EBREAK",
 		Instruction::ECALL => "ECALL",
@@ -396,7 +394,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
 		Instruction::FENCE => InstructionFormat::O,
-		Instruction::DIVUW |
 		Instruction::DIVW |
 		Instruction::ECALL |
 		Instruction::EBREAK |
@@ -1584,7 +1581,6 @@ impl Cpu {
 				4 => Instruction::DIVW,
 				5 => match funct7 {
 					0 => Instruction::SRLW,
-					1 => Instruction::DIVUW,
 					0x20 => Instruction::SRAW,
 					_ => return Err(())
 				},
@@ -1857,12 +1853,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::DIVUW => {
-						self.x[rd as usize] = match self.x[rs2 as usize] {
-							0 => -1,
-							_ => (self.x[rs1 as usize] as u32).wrapping_div(self.x[rs2 as usize] as u32) as i32 as i64
-						};
-					},
 					Instruction::DIVW => {
 						self.x[rd as usize] = match self.x[rs2 as usize] {
 							0 => -1,
@@ -2500,7 +2490,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 33;
+const INSTRUCTION_NUM: usize = 34;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3006,6 +2996,23 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 				cpu.x[f.rd] = -1;
 			} else {
 				cpu.x[f.rd] = cpu.sign_extend(dividend.wrapping_div(divisor) as i64)
+			}
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x0200503b,
+		name: "DIVUW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let dividend = cpu.unsigned_data(cpu.x[f.rs1]) as u32;
+			let divisor = cpu.unsigned_data(cpu.x[f.rs2]) as u32;
+			if divisor == 0 {
+				cpu.x[f.rd] = -1;
+			} else {
+				cpu.x[f.rd] = dividend.wrapping_div(divisor) as i32 as i64
 			}
 			Ok(())
 		},
