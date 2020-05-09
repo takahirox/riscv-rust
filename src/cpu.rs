@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	CSRRW,
 	CSRRWI,
 	DIV,
 	DIVU,
@@ -293,7 +292,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::CSRRW => "CSRRW",
 		Instruction::CSRRWI => "CSRRWI",
 		Instruction::DIV => "DIV",
 		Instruction::DIVU => "DIVU",
@@ -384,7 +382,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::CSRRW |
 		Instruction::CSRRWI => InstructionFormat::C,
 		Instruction::FLD |
 		Instruction::FLW |
@@ -1684,7 +1681,6 @@ impl Cpu {
 						}
 					}
 				}
-				1 => Instruction::CSRRW,
 				5 => Instruction::CSRRWI,
 				_ => return Err(())
 			},
@@ -1702,19 +1698,6 @@ impl Cpu {
 				let rd = (word >> 7) & 0x1f; // [11:7];
 				// @TODO: Don't write if csr bits aren't writable
 				match instruction {
-					Instruction::CSRRW => {
-						let data = match self.read_csr(csr) {
-							Ok(data) => data,
-							Err(e) => return Err(e)
-						};
-						let tmp = self.x[rs as usize];
-						self.x[rd as usize] = self.sign_extend(data as i64);
-						//self.x[0] = 0; // hard-wired zero
-						match self.write_csr(csr, self.unsigned_data(tmp)) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-					},
 					Instruction::CSRRWI => {
 						let data = match self.read_csr(csr) {
 							Ok(data) => data,
@@ -2559,7 +2542,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 29;
+const INSTRUCTION_NUM: usize = 30;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -2988,6 +2971,26 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			};
 			cpu.x[f.rd] = cpu.sign_extend(data);
 			match cpu.write_csr(f.csr, cpu.unsigned_data(cpu.x[f.rd] | (f.rs as i64))) {
+				Ok(()) => {},
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_csr
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00001073,
+		name: "CSRRW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_csr(word);
+			let data = match cpu.read_csr(f.csr) {
+				Ok(data) => data as i64,
+				Err(e) => return Err(e)
+			};
+			let tmp = cpu.x[f.rs];
+			cpu.x[f.rd] = cpu.sign_extend(data);
+			match cpu.write_csr(f.csr, cpu.unsigned_data(tmp)) {
 				Ok(()) => {},
 				Err(e) => return Err(e)
 			};
