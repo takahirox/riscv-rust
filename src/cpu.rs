@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	BNE,
 	CSRRC,
 	CSRRCI,
 	CSRRS,
@@ -208,7 +207,6 @@ enum Instruction {
 }
 
 enum InstructionFormat {
-	B,
 	C, // CSR
 	I,
 	J,
@@ -299,7 +297,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::BNE => "BNE",
 		Instruction::CSRRC => "CSRRC",
 		Instruction::CSRRCI => "CSRRCI",
 		Instruction::CSRRS => "CSRRS",
@@ -395,7 +392,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::BNE => InstructionFormat::B,
 		Instruction::CSRRC |
 		Instruction::CSRRCI |
 		Instruction::CSRRS |
@@ -1684,10 +1680,6 @@ impl Cpu {
 				},
 				_ => return Err(())
 			},
-			0x63 => match funct3 {
-				1 => Instruction::BNE,
-				_ => return Err(())
-			},
 			0x6f => Instruction::JAL,
 			0x73 => match funct3 {
 				0 => {
@@ -1720,31 +1712,6 @@ impl Cpu {
 	fn operate(&mut self, word: u32, instruction: Instruction, instruction_address: u64) -> Result<(), Trap> {
 		let instruction_format = get_instruction_format(&instruction);
 		match instruction_format {
-			InstructionFormat::B => {
-				let rs1 = (word & 0x000f8000) >> 15; // [19:15]
-				let rs2 = (word & 0x01f00000) >> 20; // [24:20]
-				let imm = (
-					match word & 0x80000000 { // imm[31:12] = [31]
-						0x80000000 => 0xfffff000,
-						_ => 0
-					} |
-					((word & 0x00000080) << 4) | // imm[11] = [7]
-					((word & 0x7e000000) >> 20) | // imm[10:5] = [30:25]
-					((word & 0x00000f00) >> 7) // imm[4:1] = [11:8]
-				) as i32 as i64 as u64;
-				match instruction {
-					Instruction::BNE => {
-						if self.sign_extend(self.x[rs1 as usize]) != self.sign_extend(self.x[rs2 as usize]) {
-							self.pc = instruction_address.wrapping_add(imm);
-						}
-					},
-					_ => {
-						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(instruction_address);
-						panic!();
-					}
-				};
-			},
 			InstructionFormat::C => {
 				let csr = ((word >> 20) & 0xfff) as u16; // [31:20];
 				let rs = (word >> 15) & 0x1f; // [19:15];
@@ -2625,7 +2592,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 24;
+const INSTRUCTION_NUM: usize = 25;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -2964,6 +2931,19 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, address| {
 			let f = parse_format_b(word);
 			if cpu.unsigned_data(cpu.x[f.rs1]) < cpu.unsigned_data(cpu.x[f.rs2]) {
+				cpu.pc = address.wrapping_add(f.imm);
+			}
+			Ok(())
+		},
+		disassemble: dump_format_b
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00001063,
+		name: "BNE",
+		operation: |cpu, word, address| {
+			let f = parse_format_b(word);
+			if cpu.sign_extend(cpu.x[f.rs1]) != cpu.sign_extend(cpu.x[f.rs2]) {
 				cpu.pc = address.wrapping_add(f.imm);
 			}
 			Ok(())
