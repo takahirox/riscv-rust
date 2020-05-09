@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	BEQ,
 	BGE,
 	BGEU,
 	BLT,
@@ -304,7 +303,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::BEQ => "BEQ",
 		Instruction::BGE => "BGE",
 		Instruction::BGEU => "BGEU",
 		Instruction::BLT => "BLT",
@@ -405,7 +403,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::BEQ |
 		Instruction::BGE |
 		Instruction::BGEU |
 		Instruction::BLT |
@@ -1700,7 +1697,6 @@ impl Cpu {
 				_ => return Err(())
 			},
 			0x63 => match funct3 {
-				0 => Instruction::BEQ,
 				1 => Instruction::BNE,
 				4 => Instruction::BLT,
 				5 => Instruction::BGE,
@@ -1752,15 +1748,7 @@ impl Cpu {
 					((word & 0x7e000000) >> 20) | // imm[10:5] = [30:25]
 					((word & 0x00000f00) >> 7) // imm[4:1] = [11:8]
 				) as i32 as i64 as u64;
-				//if instruction_address == 0xffffffff802036da {
-				//	println!("Compare RS1:{:X} RS2:{:X} RS1VAL:{:X} RS2VAL:{:X}", rs1, rs2, self.x[rs1 as usize], self.x[rs2 as usize]);
-				//}
 				match instruction {
-					Instruction::BEQ => {
-						if self.sign_extend(self.x[rs1 as usize]) == self.sign_extend(self.x[rs2 as usize]) {
-							self.pc = instruction_address.wrapping_add(imm);
-						}
-					},
 					Instruction::BGE => {
 						if self.sign_extend(self.x[rs1 as usize]) >= self.sign_extend(self.x[rs2 as usize]) {
 							self.pc = instruction_address.wrapping_add(imm);
@@ -2533,6 +2521,43 @@ struct InstructionData {
 	disassemble: fn(cpu: &mut Cpu, word: u32, address: u64, evaluate: bool) -> String
 }
 
+struct FormatB {
+	rs1: usize,
+	rs2: usize,
+	imm: u64
+}
+
+fn parse_format_b(word: u32) -> FormatB {
+	FormatB {
+		rs1: ((word >> 15) & 0x1f) as usize, // [19:15]
+		rs2: ((word >> 20) & 0x1f) as usize, // [24:20]
+		imm: (
+			match word & 0x80000000 { // imm[31:12] = [31]
+				0x80000000 => 0xfffff000,
+				_ => 0
+			} |
+			((word << 4) & 0x00000800) | // imm[11] = [7]
+			((word >> 20) & 0x000007e0) | // imm[10:5] = [30:25]
+			((word >> 7) & 0x0000001e) // imm[4:1] = [11:8]
+		) as i32 as i64 as u64
+	}
+}
+
+fn dump_format_b(cpu: &mut Cpu, word: u32, address: u64, evaluate: bool) -> String {
+	let f = parse_format_b(word);
+	let mut s = String::new();
+	s += &format!("{}", get_register_name(f.rs1));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs1]);
+	}
+	s += &format!(",{}", get_register_name(f.rs2));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs2]);
+	}
+	s += &format!(",{:X}", address.wrapping_add(f.imm));
+	s
+}
+
 struct FormatI {
 	rd: usize,
 	rs1: usize,
@@ -2636,7 +2661,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 19;
+const INSTRUCTION_NUM: usize = 20;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -2915,6 +2940,19 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_u
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00000063,
+		name: "BEQ",
+		operation: |cpu, word, address| {
+			let f = parse_format_b(word);
+			if cpu.sign_extend(cpu.x[f.rs1]) == cpu.sign_extend(cpu.x[f.rs2]) {
+				cpu.pc = address.wrapping_add(f.imm);
+			}
+			Ok(())
+		},
+		disassemble: dump_format_b
 	},
 	InstructionData {
 		mask: 0x0000707f,
