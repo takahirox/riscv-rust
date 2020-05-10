@@ -116,14 +116,6 @@ pub enum TrapType {
 	MachineExternalInterrupt
 }
 
-enum Instruction {
-	XORI
-}
-
-enum InstructionFormat {
-	I,
-}
-
 fn _get_privilege_mode_name(mode: &PrivilegeMode) -> &'static str {
 	match mode {
 		PrivilegeMode::User => "User",
@@ -203,18 +195,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 	}
 }
 
-fn get_instruction_name(instruction: &Instruction) -> &'static str {
-	match instruction {
-		Instruction::XORI => "XORI"
-	}
-}
-
-fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
-	match instruction {
-		Instruction::XORI => InstructionFormat::I,
-	}
-}
-
 impl Cpu {
 	pub fn new(terminal: Box<dyn Terminal>) -> Self {
 		let mut cpu = Cpu {
@@ -288,34 +268,43 @@ impl Cpu {
 		if self.wfi {
 			return Ok(());
 		}
-		let mut word = match self.fetch() {
+
+		let original_word = match self.fetch() {
 			Ok(word) => word,
 			Err(e) => return Err(e)
 		};
 		let instruction_address = self.pc;
-		if (word & 0x3) == 0x3 {
-			self.pc = self.pc.wrapping_add(4); // 32-bit length non-compressed instruction
-		} else {
-			self.pc = self.pc.wrapping_add(2); // 16-bit length compressed instruction
-			word = self.uncompress(word & 0xffff);
-		}
+		let word = match (original_word & 0x3) == 0x3 {
+			true => {
+				self.pc = self.pc.wrapping_add(4); // 32-bit length non-compressed instruction
+				original_word
+			},
+			false => {
+				self.pc = self.pc.wrapping_add(2); // 16-bit length compressed instruction
+				self.uncompress(original_word & 0xffff)
+			}
+		};
 
-		// New decode and operate system
-		for i in 0..INSTRUCTION_NUM {
-			let inst = &INSTRUCTIONS[i];
-			if (word & inst.mask) == inst.data {
+		match self.decode(word) {
+			Ok(inst) => {
 				let result = (inst.operation)(self, word, instruction_address);
 				self.x[0] = 0; // hardwired zero
 				return result;
+			},
+			Err(()) => {
+				panic!("Unknown instruction PC:{:X} WORD:{:X}", instruction_address, original_word);
+			}
+		};
+	}
+
+	fn decode(&self, word: u32) -> Result<&InstructionData, ()> {
+		for i in 0..INSTRUCTION_NUM {
+			let inst = &INSTRUCTIONS[i];
+			if (word & inst.mask) == inst.data {
+				return Ok(inst);
 			}
 		}
-
-		// Old decode and operate system
-		// @TODO: Move all the instructions to the new system
-		match self.decode(word) {
-			Ok(instruction) => self.operate(word, instruction, instruction_address),
-			Err(()) => panic!("Unknown instruction PC:{:X} WORD:{:X}", instruction_address, word)
-		}
+		return Err(())
 	}
 
 	fn handle_interrupt(&mut self, instruction_address: u64) {
@@ -1242,52 +1231,6 @@ impl Cpu {
 		0xffffffff // Return invalid value
 	}
 
-	// @TODO: Optimize
-	fn decode(&mut self, word: u32) -> Result<Instruction, ()> {
-		let opcode = word & 0x7f; // [6:0]
-		let funct3 = (word >> 12) & 0x7; // [14:12]
-		let funct5 = (word >> 20) & 0x1f; // [24:20]
-		let funct7 = (word >> 25) & 0x7f; // [31:25]
-
-		let instruction = match opcode {
-			0x13 => match funct3 {
-				4 => Instruction::XORI,
-				_ => return Err(())
-			},
-			_ => return Err(())
-		};
-		Ok(instruction)
-	}
-
-	fn operate(&mut self, word: u32, instruction: Instruction, instruction_address: u64) -> Result<(), Trap> {
-		let instruction_format = get_instruction_format(&instruction);
-		match instruction_format {
-			InstructionFormat::I => {
-				let rd = (word >> 7) & 0x1f; // [11:7]
-				let rs1 = (word >> 15) & 0x1f; // [19:15]
-				let imm = (
-					match word & 0x80000000 { // imm[31:11] = [31]
-						0x80000000 => 0xfffff800,
-						_ => 0
-					} |
-					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
-				) as i32 as i64;
-				match instruction {
-					Instruction::XORI => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] ^ imm);
-					},
-					_ => {
-						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(instruction_address);
-						panic!();
-					}
-				};
-			},
-		}
-		self.x[0] = 0; // hard-wired zero
-		Ok(())
-	}
-
 	fn dump_instruction(&mut self, address: u64) {
 		let word = match self.mmu.load_word(address) {
 			Ok(word) => word,
@@ -1304,32 +1247,32 @@ impl Cpu {
 		// @TODO: Fetching can make a side effect,
 		// for example updating page table entry or update peripheral hardware registers
 		// by accessing them. How can we avoid it?
-		let v_address = self.pc;
-		let mut word = match self.mmu.fetch_word(v_address) {
+		let original_word = match self.mmu.fetch_word(self.pc) {
 			Ok(data) => data,
 			Err(_e) => {
-				let s = format!("PC:{:016x}, InstructionPageFault Trap!\n", v_address);
+				let s = format!("PC:{:016x}, InstructionPageFault Trap!\n", self.pc);
 				self.put_bytes_to_terminal(s.as_bytes());
 				return;
 			}
 		};
-		let instruction = match self.decode(word) {
-			Ok(instruction) => instruction,
-			Err(()) => match self.decode(self.uncompress(word & 0xffff)) {
-				Ok(instruction) => {
-					word = word & 0xffff;
-					instruction
-				},
-				Err(()) => {
-					println!("Unknown instruction PC:{:x} WORD:{:x}", self.pc, word);
-					self.dump_instruction(self.pc);
-					panic!();
-				}
+
+		let word = match (original_word & 0x3) == 0x3 {
+			true => original_word,
+			false => self.uncompress(original_word & 0xffff)
+		};
+
+		let inst = match self.decode(word) {
+			Ok(inst) => inst,
+			Err(()) => {
+				println!("Unknown instruction PC:{:x} WORD:{:x}", self.pc, original_word);
+				self.dump_instruction(self.pc);
+				panic!();
 			}
 		};
+
 		let s = format!("PC:{:016x}, Word:{:08x}, Inst:{}\n",
-			self.unsigned_data(v_address as i64),
-			word, get_instruction_name(&instruction));
+			self.unsigned_data(self.pc as i64),
+			original_word, inst.name);
 		self.put_bytes_to_terminal(s.as_bytes());
 	}
 
@@ -1651,7 +1594,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 115;
+const INSTRUCTION_NUM: usize = 116;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3316,5 +3259,16 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00004013,
+		name: "XORI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] ^ f.imm);
+			Ok(())
+		},
+		disassemble: dump_format_i
 	},
 ];
