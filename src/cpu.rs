@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SUBW,
 	SW,
 	URET,
 	WFI,
@@ -212,7 +211,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SUBW => "SUBW",
 		Instruction::SW => "SW",
 		Instruction::URET => "URET",
 		Instruction::WFI => "WFI",
@@ -224,7 +222,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
 		Instruction::XORI => InstructionFormat::I,
-		Instruction::SUBW |
 		Instruction::URET |
 		Instruction::WFI |
 		Instruction::XOR => InstructionFormat::R,
@@ -1282,13 +1279,6 @@ impl Cpu {
 				},
 				_ => return Err(())
 			},
-			0x3b => match funct3 {
-				0 => match funct7 {
-					0x20 => Instruction::SUBW,
-					_ => return Err(())
-				},
-				_ => return Err(())
-			},
 			0x73 => match funct3 {
 				0 => {
 					match funct7 {
@@ -1354,9 +1344,6 @@ impl Cpu {
 							_ => panic!() // shouldn't happen
 						};
 						self.mmu.update_privilege_mode(self.privilege_mode.clone());
-					},
-					Instruction::SUBW => {
-						self.x[rd as usize] = self.x[rs1 as usize].wrapping_sub(self.x[rs2 as usize]) as i32 as i64;
 					},
 					Instruction::WFI => {
 						self.wfi = true;
@@ -1764,7 +1751,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 110;
+const INSTRUCTION_NUM: usize = 111;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3374,6 +3361,17 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_sub(cpu.x[f.rs2]));
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x4000003b,
+		name: "SUBW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.x[f.rs1].wrapping_sub(cpu.x[f.rs2]) as i32 as i64;
 			Ok(())
 		},
 		disassemble: dump_format_r
