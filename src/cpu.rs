@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FSW,
 	FSGNJD,
 	FSGNJXD,
 	FSUBD,
@@ -264,7 +263,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FSW => "FSW",
 		Instruction::FSGNJD => "FSGNJD",
 		Instruction::FSGNJXD => "FSGNJXD",
 		Instruction::FSUBD => "FSUBD",
@@ -375,7 +373,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::URET |
 		Instruction::WFI |
 		Instruction::XOR => InstructionFormat::R,
-		Instruction::FSW |
 		Instruction::SB |
 		Instruction::SD |
 		Instruction::SH |
@@ -1459,10 +1456,6 @@ impl Cpu {
 				3 => Instruction::SD,
 				_ => return Err(())
 			},
-			0x27 => match funct3 {
-				2 => Instruction::FSW,
-				_ => return Err(())
-			},
 			0x2f => match funct3 {
 				2 => {
 					match funct7 >> 2 {
@@ -1954,12 +1947,6 @@ impl Cpu {
 					((word & 0x00000f80) >> 7) // imm[4:0] = [11:7]
 				) as i32 as i64;
 				match instruction {
-					Instruction::FSW => {
-						match self.mmu.store_word(self.x[rs1 as usize].wrapping_add(imm) as u64, self.f[rs2 as usize].to_bits() as u32) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-					},
 					Instruction::SB => {
 						match self.mmu.store(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u8) {
 							Ok(()) => {},
@@ -2348,7 +2335,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 60;
+const INSTRUCTION_NUM: usize = 61;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3201,6 +3188,16 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, _address| {
 			let f = parse_format_s(word);
 			cpu.mmu.store_doubleword(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.f[f.rs2].to_bits())
+		},
+		disassemble: dump_format_s
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00002027,
+		name: "FSW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_s(word);
+			cpu.mmu.store_word(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.f[f.rs2].to_bits() as u32)
 		},
 		disassemble: dump_format_s
 	},
