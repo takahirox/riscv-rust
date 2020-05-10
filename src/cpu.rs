@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SCD,
 	SCW,
 	SD,
 	SFENCEVMA,
@@ -234,7 +233,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SCD => "SC.D",
 		Instruction::SCW => "SC.W",
 		Instruction::SD => "SD",
 		Instruction::SFENCEVMA => "SFENCE_VMA",
@@ -276,7 +274,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAI |
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
-		Instruction::SCD |
 		Instruction::SCW |
 		Instruction::SUBW |
 		Instruction::SFENCEVMA |
@@ -1368,12 +1365,6 @@ impl Cpu {
 						_ => return Err(())
 					}
 				},
-				3 => {
-					match funct7 >> 2 {
-						3 => Instruction::SCD,
-						_ => return Err(())
-					}
-				},
 				_ => return Err(())
 			}
 			0x33 => match funct3 {
@@ -1540,21 +1531,6 @@ impl Cpu {
 							_ => panic!() // shouldn't happen
 						};
 						self.mmu.update_privilege_mode(self.privilege_mode.clone());
-					},
-					Instruction::SCD => {
-						// @TODO: Implement properly
-						match self.is_reservation_set && self.reservation == (self.x[rs1 as usize] as u64) {
-							true => match self.mmu.store_doubleword(self.x[rs1 as usize] as u64, self.x[rs2 as usize] as u64) {
-								Ok(()) => {
-									self.x[rd as usize] = 0;
-									self.is_reservation_set = false;
-								},
-								Err(e) => return Err(e)
-							},
-							false => {
-								self.x[rd as usize] = 1;
-							}
-						};
 					},
 					Instruction::SCW => {
 						// @TODO: Implement properly
@@ -2025,7 +2001,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 88;
+const INSTRUCTION_NUM: usize = 89;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3319,6 +3295,27 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			cpu.mmu.store(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.x[f.rs2] as u8)
 		},
 		disassemble: dump_format_s
+	},
+	InstructionData {
+		mask: 0xf800707f,
+		data: 0x1800302f,
+		name: "SC.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			// @TODO: Implement properly
+			cpu.x[f.rd] = match cpu.is_reservation_set && cpu.reservation == (cpu.x[f.rs1] as u64) {
+				true => match cpu.mmu.store_doubleword(cpu.x[f.rs1] as u64, cpu.x[f.rs2] as u64) {
+					Ok(()) => {
+						cpu.is_reservation_set = false;
+						0
+					},
+					Err(e) => return Err(e)
+				},
+				false => 1
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xfe00707f,
