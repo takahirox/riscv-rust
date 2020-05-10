@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	MULW,
 	MRET,
 	OR,
 	ORI,
@@ -244,7 +243,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
 		Instruction::MRET => "MRET",
-		Instruction::MULW => "MULW",
 		Instruction::OR => "OR",
 		Instruction::ORI => "ORI",
 		Instruction::REM => "REM",
@@ -296,7 +294,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::MRET |
-		Instruction::MULW |
 		Instruction::OR |
 		Instruction::REM |
 		Instruction::REMU |
@@ -1440,7 +1437,6 @@ impl Cpu {
 			},
 			0x3b => match funct3 {
 				0 => match funct7 {
-					1 => Instruction::MULW,
 					0x20 => Instruction::SUBW,
 					_ => return Err(())
 				},
@@ -1601,9 +1597,6 @@ impl Cpu {
 							_ => panic!() // shouldn't happen
 						};
 						self.mmu.update_privilege_mode(self.privilege_mode.clone());
-					},
-					Instruction::MULW => {
-						self.x[rd as usize] = self.sign_extend((self.x[rs1 as usize] as i32).wrapping_mul(self.x[rs2 as usize] as i32) as i64);
 					},
 					Instruction::OR => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] | self.x[rs2 as usize]);
@@ -2122,7 +2115,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 79;
+const INSTRUCTION_NUM: usize = 80;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3274,6 +3267,17 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 					((cpu.x[f.rs1] as u128).wrapping_mul(cpu.x[f.rs2] as u64 as u128) >> 64) as i64
 				}
 			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x0200003b,
+		name: "MULW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend((cpu.x[f.rs1] as i32).wrapping_mul(cpu.x[f.rs2] as i32) as i64);
 			Ok(())
 		},
 		disassemble: dump_format_r
