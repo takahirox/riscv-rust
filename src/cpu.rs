@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	LBU,
 	LD,
 	LH,
 	LHU,
@@ -257,7 +256,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::LBU => "LBU",
 		Instruction::LD => "LD",
 		Instruction::LH => "LH",
 		Instruction::LHU => "LHU",
@@ -312,7 +310,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::LBU |
 		Instruction::LD |
 		Instruction::LH |
 		Instruction::LHU |
@@ -1404,7 +1401,6 @@ impl Cpu {
 				1 => Instruction::LH,
 				2 => Instruction::LW,
 				3 => Instruction::LD,
-				4 => Instruction::LBU,
 				5 => Instruction::LHU,
 				6 => Instruction::LWU,
 				_ => return Err(())
@@ -1547,12 +1543,6 @@ impl Cpu {
 					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
 				) as i32 as i64;
 				match instruction {
-					Instruction::LBU => {
-						self.x[rd as usize] = match self.mmu.load(self.x[rs1 as usize].wrapping_add(imm) as u64) {
-							Ok(data) => data as i64,
-							Err(e) => return Err(e)
-						};
-					},
 					Instruction::LD => {
 						self.x[rd as usize] = match self.mmu.load_doubleword(self.x[rs1 as usize].wrapping_add(imm) as u64) {
 							Ok(data) => data as i64,
@@ -2293,7 +2283,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 66;
+const INSTRUCTION_NUM: usize = 67;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3245,6 +3235,20 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			let f = parse_format_i(word);
 			cpu.x[f.rd] = match cpu.mmu.load(cpu.x[f.rs1].wrapping_add(f.imm) as u64) {
 				Ok(data) => data as i8 as i64,
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i_mem
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00004003,
+		name: "LBU",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = match cpu.mmu.load(cpu.x[f.rs1].wrapping_add(f.imm) as u64) {
+				Ok(data) => data as i64,
 				Err(e) => return Err(e)
 			};
 			Ok(())
