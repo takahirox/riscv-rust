@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FCVTWD,
 	FDIVD,
 	FENCE,
 	FEQD,
@@ -281,7 +280,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FCVTWD => "FCVT.W.D",
 		Instruction::FDIVD => "FDIV.D",
 		Instruction::FENCE => "FENCE",
 		Instruction::FEQD => "FEQ.D",
@@ -379,7 +377,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
 		Instruction::FENCE => InstructionFormat::O,
-		Instruction::FCVTWD |
 		Instruction::FDIVD |
 		Instruction::FEQD |
 		Instruction::FLED |
@@ -1616,10 +1613,6 @@ impl Cpu {
 					2 => Instruction::FEQD,
 					_ => return Err(())
 				},
-				0x61 => match funct5 {
-					0 => Instruction::FCVTWD,
-					_ => return Err(())				
-				},
 				0x70 => match funct5 {
 					0 => match funct3 {
 						0 => Instruction::FMVXW,
@@ -1841,9 +1834,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::FCVTWD => {
-						self.x[rd as usize] = self.f[rs1 as usize] as u32 as i32 as i64;
-					},
 					Instruction::FDIVD => {
 						self.f[rd as usize] = match self.f[rs2 as usize] == 0.0 {
 							true => 0.0, // @TODO: Implement properly
@@ -2442,7 +2432,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 43;
+const INSTRUCTION_NUM: usize = 44;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3081,6 +3071,18 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			let f = parse_format_r(word);
 			// Is this implementation correct?
 			cpu.f[f.rd] = cpu.f[f.rs1] as f32 as f64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfff0007f,
+		data: 0xc2000053,
+		name: "FCVT.W.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			// Is this implementation correct?
+			cpu.x[f.rd] = cpu.f[f.rs1] as u32 as i32 as i64;
 			Ok(())
 		},
 		disassemble: dump_format_r
