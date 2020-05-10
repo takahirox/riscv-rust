@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	LUI,
 	LW,
 	LWU,
 	MUL,
@@ -166,8 +165,7 @@ enum Instruction {
 enum InstructionFormat {
 	I,
 	R,
-	S,
-	U
+	S
 }
 
 fn _get_privilege_mode_name(mode: &PrivilegeMode) -> &'static str {
@@ -251,7 +249,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::LUI => "LUI",
 		Instruction::LW => "LW",
 		Instruction::LWU => "LWU",
 		Instruction::MRET => "MRET",
@@ -343,7 +340,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SD |
 		Instruction::SH |
 		Instruction::SW => InstructionFormat::S,
-		Instruction::LUI => InstructionFormat::U
 	}
 }
 
@@ -1472,7 +1468,6 @@ impl Cpu {
 				},
 				_ => return Err(())
 			},
-			0x37 => Instruction::LUI,
 			0x3b => match funct3 {
 				0 => match funct7 {
 					1 => Instruction::MULW,
@@ -1835,26 +1830,6 @@ impl Cpu {
 					}
 				};
 			},
-			InstructionFormat::U => {
-				let rd = (word >> 7) & 0x1f; // [11:7]
-				let imm = (
-					match word & 0x80000000 {
-						0x80000000 => 0xffffffff00000000,
-						_ => 0
-					} | // imm[63:32] = [31]
-					((word as u64) & 0xfffff000) // imm[31:12] = [31:12]
-				) as u64;
-				match instruction {
-					Instruction::LUI => {
-						self.x[rd as usize] = imm as i64;
-					}
-					_ => {
-						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(instruction_address);
-						panic!();
-					}
-				};
-			}
 		}
 		self.x[0] = 0; // hard-wired zero
 		Ok(())
@@ -2223,7 +2198,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 72;
+const INSTRUCTION_NUM: usize = 73;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3274,6 +3249,17 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0x0000007f,
+		data: 0x00000037,
+		name: "LUI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_u(word);
+			cpu.x[f.rd] = f.imm as i64;
+			Ok(())
+		},
+		disassemble: dump_format_u
 	},
 	InstructionData {
 		mask: 0xfe00707f,
