@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	LRD,
 	LRW,
 	LUI,
 	LW,
@@ -253,7 +252,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::LRD => "LR.D",
 		Instruction::LRW => "LR.W",
 		Instruction::LUI => "LUI",
 		Instruction::LW => "LW",
@@ -316,7 +314,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAI |
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
-		Instruction::LRD |
 		Instruction::LRW |
 		Instruction::MRET |
 		Instruction::MUL |
@@ -1433,7 +1430,6 @@ impl Cpu {
 				},
 				3 => {
 					match funct7 >> 2 {
-						2 => Instruction::LRD,
 						3 => Instruction::SCD,
 						_ => return Err(())
 					}
@@ -1608,17 +1604,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::LRD => {
-						// @TODO: Implement properly
-						self.x[rd as usize] = match self.mmu.load_doubleword(self.x[rs1 as usize] as u64) {
-							Ok(data) => {
-								self.is_reservation_set = true;
-								self.reservation = self.x[rs1 as usize] as u64; // Is virtual address ok?
-								data as i64
-							},
-							Err(e) => return Err(e)
-						};
-					},
 					Instruction::LRW => {
 						// @TODO: Implement properly
 						self.x[rd as usize] = match self.mmu.load_word(self.x[rs1 as usize] as u64) {
@@ -2253,7 +2238,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 70;
+const INSTRUCTION_NUM: usize = 71;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3266,6 +3251,25 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_i_mem
+	},
+	InstructionData {
+		mask: 0xf9f0707f,
+		data: 0x1000302f,
+		name: "LR.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			// @TODO: Implement properly
+			cpu.x[f.rd] = match cpu.mmu.load_doubleword(cpu.x[f.rs1] as u64) {
+				Ok(data) => {
+					cpu.is_reservation_set = true;
+					cpu.reservation = cpu.x[f.rs1] as u64; // Is virtual address ok?
+					data as i64
+				},
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xfe00707f,
