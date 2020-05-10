@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FCVTDW,
 	FCVTDWU,
 	FCVTDS,
 	FCVTSD,
@@ -286,7 +285,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
 		Instruction::FCVTDS => "FCVT.D.S",
-		Instruction::FCVTDW => "FCVT.D.W",
 		Instruction::FCVTDWU => "FCVT.D.WU",
 		Instruction::FCVTSD => "FCVT.S.D",
 		Instruction::FCVTWD => "FCVT.W.D",
@@ -388,7 +386,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::JAL => InstructionFormat::J,
 		Instruction::FENCE => InstructionFormat::O,
 		Instruction::FCVTDS |
-		Instruction::FCVTDW |
 		Instruction::FCVTDWU |
 		Instruction::FCVTSD |
 		Instruction::FCVTWD |
@@ -1641,7 +1638,6 @@ impl Cpu {
 					_ => return Err(())				
 				},
 				0x69 => match funct5 {
-					0 => Instruction::FCVTDW,
 					1 => Instruction::FCVTDWU,
 					_ => return Err(())
 				},
@@ -1869,9 +1865,6 @@ impl Cpu {
 					Instruction::FCVTDS => {
 						// @TODO: Implement properly
 						self.f[rd as usize] = f32::from_bits(self.f[rs1 as usize].to_bits() as u32) as f64;
-					},
-					Instruction::FCVTDW => {
-						self.f[rd as usize] = self.x[rs1 as usize] as i32 as f64;
 					},
 					Instruction::FCVTDWU => {
 						self.f[rd as usize] = self.x[rs1 as usize] as u32 as f64;
@@ -2480,7 +2473,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 39;
+const INSTRUCTION_NUM: usize = 40;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3073,6 +3066,17 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			cpu.f[f.rd] = cpu.x[f.rs1] as f64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfff0007f,
+		data: 0xd2000053,
+		name: "FCVT.D.W",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.f[f.rd] = cpu.x[f.rs1] as i32 as f64;
 			Ok(())
 		},
 		disassemble: dump_format_r
