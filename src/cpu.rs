@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FMULD,
 	FLW,
 	FMADDD,
 	FMVDX,
@@ -275,7 +274,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
 		Instruction::FLW => "FLW",
 		Instruction::FMADDD => "FMADD.D",
-		Instruction::FMULD => "FMUL.D",
 		Instruction::FMVDX => "FMV.D.X",
 		Instruction::FMVXD => "FMV.X.D",
 		Instruction::FMVXW => "FMV.X.W",
@@ -363,7 +361,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
 		Instruction::FMADDD |
-		Instruction::FMULD |
 		Instruction::FMVDX |
 		Instruction::FMVXD |
 		Instruction::FMVXW |
@@ -1579,7 +1576,6 @@ impl Cpu {
 			},
 			0x53 => match funct7 {
 				0x5 => Instruction::FSUBD,
-				0x9 => Instruction::FMULD,
 				0x11 => match funct3 {
 					0 => Instruction::FSGNJD,
 					2 => Instruction::FSGNJXD,
@@ -1788,9 +1784,6 @@ impl Cpu {
 				match instruction {
 					Instruction::FMADDD => {
 						self.f[rd as usize] = self.f[rs1 as usize] * self.f[rs2 as usize] + self.f[rs3 as usize];
-					},
-					Instruction::FMULD => {
-						self.f[rd as usize] = self.f[rs1 as usize] * self.f[rs2 as usize];
 					},
 					Instruction::FMVDX => {
 						self.f[rd as usize] = f64::from_bits(self.x[rs1 as usize] as u64);
@@ -2360,7 +2353,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 51;
+const INSTRUCTION_NUM: usize = 52;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3109,6 +3102,18 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 				true => 1,
 				false => 0
 			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00007f,
+		data: 0x12000053,
+		name: "FMUL.D",
+		operation: |cpu, word, _address| {
+			// @TODO: Update fcsr if needed?
+			let f = parse_format_r(word);
+			cpu.f[f.rd] = cpu.f[f.rs1] * cpu.f[f.rs2];
 			Ok(())
 		},
 		disassemble: dump_format_r
