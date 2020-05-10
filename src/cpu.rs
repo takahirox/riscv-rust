@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SRL,
 	SRLI,
 	SRLIW,
 	SRLW,
@@ -216,7 +215,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SRL => "SRL",
 		Instruction::SRLI => "SRLI",
 		Instruction::SRLIW => "SRLIW",
 		Instruction::SRLW => "SRLW",
@@ -235,7 +233,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRLIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::SUBW |
-		Instruction::SRL |
 		Instruction::SRLW |
 		Instruction::URET |
 		Instruction::WFI |
@@ -1304,10 +1301,6 @@ impl Cpu {
 					0 => Instruction::XOR,
 					_ => return Err(())
 				},
-				5 => match funct7 {
-					0 => Instruction::SRL,
-					_ => return Err(())
-				},
 				_ => return Err(())
 			},
 			0x3b => match funct3 {
@@ -1400,9 +1393,6 @@ impl Cpu {
 					},
 					Instruction::SUBW => {
 						self.x[rd as usize] = self.x[rs1 as usize].wrapping_sub(self.x[rs2 as usize]) as i32 as i64;
-					},
-					Instruction::SRL => {
-						self.x[rd as usize] = self.sign_extend(self.unsigned_data(self.x[rs1 as usize]).wrapping_shr(self.x[rs2 as usize] as u32) as i64);
 					},
 					Instruction::SRLW => {
 						self.x[rd as usize] = (self.x[rs1 as usize] as u32).wrapping_shr(self.x[rs2 as usize] as u32) as i32 as i64;
@@ -1813,7 +1803,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 106;
+const INSTRUCTION_NUM: usize = 107;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3361,6 +3351,17 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_empty
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x00005033,
+		name: "SRL",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.unsigned_data(cpu.x[f.rs1]).wrapping_shr(cpu.x[f.rs2] as u32) as i64);
+			Ok(())
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xfe00707f,
