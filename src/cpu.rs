@@ -117,13 +117,11 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	XOR,
 	XORI
 }
 
 enum InstructionFormat {
 	I,
-	R,
 }
 
 fn _get_privilege_mode_name(mode: &PrivilegeMode) -> &'static str {
@@ -207,7 +205,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::XOR => "XOR",
 		Instruction::XORI => "XORI"
 	}
 }
@@ -215,7 +212,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
 		Instruction::XORI => InstructionFormat::I,
-		Instruction::XOR => InstructionFormat::R,
 	}
 }
 
@@ -1258,13 +1254,6 @@ impl Cpu {
 				4 => Instruction::XORI,
 				_ => return Err(())
 			},
-			0x33 => match funct3 {
-				4 => match funct7 {
-					0 => Instruction::XOR,
-					_ => return Err(())
-				},
-				_ => return Err(())
-			},
 			_ => return Err(())
 		};
 		Ok(instruction)
@@ -1286,22 +1275,6 @@ impl Cpu {
 				match instruction {
 					Instruction::XORI => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] ^ imm);
-					},
-					_ => {
-						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(instruction_address);
-						panic!();
-					}
-				};
-			},
-			InstructionFormat::R => {
-				let rd = (word >> 7) & 0x1f; // [11:7]
-				let rs1 = (word >> 15) & 0x1f; // [19:15]
-				let rs2 = (word >> 20) & 0x1f; // [24:20]
-				let rs3 = (word >> 27) & 0x1f; //[31:27]
-				match instruction {
-					Instruction::XOR => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] ^ self.x[rs2 as usize]);
 					},
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
@@ -1678,7 +1651,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 114;
+const INSTRUCTION_NUM: usize = 115;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3332,5 +3305,16 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_empty
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x00004033,
+		name: "XOR",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] ^ cpu.x[f.rs2]);
+			Ok(())
+		},
+		disassemble: dump_format_r
 	},
 ];
