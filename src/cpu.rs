@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SLT,
 	SLTI,
 	SLTU,
 	SLTIU,
@@ -225,7 +224,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SLT => "SLT",
 		Instruction::SLTI => "SLTI",
 		Instruction::SLTU => "SLTU",
 		Instruction::SLTIU => "SLTIU",
@@ -257,7 +255,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::SUBW |
-		Instruction::SLT |
 		Instruction::SLTU |
 		Instruction::SRA |
 		Instruction::SRAW |
@@ -1331,10 +1328,6 @@ impl Cpu {
 				_ => return Err(())
 			},
 			0x33 => match funct3 {
-				2 => match funct7 {
-					0 => Instruction::SLT,
-					_ => return Err(())
-				},
 				3 => match funct7 {
 					0 => Instruction::SLTU,
 					_ => return Err(())
@@ -1480,12 +1473,6 @@ impl Cpu {
 					},
 					Instruction::SUBW => {
 						self.x[rd as usize] = self.x[rs1 as usize].wrapping_sub(self.x[rs2 as usize]) as i32 as i64;
-					},
-					Instruction::SLT => {
-						self.x[rd as usize] = match self.x[rs1 as usize] < self.x[rs2 as usize] {
-							true => 1,
-							false => 0
-						}
 					},
 					Instruction::SLTU => {
 						self.x[rd as usize] = match self.unsigned_data(self.x[rs1 as usize]) < self.unsigned_data(self.x[rs2 as usize]) {
@@ -1911,7 +1898,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 97;
+const INSTRUCTION_NUM: usize = 98;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3324,6 +3311,20 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = (cpu.x[f.rs1] as u32).wrapping_shl(cpu.x[f.rs2] as u32) as i32 as i64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x00002033,
+		name: "SLT",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = match cpu.x[f.rs1] < cpu.x[f.rs2] {
+				true => 1,
+				false => 0
+			};
 			Ok(())
 		},
 		disassemble: dump_format_r
