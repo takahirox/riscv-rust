@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FMVDX,
 	FMVXD,
 	FMVXW,
 	FMVWX,
@@ -270,7 +269,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FMVDX => "FMV.D.X",
 		Instruction::FMVXD => "FMV.X.D",
 		Instruction::FMVXW => "FMV.X.W",
 		Instruction::FMVWX => "FMV.W.X",
@@ -355,7 +353,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
-		Instruction::FMVDX |
 		Instruction::FMVXD |
 		Instruction::FMVXW |
 		Instruction::FMVWX |
@@ -1588,10 +1585,6 @@ impl Cpu {
 					},
 					_ => return Err(())
 				},
-				0x79 => match funct5 {
-					0 => Instruction::FMVDX,
-					_ => return Err(())
-				},
 				_ => return Err(())
 			},
 			0x6f => Instruction::JAL,
@@ -1759,9 +1752,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::FMVDX => {
-						self.f[rd as usize] = f64::from_bits(self.x[rs1 as usize] as u64);
-					},
 					Instruction::FMVXD => {
 						self.x[rd as usize] = self.f[rs1 as usize].to_bits() as i64;
 					},
@@ -2381,7 +2371,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 54;
+const INSTRUCTION_NUM: usize = 55;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3168,6 +3158,17 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			// @TODO: Update fcsr if needed?
 			let f = parse_format_r(word);
 			cpu.f[f.rd] = cpu.f[f.rs1] * cpu.f[f.rs2];
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfff0707f,
+		data: 0xf2000053,
+		name: "FMV.D.X",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.f[f.rd] = f64::from_bits(cpu.x[f.rs1] as u64);
 			Ok(())
 		},
 		disassemble: dump_format_r
