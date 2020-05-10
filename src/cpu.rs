@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	MULH,
 	MULHU,
 	MULHSU,
 	MULW,
@@ -247,7 +246,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
 		Instruction::MRET => "MRET",
-		Instruction::MULH => "MULH",
 		Instruction::MULHU => "MULHU",
 		Instruction::MULHSU => "MULHSU",
 		Instruction::MULW => "MULW",
@@ -302,7 +300,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::MRET |
-		Instruction::MULH |
 		Instruction::MULHU |
 		Instruction::MULHSU |
 		Instruction::MULW |
@@ -1417,7 +1414,6 @@ impl Cpu {
 			0x33 => match funct3 {
 				1 => match funct7 {
 					0 => Instruction::SLL,
-					1 => Instruction::MULH,
 					_ => return Err(())
 				},
 				2 => match funct7 {
@@ -1613,16 +1609,6 @@ impl Cpu {
 							_ => panic!() // shouldn't happen
 						};
 						self.mmu.update_privilege_mode(self.privilege_mode.clone());
-					},
-					Instruction::MULH => {
-						self.x[rd as usize] = match self.xlen {
-							Xlen::Bit32 => {
-								self.sign_extend((self.x[rs1 as usize] * self.x[rs2 as usize]) >> 32)
-							},
-							Xlen::Bit64 => {
-								((self.x[rs1 as usize] as i128) * (self.x[rs2 as usize] as i128) >> 64) as i64
-							}
-						};
 					},
 					Instruction::MULHU => {
 						self.x[rd as usize] = match self.xlen {
@@ -2164,7 +2150,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 76;
+const INSTRUCTION_NUM: usize = 77;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3262,6 +3248,24 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_mul(cpu.x[f.rs2]));
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x02001033,
+		name: "MULH",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = match cpu.xlen {
+				Xlen::Bit32 => {
+					cpu.sign_extend((cpu.x[f.rs1] * cpu.x[f.rs2]) >> 32)
+				},
+				Xlen::Bit64 => {
+					((cpu.x[f.rs1] as i128) * (cpu.x[f.rs2] as i128) >> 64) as i64
+				}
+			};
 			Ok(())
 		},
 		disassemble: dump_format_r
