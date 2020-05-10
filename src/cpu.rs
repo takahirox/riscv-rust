@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	URET,
 	WFI,
 	XOR,
 	XORI
@@ -209,7 +208,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::URET => "URET",
 		Instruction::WFI => "WFI",
 		Instruction::XOR => "XOR",
 		Instruction::XORI => "XORI"
@@ -219,7 +217,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
 		Instruction::XORI => InstructionFormat::I,
-		Instruction::URET |
 		Instruction::WFI |
 		Instruction::XOR => InstructionFormat::R,
 	}
@@ -1275,7 +1272,6 @@ impl Cpu {
 				0 => {
 					match funct7 {
 						_ => match word {
-							0x00200073 => Instruction::URET,
 							0x10500073 => Instruction::WFI,
 							_ => return Err(())
 						}
@@ -1318,25 +1314,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::URET => {
-						// @TODO: Throw error if higher privilege return instruction is executed
-						// @TODO: Implement propertly
-						let csr_epc_address = match instruction {
-							Instruction::URET => CSR_UEPC_ADDRESS,
-							_ => panic!() // shouldn't happen
-						};
-						self.pc = match self.read_csr(csr_epc_address) {
-							Ok(data) => data,
-							Err(e) => return Err(e)
-						};
-						match instruction {
-							Instruction::URET => {
-								panic!("Not implemented yet.");
-							},
-							_ => panic!() // shouldn't happen
-						};
-						self.mmu.update_privilege_mode(self.privilege_mode.clone());
-					},
 					Instruction::WFI => {
 						self.wfi = true;
 					},
@@ -1718,7 +1695,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 112;
+const INSTRUCTION_NUM: usize = 113;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3352,5 +3329,15 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			cpu.mmu.store_word(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.x[f.rs2] as u32)
 		},
 		disassemble: dump_format_s
+	},
+	InstructionData {
+		mask: 0xffffffff,
+		data: 0x00200073,
+		name: "URET",
+		operation: |_cpu, _word, _address| {
+			// @TODO: Implement
+			panic!("URET instruction is not implemented yet.");
+		},
+		disassemble: dump_empty
 	},
 ];
