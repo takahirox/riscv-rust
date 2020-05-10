@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SRLIW,
 	SRLW,
 	SUBW,
 	SW,
@@ -214,7 +213,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SRLIW => "SRLIW",
 		Instruction::SRLW => "SRLW",
 		Instruction::SUBW => "SUBW",
 		Instruction::SW => "SW",
@@ -227,7 +225,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::SRLIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::SUBW |
 		Instruction::SRLW |
@@ -1277,13 +1274,6 @@ impl Cpu {
 				4 => Instruction::XORI,
 				_ => return Err(())
 			},
-			0x1b => match funct3 {
-				5 => match funct7 {
-					0 => Instruction::SRLIW,
-					_ => return Err(())
-				},
-				_ => return Err(())
-			},
 			0x23 => match funct3 {
 				2 => Instruction::SW,
 				_ => return Err(())
@@ -1337,10 +1327,6 @@ impl Cpu {
 					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
 				) as i32 as i64;
 				match instruction {
-					Instruction::SRLIW => {
-						let shamt = (imm as u32) & 0x1f;
-						self.x[rd as usize] = ((self.x[rs1 as usize] as u32) >> shamt) as i32 as i64;
-					},
 					Instruction::XORI => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] ^ imm);
 					},
@@ -1788,7 +1774,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 108;
+const INSTRUCTION_NUM: usize = 109;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3360,6 +3346,22 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			};
 			let shamt = (word >> 20) & mask;
 			cpu.x[f.rd] = cpu.sign_extend((cpu.unsigned_data(cpu.x[f.rs1]) >> shamt) as i64);
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfc00707f,
+		data: 0x0000501b,
+		name: "SRLIW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let mask = match cpu.xlen {
+				Xlen::Bit32 => 0x1f,
+				Xlen::Bit64 => 0x3f
+			};
+			let shamt = (word >> 20) & mask;
+			cpu.x[f.rd] = ((cpu.x[f.rs1] as u32) >> shamt) as i32 as i64;
 			Ok(())
 		},
 		disassemble: dump_format_r
