@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FMADDD,
 	FMVDX,
 	FMVXD,
 	FMVXW,
@@ -271,7 +270,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FMADDD => "FMADD.D",
 		Instruction::FMVDX => "FMV.D.X",
 		Instruction::FMVXD => "FMV.X.D",
 		Instruction::FMVXW => "FMV.X.W",
@@ -357,7 +355,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
-		Instruction::FMADDD |
 		Instruction::FMVDX |
 		Instruction::FMVXD |
 		Instruction::FMVXW |
@@ -1559,10 +1556,6 @@ impl Cpu {
 				7 => Instruction::REMUW,
 				_ => return Err(())
 			},
-			0x43 => match funct7 & 0x3 {
-				1 => Instruction::FMADDD,
-				_ => return Err(())
-			},
 			0x4b => match funct7 & 0x3 {
 				1 => Instruction::FNMSUBD,
 				_ => return Err(())
@@ -1766,9 +1759,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::FMADDD => {
-						self.f[rd as usize] = self.f[rs1 as usize] * self.f[rs2 as usize] + self.f[rs3 as usize];
-					},
 					Instruction::FMVDX => {
 						self.f[rd as usize] = f64::from_bits(self.x[rs1 as usize] as u64);
 					},
@@ -2312,6 +2302,45 @@ fn dump_format_r(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> Str
 	s
 }
 
+// has rs3
+struct FormatR2 {
+	rd: usize,
+	rs1: usize,
+	rs2: usize,
+	rs3: usize
+}
+
+fn parse_format_r2(word: u32) -> FormatR2 {
+	FormatR2 {
+		rd: ((word >> 7) & 0x1f) as usize, // [11:7]
+		rs1: ((word >> 15) & 0x1f) as usize, // [19:15]
+		rs2: ((word >> 20) & 0x1f) as usize, // [24:20]
+		rs3: ((word >> 27) & 0x1f) as usize // [31:27]
+	}
+}
+
+fn dump_format_r2(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> String {
+	let f = parse_format_r2(word);
+	let mut s = String::new();
+	s += &format!("{}", get_register_name(f.rd));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rd]);
+	}
+	s += &format!(",{}", get_register_name(f.rs1));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs1]);
+	}
+	s += &format!(",{}", get_register_name(f.rs2));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs2]);
+	}
+	s += &format!(",{}", get_register_name(f.rs3));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs3]);
+	}
+	s
+}
+
 struct FormatU {
 	rd: usize,
 	imm: u64
@@ -2352,7 +2381,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 53;
+const INSTRUCTION_NUM: usize = 54;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3118,6 +3147,18 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_i_mem
+	},
+	InstructionData {
+		mask: 0x0600007f,
+		data: 0x02000043,
+		name: "FMADD.D",
+		operation: |cpu, word, _address| {
+			// @TODO: Update fcsr if needed?
+			let f = parse_format_r2(word);
+			cpu.f[f.rd] = cpu.f[f.rs1] * cpu.f[f.rs2] + cpu.f[f.rs3];
+			Ok(())
+		},
+		disassemble: dump_format_r2
 	},
 	InstructionData {
 		mask: 0xfe00007f,
