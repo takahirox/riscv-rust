@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FLTD,
 	FMULD,
 	FLW,
 	FMADDD,
@@ -274,7 +273,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FLTD => "FLT.D",
 		Instruction::FLW => "FLW",
 		Instruction::FMADDD => "FMADD.D",
 		Instruction::FMULD => "FMUL.D",
@@ -364,7 +362,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
-		Instruction::FLTD |
 		Instruction::FMADDD |
 		Instruction::FMULD |
 		Instruction::FMVDX |
@@ -1588,10 +1585,6 @@ impl Cpu {
 					2 => Instruction::FSGNJXD,
 					_ => return Err(())
 				},
-				0x51 => match funct3 {
-					1 => Instruction::FLTD,
-					_ => return Err(())
-				},
 				0x70 => match funct5 {
 					0 => match funct3 {
 						0 => Instruction::FMVXW,
@@ -1793,12 +1786,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::FLTD => {
-						self.x[rd as usize] = match self.f[rs1 as usize] < self.f[rs2 as usize] {
-							true => 1,
-							false => 0
-						};
-					},
 					Instruction::FMADDD => {
 						self.f[rd as usize] = self.f[rs1 as usize] * self.f[rs2 as usize] + self.f[rs3 as usize];
 					},
@@ -2373,7 +2360,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 50;
+const INSTRUCTION_NUM: usize = 51;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3101,10 +3088,24 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 	InstructionData {
 		mask: 0xfe00707f,
 		data: 0xa2000053,
-		name: "FLED",
+		name: "FLE.D",
 		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = match cpu.f[f.rs1] <= cpu.f[f.rs2] {
+				true => 1,
+				false => 0
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0xa2001053,
+		name: "FLT.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = match cpu.f[f.rs1] < cpu.f[f.rs2] {
 				true => 1,
 				false => 0
 			};
