@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SLTIU,
 	SRA,
 	SRAI,
 	SRAIW,
@@ -222,7 +221,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SLTIU => "SLTIU",
 		Instruction::SRA => "SRA",
 		Instruction::SRAI => "SRAI",
 		Instruction::SRAIW => "SRAIW",
@@ -243,7 +241,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::SLTIU |
 		Instruction::SRLI |
 		Instruction::SRLIW |
 		Instruction::SRAI |
@@ -1298,7 +1295,6 @@ impl Cpu {
 
 		let instruction = match opcode {
 			0x13 => match funct3 {
-				3 => Instruction::SLTIU,
 				4 => Instruction::XORI,
 				5 => match funct7 & !1 {
 					0 => Instruction::SRLI,
@@ -1376,12 +1372,6 @@ impl Cpu {
 					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
 				) as i32 as i64;
 				match instruction {
-					Instruction::SLTIU => {
-						self.x[rd as usize] = match self.unsigned_data(self.x[rs1 as usize]) < self.unsigned_data(imm) {
-							true => 1,
-							false => 0
-						}
-					},
 					Instruction::SRAI => {
 						let shamt = (imm & match self.xlen {
 							Xlen::Bit32 => 0x1f,
@@ -1875,7 +1865,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 100;
+const INSTRUCTION_NUM: usize = 101;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3313,6 +3303,20 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, _address| {
 			let f = parse_format_i(word);
 			cpu.x[f.rd] = match cpu.x[f.rs1] < f.imm {
+				true => 1,
+				false => 0
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00003013,
+		name: "SLTIU",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = match cpu.unsigned_data(cpu.x[f.rs1]) < cpu.unsigned_data(f.imm) {
 				true => 1,
 				false => 0
 			};
