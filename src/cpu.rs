@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SLTI,
 	SLTU,
 	SLTIU,
 	SRA,
@@ -224,7 +223,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SLTI => "SLTI",
 		Instruction::SLTU => "SLTU",
 		Instruction::SLTIU => "SLTIU",
 		Instruction::SRA => "SRA",
@@ -247,7 +245,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::SLTI |
 		Instruction::SLTIU |
 		Instruction::SRLI |
 		Instruction::SRLIW |
@@ -1304,7 +1301,6 @@ impl Cpu {
 
 		let instruction = match opcode {
 			0x13 => match funct3 {
-				2 => Instruction::SLTI,
 				3 => Instruction::SLTIU,
 				4 => Instruction::XORI,
 				5 => match funct7 & !1 {
@@ -1387,12 +1383,6 @@ impl Cpu {
 					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
 				) as i32 as i64;
 				match instruction {
-					Instruction::SLTI => {
-						self.x[rd as usize] = match self.x[rs1 as usize] < imm {
-							true => 1,
-							false => 0
-						}
-					},
 					Instruction::SLTIU => {
 						self.x[rd as usize] = match self.unsigned_data(self.x[rs1 as usize]) < self.unsigned_data(imm) {
 							true => 1,
@@ -1898,7 +1888,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 98;
+const INSTRUCTION_NUM: usize = 99;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3328,6 +3318,20 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00002013,
+		name: "SLTI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = match cpu.x[f.rs1] < f.imm {
+				true => 1,
+				false => 0
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i
 	},
 	InstructionData {
 		mask: 0xfe00707f,
