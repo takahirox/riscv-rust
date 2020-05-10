@@ -297,7 +297,7 @@ impl Cpu {
 		};
 	}
 
-	fn decode(&self, word: u32) -> Result<&InstructionData, ()> {
+	fn decode(&self, word: u32) -> Result<&Instruction, ()> {
 		for i in 0..INSTRUCTION_NUM {
 			let inst = &INSTRUCTIONS[i];
 			if (word & inst.mask) == inst.data {
@@ -1287,8 +1287,7 @@ impl Cpu {
 	}
 }
 
-// @TODO: Rename to Instruction
-struct InstructionData {
+struct Instruction {
 	mask: u32,
 	data: u32, // @TODO: rename
 	name: &'static str,
@@ -1597,9 +1596,8 @@ fn get_register_name(num: usize) -> &'static str {
 const INSTRUCTION_NUM: usize = 116;
 
 // @TODO: Reorder in often used order as 
-// @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
-const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
-	InstructionData {
+const INSTRUCTIONS: [Instruction; INSTRUCTION_NUM] = [
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x00000033,
 		name: "ADD",
@@ -1610,7 +1608,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00000013,
 		name: "ADDI",
@@ -1621,7 +1619,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x0000001b,
 		name: "ADDIW",
@@ -1632,7 +1630,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x0000003b,
 		name: "ADDW",
@@ -1643,7 +1641,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x0000302f,
 		name: "AMOADD.D",
@@ -1662,7 +1660,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x0000202f,
 		name: "AMOADD.W",
@@ -1681,7 +1679,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x6000302f,
 		name: "AMOAND.D",
@@ -1700,7 +1698,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x6000202f,
 		name: "AMOAND.W",
@@ -1719,7 +1717,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0xe000302f,
 		name: "AMOMAXU.D",
@@ -1742,7 +1740,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0xe000202f,
 		name: "AMOMAXU.W",
@@ -1765,7 +1763,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x4000302f,
 		name: "AMOOR.D",
@@ -1784,7 +1782,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x4000202f,
 		name: "AMOOR.W",
@@ -1803,7 +1801,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x0800302f,
 		name: "AMOSWAP.D",
@@ -1822,7 +1820,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x0800202f,
 		name: "AMOSWAP.W",
@@ -1841,7 +1839,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x00007033,
 		name: "AND",
@@ -1852,7 +1850,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00007013,
 		name: "ANDI",
@@ -1863,7 +1861,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000007f,
 		data: 0x00000017,
 		name: "AUIPC",
@@ -1874,7 +1872,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_u
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00000063,
 		name: "BEQ",
@@ -1887,7 +1885,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_b
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00005063,
 		name: "BGE",
@@ -1900,7 +1898,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_b
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00007063,
 		name: "BGEU",
@@ -1913,7 +1911,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_b
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00004063,
 		name: "BLT",
@@ -1926,7 +1924,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_b
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00006063,
 		name: "BLTU",
@@ -1939,7 +1937,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_b
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00001063,
 		name: "BNE",
@@ -1952,7 +1950,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_b
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00003073,
 		name: "CSRRC",
@@ -1972,7 +1970,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_csr
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00007073,
 		name: "CSRRCI",
@@ -1991,7 +1989,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_csr
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00002073,
 		name: "CSRRS",
@@ -2011,7 +2009,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_csr
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00006073,
 		name: "CSRRSI",
@@ -2030,7 +2028,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_csr
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00001073,
 		name: "CSRRW",
@@ -2050,7 +2048,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_csr
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00005073,
 		name: "CSRRWI",
@@ -2069,7 +2067,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_csr
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x02004033,
 		name: "DIV",
@@ -2088,7 +2086,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x02005033,
 		name: "DIVU",
@@ -2105,7 +2103,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x0200503b,
 		name: "DIVUW",
@@ -2122,7 +2120,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x0200403b,
 		name: "DIVW",
@@ -2141,7 +2139,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xffffffff,
 		data: 0x00100073,
 		name: "EBREAK",
@@ -2151,7 +2149,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xffffffff,
 		data: 0x00000073,
 		name: "ECALL",
@@ -2169,7 +2167,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00007f,
 		data: 0x02000053,
 		name: "FADD.D",
@@ -2180,7 +2178,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0007f,
 		data: 0xd2200053,
 		name: "FCVT.D.L",
@@ -2191,7 +2189,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0007f,
 		data: 0x42000053,
 		name: "FCVT.D.S",
@@ -2203,7 +2201,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0007f,
 		data: 0xd2000053,
 		name: "FCVT.D.W",
@@ -2214,7 +2212,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0007f,
 		data: 0xd2100053,
 		name: "FCVT.D.WU",
@@ -2225,7 +2223,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0007f,
 		data: 0x40100053,
 		name: "FCVT.S.D",
@@ -2237,7 +2235,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0007f,
 		data: 0xc2000053,
 		name: "FCVT.W.D",
@@ -2249,7 +2247,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00007f,
 		data: 0x1a000053,
 		name: "FDIV.D",
@@ -2271,7 +2269,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x0000000f,
 		name: "FENCE",
@@ -2281,7 +2279,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x0000100f,
 		name: "FENCE.I",
@@ -2291,7 +2289,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0xa2002053,
 		name: "FEQ.D",
@@ -2305,7 +2303,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00003007,
 		name: "FLD",
@@ -2319,7 +2317,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0xa2000053,
 		name: "FLE.D",
@@ -2333,7 +2331,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0xa2001053,
 		name: "FLT.D",
@@ -2347,7 +2345,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00002007,
 		name: "FLW",
@@ -2361,7 +2359,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i_mem
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0600007f,
 		data: 0x02000043,
 		name: "FMADD.D",
@@ -2373,7 +2371,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r2
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00007f,
 		data: 0x12000053,
 		name: "FMUL.D",
@@ -2385,7 +2383,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0707f,
 		data: 0xf2000053,
 		name: "FMV.D.X",
@@ -2396,7 +2394,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0707f,
 		data: 0xe2000053,
 		name: "FMV.X.D",
@@ -2407,7 +2405,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0707f,
 		data: 0xe0000053,
 		name: "FMV.X.W",
@@ -2418,7 +2416,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0707f,
 		data: 0xf0000053,
 		name: "FMV.W.X",
@@ -2429,7 +2427,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0600007f,
 		data: 0x0200004b,
 		name: "FNMSUB.D",
@@ -2440,7 +2438,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r2
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00003027,
 		name: "FSD",
@@ -2450,7 +2448,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_s
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x22000053,
 		name: "FSGNJ.D",
@@ -2464,7 +2462,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x22002053,
 		name: "FSGNJX.D",
@@ -2478,7 +2476,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00007f,
 		data: 0x0a000053,
 		name: "FSUB.D",
@@ -2490,7 +2488,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00002027,
 		name: "FSW",
@@ -2500,7 +2498,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_s
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000007f,
 		data: 0x0000006f,
 		name: "JAL",
@@ -2512,7 +2510,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_j
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00000067,
 		name: "JALR",
@@ -2538,7 +2536,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			s
 		}
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00000003,
 		name: "LB",
@@ -2552,7 +2550,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i_mem
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00004003,
 		name: "LBU",
@@ -2566,7 +2564,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i_mem
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00003003,
 		name: "LD",
@@ -2580,7 +2578,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i_mem
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00001003,
 		name: "LH",
@@ -2594,7 +2592,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i_mem
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00005003,
 		name: "LHU",
@@ -2608,7 +2606,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i_mem
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf9f0707f,
 		data: 0x1000302f,
 		name: "LR.D",
@@ -2627,7 +2625,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf9f0707f,
 		data: 0x1000202f,
 		name: "LR.W",
@@ -2646,7 +2644,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000007f,
 		data: 0x00000037,
 		name: "LUI",
@@ -2657,7 +2655,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_u
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00002003,
 		name: "LW",
@@ -2671,7 +2669,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i_mem
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00006003,
 		name: "LWU",
@@ -2685,7 +2683,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i_mem
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x02000033,
 		name: "MUL",
@@ -2696,7 +2694,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x02001033,
 		name: "MULH",
@@ -2714,7 +2712,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x02003033,
 		name: "MULHU",
@@ -2732,7 +2730,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x02002033,
 		name: "MULHSU",
@@ -2750,7 +2748,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x0200003b,
 		name: "MULW",
@@ -2761,7 +2759,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xffffffff,
 		data: 0x30200073,
 		name: "MRET",
@@ -2787,7 +2785,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x00006033,
 		name: "OR",
@@ -2798,7 +2796,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00006013,
 		name: "ORI",
@@ -2809,7 +2807,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x02006033,
 		name: "REM",
@@ -2828,7 +2826,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x02007033,
 		name: "REMU",
@@ -2844,7 +2842,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x0200703b,
 		name: "REMUW",
@@ -2860,7 +2858,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x0200603b,
 		name: "REMW",
@@ -2879,7 +2877,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00000023,
 		name: "SB",
@@ -2889,7 +2887,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_s
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x1800302f,
 		name: "SC.D",
@@ -2910,7 +2908,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x1800202f,
 		name: "SC.W",
@@ -2931,7 +2929,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00003023,
 		name: "SD",
@@ -2941,7 +2939,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_s
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe007fff,
 		data: 0x12000073,
 		name: "SFENCE.VMA",
@@ -2951,7 +2949,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00001023,
 		name: "SH",
@@ -2961,7 +2959,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_s
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x00001033,
 		name: "SLL",
@@ -2972,7 +2970,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfc00707f,
 		data: 0x00001013,
 		name: "SLLI",
@@ -2988,7 +2986,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x0000101b,
 		name: "SLLIW",
@@ -3000,7 +2998,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x0000103b,
 		name: "SLLW",
@@ -3011,7 +3009,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x00002033,
 		name: "SLT",
@@ -3025,7 +3023,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00002013,
 		name: "SLTI",
@@ -3039,7 +3037,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00003013,
 		name: "SLTIU",
@@ -3053,7 +3051,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x00003033,
 		name: "SLTU",
@@ -3067,7 +3065,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x40005033,
 		name: "SRA",
@@ -3078,7 +3076,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfc00707f,
 		data: 0x40005013,
 		name: "SRAI",
@@ -3094,7 +3092,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfc00707f,
 		data: 0x4000501b,
 		name: "SRAIW",
@@ -3106,7 +3104,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x4000503b,
 		name: "SRAW",
@@ -3117,7 +3115,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xffffffff,
 		data: 0x10200073,
 		name: "SRET",
@@ -3143,7 +3141,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x00005033,
 		name: "SRL",
@@ -3154,7 +3152,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfc00707f,
 		data: 0x00005013,
 		name: "SRLI",
@@ -3170,7 +3168,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfc00707f,
 		data: 0x0000501b,
 		name: "SRLIW",
@@ -3186,7 +3184,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x0000503b,
 		name: "SRLW",
@@ -3197,7 +3195,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x40000033,
 		name: "SUB",
@@ -3208,7 +3206,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x4000003b,
 		name: "SUBW",
@@ -3219,7 +3217,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00002023,
 		name: "SW",
@@ -3229,7 +3227,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_s
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xffffffff,
 		data: 0x00200073,
 		name: "URET",
@@ -3239,7 +3237,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xffffffff,
 		data: 0x10500073,
 		name: "WFI",
@@ -3249,7 +3247,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x00004033,
 		name: "XOR",
@@ -3260,7 +3258,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00004013,
 		name: "XORI",
