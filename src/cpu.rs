@@ -4,6 +4,9 @@ use terminal::Terminal;
 const CSR_CAPACITY: usize = 4096;
 
 const CSR_USTATUS_ADDRESS: u16 = 0x000;
+const CSR_FFLAGS_ADDRESS: u16 = 0x001;
+const CSR_FRM_ADDRESS: u16 = 0x002;
+const CSR_FCSR_ADDRESS: u16 = 0x003;
 const CSR_UIE_ADDRESS: u16 = 0x004;
 const CSR_UTVEC_ADDRESS: u16 = 0x005;
 const _CSR_USCRATCH_ADDRESS: u16 = 0x040;
@@ -114,21 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	EBREAK,
-	ECALL,
-	FADDD,
-	FCVTDL,
-	FCVTDW,
-	FCVTDWU,
-	FCVTDS,
-	FCVTSD,
-	FCVTWD,
-	FDIVD,
-	FENCE,
-	FEQD,
-	FLD,
-	FLED,
-	FLTD,
 	FMULD,
 	FLW,
 	FMADDD,
@@ -199,7 +187,6 @@ enum Instruction {
 enum InstructionFormat {
 	I,
 	J,
-	O, // Other, temporal format name
 	R,
 	S,
 	U
@@ -286,21 +273,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::EBREAK => "EBREAK",
-		Instruction::ECALL => "ECALL",
-		Instruction::FADDD => "FADD.D",
-		Instruction::FCVTDL => "FCVT.D.L",
-		Instruction::FCVTDS => "FCVT.D.S",
-		Instruction::FCVTDW => "FCVT.D.W",
-		Instruction::FCVTDWU => "FCVT.D.WU",
-		Instruction::FCVTSD => "FCVT.S.D",
-		Instruction::FCVTWD => "FCVT.W.D",
-		Instruction::FDIVD => "FDIV.D",
-		Instruction::FENCE => "FENCE",
-		Instruction::FEQD => "FEQ.D",
-		Instruction::FLD => "FLD",
-		Instruction::FLED => "FLE.D",
-		Instruction::FLTD => "FLT.D",
 		Instruction::FLW => "FLW",
 		Instruction::FMADDD => "FMADD.D",
 		Instruction::FMULD => "FMUL.D",
@@ -371,7 +343,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::FLD |
 		Instruction::FLW |
 		Instruction::LB |
 		Instruction::LBU |
@@ -391,20 +362,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
-		Instruction::FENCE => InstructionFormat::O,
-		Instruction::ECALL |
-		Instruction::EBREAK |
-		Instruction::FADDD |
-		Instruction::FCVTDL |
-		Instruction::FCVTDS |
-		Instruction::FCVTDW |
-		Instruction::FCVTDWU |
-		Instruction::FCVTSD |
-		Instruction::FCVTWD |
-		Instruction::FDIVD |
-		Instruction::FEQD |
-		Instruction::FLED |
-		Instruction::FLTD |
 		Instruction::FMADDD |
 		Instruction::FMULD |
 		Instruction::FMVDX |
@@ -884,6 +841,8 @@ impl Cpu {
 	fn read_csr_raw(&self, address: u16) -> u64 {
 		match address {
 			// @TODO: Mask shuld consider of 32-bit mode
+			CSR_FFLAGS_ADDRESS => self.csr[CSR_FCSR_ADDRESS as usize] & 0x1f,
+			CSR_FRM_ADDRESS => (self.csr[CSR_FCSR_ADDRESS as usize] >> 5) & 0x7,
 			CSR_SSTATUS_ADDRESS => self.csr[CSR_MSTATUS_ADDRESS as usize] & 0x80000003000de162,
 			CSR_SIE_ADDRESS => self.csr[CSR_MIE_ADDRESS as usize] & 0x222,
 			CSR_SIP_ADDRESS => self.csr[CSR_MIP_ADDRESS as usize] & 0x222,
@@ -894,6 +853,14 @@ impl Cpu {
 
 	fn write_csr_raw(&mut self, address: u16, value: u64) {
 		match address {
+			CSR_FFLAGS_ADDRESS => {
+				self.csr[CSR_FCSR_ADDRESS as usize] &= !0x1f;
+				self.csr[CSR_FCSR_ADDRESS as usize] |= value & 0x1f;
+			},
+			CSR_FRM_ADDRESS => {
+				self.csr[CSR_FCSR_ADDRESS as usize] &= !0xe0;
+				self.csr[CSR_FCSR_ADDRESS as usize] |= (value << 5) & 0xe0;
+			},
 			CSR_SSTATUS_ADDRESS => {
 				self.csr[CSR_MSTATUS_ADDRESS as usize] &= !0x80000003000de162;
 				self.csr[CSR_MSTATUS_ADDRESS as usize] |= value & 0x80000003000de162;
@@ -916,6 +883,26 @@ impl Cpu {
 				self.csr[address as usize] = value;
 			}
 		};
+	}
+
+	fn _set_fcsr_nv(&mut self) {
+		self.csr[CSR_FCSR_ADDRESS as usize] |= 0x10;
+	}
+
+	fn set_fcsr_dz(&mut self) {
+		self.csr[CSR_FCSR_ADDRESS as usize] |= 0x8;
+	}
+
+	fn _set_fcsr_of(&mut self) {
+		self.csr[CSR_FCSR_ADDRESS as usize] |= 0x4;
+	}
+
+	fn _set_fcsr_uf(&mut self) {
+		self.csr[CSR_FCSR_ADDRESS as usize] |= 0x2;
+	}
+
+	fn _set_fcsr_nx(&mut self) {
+		self.csr[CSR_FCSR_ADDRESS as usize] |= 0x1;
 	}
 
 	fn update_addressing_mode(&mut self, value: u64) {
@@ -1471,10 +1458,8 @@ impl Cpu {
 			},
 			0x07 => match funct3 {
 				2 => Instruction::FLW,
-				3 => Instruction::FLD,
 				_ => return Err(())
 			},
-			0x0f => Instruction::FENCE,
 			0x13 => match funct3 {
 				1 => Instruction::SLLI,
 				2 => Instruction::SLTI,
@@ -1593,37 +1578,11 @@ impl Cpu {
 				_ => return Err(())
 			},
 			0x53 => match funct7 {
-				0x1 => Instruction::FADDD,
 				0x5 => Instruction::FSUBD,
 				0x9 => Instruction::FMULD,
-				0xd => Instruction::FDIVD,
 				0x11 => match funct3 {
 					0 => Instruction::FSGNJD,
 					2 => Instruction::FSGNJXD,
-					_ => return Err(())
-				},
-				0x20 => match funct5 {
-					1 => Instruction::FCVTSD,
-					_ => return Err(())
-				},
-				0x21 => match funct5 {
-					0 => Instruction::FCVTDS,
-					_ => return Err(())
-				},
-				0x51 => match funct3 {
-					0 => Instruction::FLED,
-					1 => Instruction::FLTD,
-					2 => Instruction::FEQD,
-					_ => return Err(())
-				},
-				0x61 => match funct5 {
-					0 => Instruction::FCVTWD,
-					_ => return Err(())				
-				},
-				0x69 => match funct5 {
-					0 => Instruction::FCVTDW,
-					1 => Instruction::FCVTDWU,
-					2 => Instruction::FCVTDL,
 					_ => return Err(())
 				},
 				0x70 => match funct5 {
@@ -1659,8 +1618,6 @@ impl Cpu {
 					match funct7 {
 						9 => Instruction::SFENCEVMA,
 						_ => match word {
-							0x00000073 => Instruction::ECALL,
-							0x00100073 => Instruction::EBREAK,
 							0x00200073 => Instruction::URET,
 							0x10200073 => Instruction::SRET,
 							0x10500073 => Instruction::WFI,
@@ -1690,14 +1647,6 @@ impl Cpu {
 					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
 				) as i32 as i64;
 				match instruction {
-					Instruction::FLD => {
-						self.f[rd as usize] = match self.mmu.load_doubleword(self.x[rs1 as usize].wrapping_add(imm) as u64) {
-							Ok(data) => {
-								f64::from_bits(data)
-							},
-							Err(e) => return Err(e)
-						};
-					},
 					Instruction::FLW => {
 						// @TODO: Implement properly
 						self.f[rd as usize] = match self.mmu.load_word(self.x[rs1 as usize].wrapping_add(imm) as u64) {
@@ -1831,85 +1780,12 @@ impl Cpu {
 					}
 				};
 			},
-			InstructionFormat::O => {
-				match instruction {
-					Instruction::FENCE => {
-						// @TODO: Implement
-					},
-					_ => {
-						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(instruction_address);
-						panic!();
-					}
-				};
-			},
 			InstructionFormat::R => {
 				let rd = (word >> 7) & 0x1f; // [11:7]
 				let rs1 = (word >> 15) & 0x1f; // [19:15]
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::EBREAK => {
-						// @TODO: Implement
-					},
-					Instruction::ECALL => {
-						let exception_type = match self.privilege_mode {
-							PrivilegeMode::User => TrapType::EnvironmentCallFromUMode,
-							PrivilegeMode::Supervisor => TrapType::EnvironmentCallFromSMode,
-							PrivilegeMode::Machine => TrapType::EnvironmentCallFromMMode,
-							PrivilegeMode::Reserved => panic!()
-						};
-						return Err(Trap {
-							trap_type: exception_type,
-							value: instruction_address
-						});
-					},
-					Instruction::FADDD => {
-						self.f[rd as usize] = self.f[rs1 as usize] + self.f[rs2 as usize];
-					},
-					Instruction::FCVTDL => {
-						self.f[rd as usize] = self.x[rs1 as usize] as f64;
-					},
-					Instruction::FCVTDS => {
-						// @TODO: Implement properly
-						self.f[rd as usize] = f32::from_bits(self.f[rs1 as usize].to_bits() as u32) as f64;
-					},
-					Instruction::FCVTDW => {
-						self.f[rd as usize] = self.x[rs1 as usize] as i32 as f64;
-					},
-					Instruction::FCVTDWU => {
-						self.f[rd as usize] = self.x[rs1 as usize] as u32 as f64;
-					},
-					Instruction::FCVTSD => {
-						self.f[rd as usize] = f32::from_bits(self.f[rs1 as usize].to_bits() as u32) as f64;
-					},
-					Instruction::FCVTWD => {
-						self.x[rd as usize] = self.f[rs1 as usize] as u32 as i32 as i64;
-					},
-					Instruction::FDIVD => {
-						self.f[rd as usize] = match self.f[rs2 as usize] == 0.0 {
-							true => 0.0, // @TODO: Implement properly
-							false => self.f[rs1 as usize] / self.f[rs2 as usize]
-						};
-					},
-					Instruction::FEQD => {
-						self.x[rd as usize] = match self.f[rs1 as usize] == self.f[rs2 as usize] {
-							true => 1,
-							false => 0
-						};
-					},
-					Instruction::FLED => {
-						self.x[rd as usize] = match self.f[rs1 as usize] <= self.f[rs2 as usize] {
-							true => 1,
-							false => 0
-						};
-					},
-					Instruction::FLTD => {
-						self.x[rd as usize] = match self.f[rs1 as usize] < self.f[rs2 as usize] {
-							true => 1,
-							false => 0
-						};
-					},
 					Instruction::FMADDD => {
 						self.f[rd as usize] = self.f[rs1 as usize] * self.f[rs2 as usize] + self.f[rs3 as usize];
 					},
@@ -2473,6 +2349,10 @@ fn dump_format_u(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> Str
 	s
 }
 
+fn dump_empty(_cpu: &mut Cpu, _word: u32, _address: u64, _evaluate: bool) -> String {
+	String::new()
+}
+
 fn get_register_name(num: usize) -> &'static str {
 	match num {
 		0 => "zero",
@@ -2480,7 +2360,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 35;
+const INSTRUCTION_NUM: usize = 51;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3023,6 +2903,212 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			} else {
 				cpu.x[f.rd] = dividend.wrapping_div(divisor) as i32 as i64
 			}
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xffffffff,
+		data: 0x00100073,
+		name: "EBREAK",
+		operation: |_cpu, _word, _address| {
+			// @TODO: Implement
+			Ok(())
+		},
+		disassemble: dump_empty
+	},
+	InstructionData {
+		mask: 0xffffffff,
+		data: 0x00000073,
+		name: "ECALL",
+		operation: |cpu, _word, address| {
+			let exception_type = match cpu.privilege_mode {
+				PrivilegeMode::User => TrapType::EnvironmentCallFromUMode,
+				PrivilegeMode::Supervisor => TrapType::EnvironmentCallFromSMode,
+				PrivilegeMode::Machine => TrapType::EnvironmentCallFromMMode,
+				PrivilegeMode::Reserved => panic!("Unknown Privilege mode")
+			};
+			return Err(Trap {
+				trap_type: exception_type,
+				value: address
+			});
+		},
+		disassemble: dump_empty
+	},
+	InstructionData {
+		mask: 0xfe00007f,
+		data: 0x02000053,
+		name: "FADD.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.f[f.rd] = cpu.f[f.rs1] + cpu.f[f.rs2];
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfff0007f,
+		data: 0xd2200053,
+		name: "FCVT.D.L",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.f[f.rd] = cpu.x[f.rs1] as f64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfff0007f,
+		data: 0x42000053,
+		name: "FCVT.D.S",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			// Is this implementation correct?
+			cpu.f[f.rd] = f32::from_bits(cpu.f[f.rs1].to_bits() as u32) as f64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfff0007f,
+		data: 0xd2000053,
+		name: "FCVT.D.W",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.f[f.rd] = cpu.x[f.rs1] as i32 as f64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfff0007f,
+		data: 0xd2100053,
+		name: "FCVT.D.WU",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.f[f.rd] = cpu.x[f.rs1] as u32 as f64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfff0007f,
+		data: 0x40100053,
+		name: "FCVT.S.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			// Is this implementation correct?
+			cpu.f[f.rd] = cpu.f[f.rs1] as f32 as f64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfff0007f,
+		data: 0xc2000053,
+		name: "FCVT.W.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			// Is this implementation correct?
+			cpu.x[f.rd] = cpu.f[f.rs1] as u32 as i32 as i64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00007f,
+		data: 0x1a000053,
+		name: "FDIV.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let dividend = cpu.f[f.rs1];
+			let divisor = cpu.f[f.rs2];
+			// Is this implementation correct?
+			if divisor == 0.0 {
+				cpu.f[f.rd] = std::f64::INFINITY;
+				cpu.set_fcsr_dz();
+			} else if divisor == -0.0 {
+				cpu.f[f.rd] = std::f64::NEG_INFINITY;
+				cpu.set_fcsr_dz();
+			} else {
+				cpu.f[f.rd] = dividend / divisor;
+			}
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x0000000f,
+		name: "FENCE",
+		operation: |_cpu, _word, _address| {
+			// Do nothing?
+			Ok(())
+		},
+		disassemble: dump_empty
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x0000100f,
+		name: "FENCE.I",
+		operation: |_cpu, _word, _address| {
+			// Do nothing?
+			Ok(())
+		},
+		disassemble: dump_empty
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0xa2002053,
+		name: "FEQ.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = match cpu.f[f.rs1] == cpu.f[f.rs2] {
+				true => 1,
+				false => 0
+			};
+			Ok(())
+		},
+		disassemble: dump_empty
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00003007,
+		name: "FLD",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.f[f.rd] = match cpu.mmu.load_doubleword(cpu.x[f.rs1].wrapping_add(f.imm) as u64) {
+				Ok(data) => f64::from_bits(data),
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0xa2000053,
+		name: "FLE.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = match cpu.f[f.rs1] <= cpu.f[f.rs2] {
+				true => 1,
+				false => 0
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0xa2001053,
+		name: "FLT.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = match cpu.f[f.rs1] < cpu.f[f.rs2] {
+				true => 1,
+				false => 0
+			};
 			Ok(())
 		},
 		disassemble: dump_format_r
