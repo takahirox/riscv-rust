@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	LB,
 	LBU,
 	LD,
 	LH,
@@ -258,7 +257,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::LB => "LB",
 		Instruction::LBU => "LBU",
 		Instruction::LD => "LD",
 		Instruction::LH => "LH",
@@ -314,7 +312,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::LB |
 		Instruction::LBU |
 		Instruction::LD |
 		Instruction::LH |
@@ -1404,7 +1401,6 @@ impl Cpu {
 
 		let instruction = match opcode {
 			0x03 => match funct3 {
-				0 => Instruction::LB,
 				1 => Instruction::LH,
 				2 => Instruction::LW,
 				3 => Instruction::LD,
@@ -1551,12 +1547,6 @@ impl Cpu {
 					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
 				) as i32 as i64;
 				match instruction {
-					Instruction::LB => {
-						self.x[rd as usize] = match self.mmu.load(self.x[rs1 as usize].wrapping_add(imm) as u64) {
-							Ok(data) => data as i8 as i64,
-							Err(e) => return Err(e)
-						};
-					},
 					Instruction::LBU => {
 						self.x[rd as usize] = match self.mmu.load(self.x[rs1 as usize].wrapping_add(imm) as u64) {
 							Ok(data) => data as i64,
@@ -2303,7 +2293,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 65;
+const INSTRUCTION_NUM: usize = 66;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3246,6 +3236,20 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			s += &format!(")");
 			s
 		}
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00000003,
+		name: "LB",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = match cpu.mmu.load(cpu.x[f.rs1].wrapping_add(f.imm) as u64) {
+				Ok(data) => data as i8 as i64,
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i_mem
 	},
 	InstructionData {
 		mask: 0xfe00707f,
