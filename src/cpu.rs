@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FMVWX,
 	FNMSUBD,
 	FSD,
 	FSW,
@@ -267,7 +266,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FMVWX => "FMV.W.X",
 		Instruction::FNMSUBD => "FNMSUB.D",
 		Instruction::FSD => "FSD",
 		Instruction::FSW => "FSW",
@@ -349,7 +347,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
-		Instruction::FMVWX |
 		Instruction::FNMSUBD |
 		Instruction::FSGNJD |
 		Instruction::FSGNJXD |
@@ -1558,13 +1555,6 @@ impl Cpu {
 					2 => Instruction::FSGNJXD,
 					_ => return Err(())
 				},
-				0x78 => match funct5 {
-					0 => match funct3 {
-						0 => Instruction::FMVWX,
-						_ => return Err(())
-					},
-					_ => return Err(())
-				},
 				_ => return Err(())
 			},
 			0x6f => Instruction::JAL,
@@ -1732,9 +1722,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::FMVWX => {
-						self.f[rd as usize] = f64::from_bits(self.x[rs1 as usize] as u32 as u64);
-					},
 					Instruction::FNMSUBD => {
 						self.f[rd as usize] = -(self.f[rs1 as usize] * self.f[rs2 as usize]) + self.f[rs3 as usize];
 					},
@@ -2345,7 +2332,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 57;
+const INSTRUCTION_NUM: usize = 58;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3165,6 +3152,17 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.f[f.rs1].to_bits() as i32 as i64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfff0707f,
+		data: 0xf0000053,
+		name: "FMV.W.X",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.f[f.rd] = f64::from_bits(cpu.x[f.rs1] as u32 as u64);
 			Ok(())
 		},
 		disassemble: dump_format_r
