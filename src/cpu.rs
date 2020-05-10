@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	MULHSU,
 	MULW,
 	MRET,
 	OR,
@@ -245,7 +244,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
 		Instruction::MRET => "MRET",
-		Instruction::MULHSU => "MULHSU",
 		Instruction::MULW => "MULW",
 		Instruction::OR => "OR",
 		Instruction::ORI => "ORI",
@@ -298,7 +296,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::MRET |
-		Instruction::MULHSU |
 		Instruction::MULW |
 		Instruction::OR |
 		Instruction::REM |
@@ -1415,7 +1412,6 @@ impl Cpu {
 				},
 				2 => match funct7 {
 					0 => Instruction::SLT,
-					1 => Instruction::MULHSU,
 					_ => return Err(())
 				},
 				3 => match funct7 {
@@ -1605,16 +1601,6 @@ impl Cpu {
 							_ => panic!() // shouldn't happen
 						};
 						self.mmu.update_privilege_mode(self.privilege_mode.clone());
-					},
-					Instruction::MULHSU => {
-						self.x[rd as usize] = match self.xlen {
-							Xlen::Bit32 => {
-								self.sign_extend(((self.x[rs1 as usize] as i64).wrapping_mul(self.x[rs2 as usize] as u32 as i64) >> 32) as i64)
-							},
-							Xlen::Bit64 => {
-								((self.x[rs1 as usize] as u128).wrapping_mul(self.x[rs2 as usize] as u64 as u128) >> 64) as i64
-							}
-						};
 					},
 					Instruction::MULW => {
 						self.x[rd as usize] = self.sign_extend((self.x[rs1 as usize] as i32).wrapping_mul(self.x[rs2 as usize] as i32) as i64);
@@ -2136,7 +2122,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 78;
+const INSTRUCTION_NUM: usize = 79;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3268,6 +3254,24 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 				},
 				Xlen::Bit64 => {
 					((cpu.x[f.rs1] as u64 as u128).wrapping_mul(cpu.x[f.rs2] as u64 as u128) >> 64) as i64
+				}
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x02002033,
+		name: "MULHSU",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = match cpu.xlen {
+				Xlen::Bit32 => {
+					cpu.sign_extend(((cpu.x[f.rs1] as i64).wrapping_mul(cpu.x[f.rs2] as u32 as i64) >> 32) as i64)
+				},
+				Xlen::Bit64 => {
+					((cpu.x[f.rs1] as u128).wrapping_mul(cpu.x[f.rs2] as u64 as u128) >> 64) as i64
 				}
 			};
 			Ok(())
