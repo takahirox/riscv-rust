@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	JAL,
 	LB,
 	LBU,
 	LD,
@@ -173,7 +172,6 @@ enum Instruction {
 
 enum InstructionFormat {
 	I,
-	J,
 	R,
 	S,
 	U
@@ -260,7 +258,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::JAL => "JAL",
 		Instruction::LB => "LB",
 		Instruction::LBU => "LBU",
 		Instruction::LD => "LD",
@@ -334,7 +331,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAI |
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
-		Instruction::JAL => InstructionFormat::J,
 		Instruction::LRD |
 		Instruction::LRW |
 		Instruction::MRET |
@@ -1521,7 +1517,6 @@ impl Cpu {
 				7 => Instruction::REMUW,
 				_ => return Err(())
 			},
-			0x6f => Instruction::JAL,
 			0x73 => match funct3 {
 				0 => {
 					match funct7 {
@@ -1649,29 +1644,6 @@ impl Cpu {
 					},
 					Instruction::XORI => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] ^ imm);
-					},
-					_ => {
-						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(instruction_address);
-						panic!();
-					}
-				};
-			},
-			InstructionFormat::J => {
-				let rd = (word >> 7) & 0x1f; // [11:7]
-				let imm = (
-					match word & 0x80000000 { // imm[31:20] = [31]
-						0x80000000 => 0xfff00000,
-						_ => 0
-					} |
-					(word & 0x000ff000) | // imm[19:12] = [19:12]
-					((word & 0x00100000) >> 9) | // imm[11] = [20]
-					((word & 0x7fe00000) >> 20) // imm[10:1] = [30:21]
-				) as i32 as i64 as u64;
-				match instruction {
-					Instruction::JAL => {
-						self.x[rd as usize] = self.sign_extend(self.pc as i64);
-						self.pc = instruction_address.wrapping_add(imm);
 					},
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
@@ -2153,6 +2125,37 @@ fn dump_format_i_mem(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) ->
 	s
 }
 
+struct FormatJ {
+	rd: usize,
+	imm: u64
+}
+
+fn parse_format_j(word: u32) -> FormatJ {
+	FormatJ {
+		rd: ((word >> 7) & 0x1f) as usize, // [11:7]
+		imm: (
+			match word & 0x80000000 { // imm[31:20] = [31]
+				0x80000000 => 0xfff00000,
+				_ => 0
+			} |
+			(word & 0x000ff000) | // imm[19:12] = [19:12]
+			((word & 0x00100000) >> 9) | // imm[11] = [20]
+			((word & 0x7fe00000) >> 20) // imm[10:1] = [30:21]
+		) as i32 as i64 as u64
+	}
+}
+
+fn dump_format_j(cpu: &mut Cpu, word: u32, address: u64, evaluate: bool) -> String {
+	let f = parse_format_j(word);
+	let mut s = String::new();
+	s += &format!("{}", get_register_name(f.rd));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rd]);
+	}
+	s += &format!(",{:X}", address.wrapping_add(f.imm));
+	s
+}
+
 struct FormatR {
 	rd: usize,
 	rs1: usize,
@@ -2300,7 +2303,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 64;
+const INSTRUCTION_NUM: usize = 65;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3207,6 +3210,18 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		disassemble: dump_format_s
 	},
 	InstructionData {
+		mask: 0x0000007f,
+		data: 0x0000006f,
+		name: "JAL",
+		operation: |cpu, word, address| {
+			let f = parse_format_j(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.pc as i64);
+			cpu.pc = address.wrapping_add(f.imm);
+			Ok(())
+		},
+		disassemble: dump_format_j
+	},
+	InstructionData {
 		mask: 0x0000707f,
 		data: 0x00000067,
 		name: "JALR",
@@ -3220,7 +3235,11 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		disassemble: |cpu, word, _address, evaluate| {
 			let f = parse_format_i(word);
 			let mut s = String::new();
-			s += &format!("{:X}({}", f.imm, get_register_name(f.rs1));
+			s += &format!("{}", get_register_name(f.rd));
+			if evaluate {
+				s += &format!(":{:X}", cpu.x[f.rd]);
+			}
+			s += &format!(",{:X}({}", f.imm, get_register_name(f.rs1));
 			if evaluate {
 				s += &format!(":{:X}", cpu.x[f.rs1]);
 			}
