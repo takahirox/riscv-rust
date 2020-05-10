@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	REMW,
 	SB,
 	SCD,
 	SCW,
@@ -236,7 +235,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::REMW => "REMW",
 		Instruction::SB => "SB",
 		Instruction::SCD => "SC.D",
 		Instruction::SCW => "SC.W",
@@ -280,7 +278,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAI |
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
-		Instruction::REMW |
 		Instruction::SCD |
 		Instruction::SCW |
 		Instruction::SUBW |
@@ -1418,7 +1415,6 @@ impl Cpu {
 					0x20 => Instruction::SRAW,
 					_ => return Err(())
 				},
-				6 => Instruction::REMW,
 				_ => return Err(())
 			},
 			0x73 => match funct3 {
@@ -1548,12 +1544,6 @@ impl Cpu {
 							_ => panic!() // shouldn't happen
 						};
 						self.mmu.update_privilege_mode(self.privilege_mode.clone());
-					},
-					Instruction::REMW => {
-						self.x[rd as usize] = match self.x[rs2 as usize] {
-							0 => self.x[rs1 as usize],
-							_ => self.sign_extend((self.x[rs1 as usize] as i32).wrapping_rem((self.x[rs2 as usize]) as i32) as i64)
-						};
 					},
 					Instruction::SCD => {
 						// @TODO: Implement properly
@@ -2045,7 +2035,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 86;
+const INSTRUCTION_NUM: usize = 87;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3307,6 +3297,25 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 				0 => dividend as i32 as i64,
 				_ => dividend.wrapping_rem(divisor) as i32 as i64
 			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x0200603b,
+		name: "REMW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let dividend = cpu.x[f.rs1] as i32;
+			let divisor = cpu.x[f.rs2] as i32;
+			if divisor == 0 {
+				cpu.x[f.rd] = dividend as i64;
+			} else if dividend == std::i32::MIN && divisor == -1 {
+				cpu.x[f.rd] = 0;
+			} else {
+				cpu.x[f.rd] = dividend.wrapping_rem(divisor) as i64;
+			}
 			Ok(())
 		},
 		disassemble: dump_format_r
