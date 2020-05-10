@@ -4,6 +4,9 @@ use terminal::Terminal;
 const CSR_CAPACITY: usize = 4096;
 
 const CSR_USTATUS_ADDRESS: u16 = 0x000;
+const CSR_FFLAGS_ADDRESS: u16 = 0x001;
+const CSR_FRM_ADDRESS: u16 = 0x002;
+const CSR_FCSR_ADDRESS: u16 = 0x003;
 const CSR_UIE_ADDRESS: u16 = 0x004;
 const CSR_UTVEC_ADDRESS: u16 = 0x005;
 const _CSR_USCRATCH_ADDRESS: u16 = 0x040;
@@ -114,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FADDD,
 	FCVTDL,
 	FCVTDW,
 	FCVTDWU,
@@ -284,7 +286,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FADDD => "FADD.D",
 		Instruction::FCVTDL => "FCVT.D.L",
 		Instruction::FCVTDS => "FCVT.D.S",
 		Instruction::FCVTDW => "FCVT.D.W",
@@ -388,7 +389,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
 		Instruction::FENCE => InstructionFormat::O,
-		Instruction::FADDD |
 		Instruction::FCVTDL |
 		Instruction::FCVTDS |
 		Instruction::FCVTDW |
@@ -878,6 +878,8 @@ impl Cpu {
 	fn read_csr_raw(&self, address: u16) -> u64 {
 		match address {
 			// @TODO: Mask shuld consider of 32-bit mode
+			CSR_FFLAGS_ADDRESS => self.csr[CSR_FCSR_ADDRESS as usize] & 0x1f,
+			CSR_FRM_ADDRESS => (self.csr[CSR_FCSR_ADDRESS as usize] >> 5) & 0x7,
 			CSR_SSTATUS_ADDRESS => self.csr[CSR_MSTATUS_ADDRESS as usize] & 0x80000003000de162,
 			CSR_SIE_ADDRESS => self.csr[CSR_MIE_ADDRESS as usize] & 0x222,
 			CSR_SIP_ADDRESS => self.csr[CSR_MIP_ADDRESS as usize] & 0x222,
@@ -888,6 +890,14 @@ impl Cpu {
 
 	fn write_csr_raw(&mut self, address: u16, value: u64) {
 		match address {
+			CSR_FFLAGS_ADDRESS => {
+				self.csr[CSR_FCSR_ADDRESS as usize] &= !0x1f;
+				self.csr[CSR_FCSR_ADDRESS as usize] |= value & 0x1f;
+			},
+			CSR_FRM_ADDRESS => {
+				self.csr[CSR_FCSR_ADDRESS as usize] &= !0xe0;
+				self.csr[CSR_FCSR_ADDRESS as usize] |= (value << 5) & 0xe0;
+			},
 			CSR_SSTATUS_ADDRESS => {
 				self.csr[CSR_MSTATUS_ADDRESS as usize] &= !0x80000003000de162;
 				self.csr[CSR_MSTATUS_ADDRESS as usize] |= value & 0x80000003000de162;
@@ -910,6 +920,26 @@ impl Cpu {
 				self.csr[address as usize] = value;
 			}
 		};
+	}
+
+	fn _set_fcsr_nv(&mut self) {
+		self.csr[CSR_FCSR_ADDRESS as usize] |= 0x10;
+	}
+
+	fn _set_fcsr_dz(&mut self) {
+		self.csr[CSR_FCSR_ADDRESS as usize] |= 0x8;
+	}
+
+	fn _set_fcsr_of(&mut self) {
+		self.csr[CSR_FCSR_ADDRESS as usize] |= 0x4;
+	}
+
+	fn _set_fcsr_uf(&mut self) {
+		self.csr[CSR_FCSR_ADDRESS as usize] |= 0x2;
+	}
+
+	fn _set_fcsr_nx(&mut self) {
+		self.csr[CSR_FCSR_ADDRESS as usize] |= 0x1;
 	}
 
 	fn update_addressing_mode(&mut self, value: u64) {
@@ -1587,7 +1617,6 @@ impl Cpu {
 				_ => return Err(())
 			},
 			0x53 => match funct7 {
-				0x1 => Instruction::FADDD,
 				0x5 => Instruction::FSUBD,
 				0x9 => Instruction::FMULD,
 				0xd => Instruction::FDIVD,
@@ -1841,9 +1870,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::FADDD => {
-						self.f[rd as usize] = self.f[rs1 as usize] + self.f[rs2 as usize];
-					},
 					Instruction::FCVTDL => {
 						self.f[rd as usize] = self.x[rs1 as usize] as f64;
 					},
@@ -2461,7 +2487,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 37;
+const INSTRUCTION_NUM: usize = 38;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3035,6 +3061,17 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			});
 		},
 		disassemble: dump_empty
+	},
+	InstructionData {
+		mask: 0xfe00007f,
+		data: 0x02000053,
+		name: "FADD.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.f[f.rd] = cpu.f[f.rs1] + cpu.f[f.rs2];
+			Ok(())
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0x0000707f,
