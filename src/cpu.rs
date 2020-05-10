@@ -116,82 +116,6 @@ pub enum TrapType {
 	MachineExternalInterrupt
 }
 
-enum Instruction {
-	FMULD,
-	FLW,
-	FMADDD,
-	FMVDX,
-	FMVXD,
-	FMVXW,
-	FMVWX,
-	FNMSUBD,
-	FSD,
-	FSW,
-	FSGNJD,
-	FSGNJXD,
-	FSUBD,
-	JAL,
-	LB,
-	LBU,
-	LD,
-	LH,
-	LHU,
-	LRD,
-	LRW,
-	LUI,
-	LW,
-	LWU,
-	MUL,
-	MULH,
-	MULHU,
-	MULHSU,
-	MULW,
-	MRET,
-	OR,
-	ORI,
-	REM,
-	REMU,
-	REMUW,
-	REMW,
-	SB,
-	SCD,
-	SCW,
-	SD,
-	SFENCEVMA,
-	SH,
-	SLL,
-	SLLI,
-	SLLIW,
-	SLLW,
-	SLT,
-	SLTI,
-	SLTU,
-	SLTIU,
-	SRA,
-	SRAI,
-	SRAIW,
-	SRAW,
-	SRET,
-	SRL,
-	SRLI,
-	SRLIW,
-	SRLW,
-	SUBW,
-	SW,
-	URET,
-	WFI,
-	XOR,
-	XORI
-}
-
-enum InstructionFormat {
-	I,
-	J,
-	R,
-	S,
-	U
-}
-
 fn _get_privilege_mode_name(mode: &PrivilegeMode) -> &'static str {
 	match mode {
 		PrivilegeMode::User => "User",
@@ -271,146 +195,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 	}
 }
 
-fn get_instruction_name(instruction: &Instruction) -> &'static str {
-	match instruction {
-		Instruction::FLW => "FLW",
-		Instruction::FMADDD => "FMADD.D",
-		Instruction::FMULD => "FMUL.D",
-		Instruction::FMVDX => "FMV.D.X",
-		Instruction::FMVXD => "FMV.X.D",
-		Instruction::FMVXW => "FMV.X.W",
-		Instruction::FMVWX => "FMV.W.X",
-		Instruction::FNMSUBD => "FNMSUB.D",
-		Instruction::FSD => "FSD",
-		Instruction::FSW => "FSW",
-		Instruction::FSGNJD => "FSGNJD",
-		Instruction::FSGNJXD => "FSGNJXD",
-		Instruction::FSUBD => "FSUBD",
-		Instruction::JAL => "JAL",
-		Instruction::LB => "LB",
-		Instruction::LBU => "LBU",
-		Instruction::LD => "LD",
-		Instruction::LH => "LH",
-		Instruction::LHU => "LHU",
-		Instruction::LRD => "LR.D",
-		Instruction::LRW => "LR.W",
-		Instruction::LUI => "LUI",
-		Instruction::LW => "LW",
-		Instruction::LWU => "LWU",
-		Instruction::MRET => "MRET",
-		Instruction::MUL => "MUL",
-		Instruction::MULH => "MULH",
-		Instruction::MULHU => "MULHU",
-		Instruction::MULHSU => "MULHSU",
-		Instruction::MULW => "MULW",
-		Instruction::OR => "OR",
-		Instruction::ORI => "ORI",
-		Instruction::REM => "REM",
-		Instruction::REMU => "REMU",
-		Instruction::REMUW => "REMUW",
-		Instruction::REMW => "REMW",
-		Instruction::SB => "SB",
-		Instruction::SCD => "SC.D",
-		Instruction::SCW => "SC.W",
-		Instruction::SD => "SD",
-		Instruction::SFENCEVMA => "SFENCE_VMA",
-		Instruction::SH => "SH",
-		Instruction::SLL => "SLL",
-		Instruction::SLLI => "SLLI",
-		Instruction::SLLIW => "SLLIW",
-		Instruction::SLLW => "SLLW",
-		Instruction::SLT => "SLT",
-		Instruction::SLTI => "SLTI",
-		Instruction::SLTU => "SLTU",
-		Instruction::SLTIU => "SLTIU",
-		Instruction::SRA => "SRA",
-		Instruction::SRAI => "SRAI",
-		Instruction::SRAIW => "SRAIW",
-		Instruction::SRAW => "SRAW",
-		Instruction::SRET => "SRET",
-		Instruction::SRL => "SRL",
-		Instruction::SRLI => "SRLI",
-		Instruction::SRLIW => "SRLIW",
-		Instruction::SRLW => "SRLW",
-		Instruction::SUBW => "SUBW",
-		Instruction::SW => "SW",
-		Instruction::URET => "URET",
-		Instruction::WFI => "WFI",
-		Instruction::XOR => "XOR",
-		Instruction::XORI => "XORI"
-	}
-}
-
-fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
-	match instruction {
-		Instruction::FLW |
-		Instruction::LB |
-		Instruction::LBU |
-		Instruction::LD |
-		Instruction::LH |
-		Instruction::LHU |
-		Instruction::LW |
-		Instruction::LWU |
-		Instruction::ORI |
-		Instruction::SLLI |
-		Instruction::SLLIW |
-		Instruction::SLTI |
-		Instruction::SLTIU |
-		Instruction::SRLI |
-		Instruction::SRLIW |
-		Instruction::SRAI |
-		Instruction::SRAIW |
-		Instruction::XORI => InstructionFormat::I,
-		Instruction::JAL => InstructionFormat::J,
-		Instruction::FMADDD |
-		Instruction::FMULD |
-		Instruction::FMVDX |
-		Instruction::FMVXD |
-		Instruction::FMVXW |
-		Instruction::FMVWX |
-		Instruction::FNMSUBD |
-		Instruction::FSGNJD |
-		Instruction::FSGNJXD |
-		Instruction::FSUBD |
-		Instruction::LRD |
-		Instruction::LRW |
-		Instruction::MRET |
-		Instruction::MUL |
-		Instruction::MULH |
-		Instruction::MULHU |
-		Instruction::MULHSU |
-		Instruction::MULW |
-		Instruction::OR |
-		Instruction::REM |
-		Instruction::REMU |
-		Instruction::REMUW |
-		Instruction::REMW |
-		Instruction::SCD |
-		Instruction::SCW |
-		Instruction::SUBW |
-		Instruction::SFENCEVMA |
-		Instruction::SLL |
-		Instruction::SLLW |
-		Instruction::SLT |
-		Instruction::SLTU |
-		Instruction::SRA |
-		Instruction::SRAW |
-		Instruction::SRET |
-		Instruction::SRL |
-		Instruction::SRLW |
-		Instruction::URET |
-		Instruction::WFI |
-		Instruction::XOR => InstructionFormat::R,
-		Instruction::FSD |
-		Instruction::FSW |
-		Instruction::SB |
-		Instruction::SD |
-		Instruction::SH |
-		Instruction::SW => InstructionFormat::S,
-		Instruction::LUI => InstructionFormat::U
-	}
-}
-
 impl Cpu {
 	pub fn new(terminal: Box<dyn Terminal>) -> Self {
 		let mut cpu = Cpu {
@@ -484,34 +268,43 @@ impl Cpu {
 		if self.wfi {
 			return Ok(());
 		}
-		let mut word = match self.fetch() {
+
+		let original_word = match self.fetch() {
 			Ok(word) => word,
 			Err(e) => return Err(e)
 		};
 		let instruction_address = self.pc;
-		if (word & 0x3) == 0x3 {
-			self.pc = self.pc.wrapping_add(4); // 32-bit length non-compressed instruction
-		} else {
-			self.pc = self.pc.wrapping_add(2); // 16-bit length compressed instruction
-			word = self.uncompress(word & 0xffff);
-		}
+		let word = match (original_word & 0x3) == 0x3 {
+			true => {
+				self.pc = self.pc.wrapping_add(4); // 32-bit length non-compressed instruction
+				original_word
+			},
+			false => {
+				self.pc = self.pc.wrapping_add(2); // 16-bit length compressed instruction
+				self.uncompress(original_word & 0xffff)
+			}
+		};
 
-		// New decode and operate system
-		for i in 0..INSTRUCTION_NUM {
-			let inst = &INSTRUCTIONS[i];
-			if (word & inst.mask) == inst.data {
+		match self.decode(word) {
+			Ok(inst) => {
 				let result = (inst.operation)(self, word, instruction_address);
 				self.x[0] = 0; // hardwired zero
 				return result;
+			},
+			Err(()) => {
+				panic!("Unknown instruction PC:{:X} WORD:{:X}", instruction_address, original_word);
+			}
+		};
+	}
+
+	fn decode(&self, word: u32) -> Result<&Instruction, ()> {
+		for i in 0..INSTRUCTION_NUM {
+			let inst = &INSTRUCTIONS[i];
+			if (word & inst.mask) == inst.data {
+				return Ok(inst);
 			}
 		}
-
-		// Old decode and operate system
-		// @TODO: Move all the instructions to the new system
-		match self.decode(word) {
-			Ok(instruction) => self.operate(word, instruction, instruction_address),
-			Err(()) => panic!("Unknown instruction PC:{:X} WORD:{:X}", instruction_address, word)
-		}
+		return Err(())
 	}
 
 	fn handle_interrupt(&mut self, instruction_address: u64) {
@@ -1438,686 +1231,6 @@ impl Cpu {
 		0xffffffff // Return invalid value
 	}
 
-	// @TODO: Optimize
-	fn decode(&mut self, word: u32) -> Result<Instruction, ()> {
-		let opcode = word & 0x7f; // [6:0]
-		let funct3 = (word >> 12) & 0x7; // [14:12]
-		let funct5 = (word >> 20) & 0x1f; // [24:20]
-		let funct7 = (word >> 25) & 0x7f; // [31:25]
-
-		let instruction = match opcode {
-			0x03 => match funct3 {
-				0 => Instruction::LB,
-				1 => Instruction::LH,
-				2 => Instruction::LW,
-				3 => Instruction::LD,
-				4 => Instruction::LBU,
-				5 => Instruction::LHU,
-				6 => Instruction::LWU,
-				_ => return Err(())
-			},
-			0x07 => match funct3 {
-				2 => Instruction::FLW,
-				_ => return Err(())
-			},
-			0x13 => match funct3 {
-				1 => Instruction::SLLI,
-				2 => Instruction::SLTI,
-				3 => Instruction::SLTIU,
-				4 => Instruction::XORI,
-				5 => match funct7 & !1 {
-					0 => Instruction::SRLI,
-					1 => Instruction::SRLI, // temporal workaround for xv6
-					0x20 => Instruction::SRAI,
-					_ => return Err(())
-				}
-				6 => Instruction::ORI,
-				_ => return Err(())
-			},
-			0x1b => match funct3 {
-				1 => Instruction::SLLIW,
-				5 => match funct7 {
-					0 => Instruction::SRLIW,
-					0x20 => Instruction::SRAIW,
-					_ => return Err(())
-				},
-				_ => return Err(())
-			},
-			0x23 => match funct3 {
-				0 => Instruction::SB,
-				1 => Instruction::SH,
-				2 => Instruction::SW,
-				3 => Instruction::SD,
-				_ => return Err(())
-			},
-			0x27 => match funct3 {
-				2 => Instruction::FSW,
-				3 => Instruction::FSD,
-				_ => return Err(())
-			},
-			0x2f => match funct3 {
-				2 => {
-					match funct7 >> 2 {
-						2 => Instruction::LRW,
-						3 => Instruction::SCW,
-						_ => return Err(())
-					}
-				},
-				3 => {
-					match funct7 >> 2 {
-						2 => Instruction::LRD,
-						3 => Instruction::SCD,
-						_ => return Err(())
-					}
-				},
-				_ => return Err(())
-			}
-			0x33 => match funct3 {
-				0 => match funct7 {
-					1 => Instruction::MUL,
-					_ => return Err(())
-				},
-				1 => match funct7 {
-					0 => Instruction::SLL,
-					1 => Instruction::MULH,
-					_ => return Err(())
-				},
-				2 => match funct7 {
-					0 => Instruction::SLT,
-					1 => Instruction::MULHSU,
-					_ => return Err(())
-				},
-				3 => match funct7 {
-					0 => Instruction::SLTU,
-					1 => Instruction::MULHU,
-					_ => return Err(())
-				},
-				4 => match funct7 {
-					0 => Instruction::XOR,
-					_ => return Err(())
-				},
-				5 => match funct7 {
-					0 => Instruction::SRL,
-					0x20 => Instruction::SRA,
-					_ => return Err(())
-				},
-				6 => match funct7 {
-					0 => Instruction::OR,
-					1 => Instruction::REM,
-					_ => return Err(())
-				},
-				7 => match funct7 {
-					1 => Instruction::REMU,
-					_ => return Err(())
-				},
-				_ => return Err(())
-			},
-			0x37 => Instruction::LUI,
-			0x3b => match funct3 {
-				0 => match funct7 {
-					1 => Instruction::MULW,
-					0x20 => Instruction::SUBW,
-					_ => return Err(())
-				},
-				1 => Instruction::SLLW,
-				5 => match funct7 {
-					0 => Instruction::SRLW,
-					0x20 => Instruction::SRAW,
-					_ => return Err(())
-				},
-				6 => Instruction::REMW,
-				7 => Instruction::REMUW,
-				_ => return Err(())
-			},
-			0x43 => match funct7 & 0x3 {
-				1 => Instruction::FMADDD,
-				_ => return Err(())
-			},
-			0x4b => match funct7 & 0x3 {
-				1 => Instruction::FNMSUBD,
-				_ => return Err(())
-			},
-			0x53 => match funct7 {
-				0x5 => Instruction::FSUBD,
-				0x9 => Instruction::FMULD,
-				0x11 => match funct3 {
-					0 => Instruction::FSGNJD,
-					2 => Instruction::FSGNJXD,
-					_ => return Err(())
-				},
-				0x70 => match funct5 {
-					0 => match funct3 {
-						0 => Instruction::FMVXW,
-						_ => return Err(())
-					},
-					_ => return Err(())
-				},
-				0x71 => match funct5 {
-					0 => match funct3 {
-						0 => Instruction::FMVXD,
-						_ => return Err(())
-					},
-					_ => return Err(())
-				},
-				0x78 => match funct5 {
-					0 => match funct3 {
-						0 => Instruction::FMVWX,
-						_ => return Err(())
-					},
-					_ => return Err(())
-				},
-				0x79 => match funct5 {
-					0 => Instruction::FMVDX,
-					_ => return Err(())
-				},
-				_ => return Err(())
-			},
-			0x6f => Instruction::JAL,
-			0x73 => match funct3 {
-				0 => {
-					match funct7 {
-						9 => Instruction::SFENCEVMA,
-						_ => match word {
-							0x00200073 => Instruction::URET,
-							0x10200073 => Instruction::SRET,
-							0x10500073 => Instruction::WFI,
-							0x30200073 => Instruction::MRET,
-							_ => return Err(())
-						}
-					}
-				}
-				_ => return Err(())
-			},
-			_ => return Err(())
-		};
-		Ok(instruction)
-	}
-
-	fn operate(&mut self, word: u32, instruction: Instruction, instruction_address: u64) -> Result<(), Trap> {
-		let instruction_format = get_instruction_format(&instruction);
-		match instruction_format {
-			InstructionFormat::I => {
-				let rd = (word >> 7) & 0x1f; // [11:7]
-				let rs1 = (word >> 15) & 0x1f; // [19:15]
-				let imm = (
-					match word & 0x80000000 { // imm[31:11] = [31]
-						0x80000000 => 0xfffff800,
-						_ => 0
-					} |
-					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
-				) as i32 as i64;
-				match instruction {
-					Instruction::FLW => {
-						// @TODO: Implement properly
-						self.f[rd as usize] = match self.mmu.load_word(self.x[rs1 as usize].wrapping_add(imm) as u64) {
-							Ok(data) => {
-								f64::from_bits(data as i32 as i64 as u64)
-							},
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::LB => {
-						self.x[rd as usize] = match self.mmu.load(self.x[rs1 as usize].wrapping_add(imm) as u64) {
-							Ok(data) => data as i8 as i64,
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::LBU => {
-						self.x[rd as usize] = match self.mmu.load(self.x[rs1 as usize].wrapping_add(imm) as u64) {
-							Ok(data) => data as i64,
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::LD => {
-						self.x[rd as usize] = match self.mmu.load_doubleword(self.x[rs1 as usize].wrapping_add(imm) as u64) {
-							Ok(data) => data as i64,
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::LH => {
-						self.x[rd as usize] = match self.mmu.load_halfword(self.x[rs1 as usize].wrapping_add(imm) as u64) {
-							Ok(data) => data as i16 as i64,
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::LHU => {
-						self.x[rd as usize] = match self.mmu.load_halfword(self.x[rs1 as usize].wrapping_add(imm) as u64) {
-							Ok(data) => data as i64,
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::LW => {
-						//println!("RS1:{:X} RS1VAL:{:X}", rs1, self.x[rs1 as usize]);
-						self.x[rd as usize] = match self.mmu.load_word(self.x[rs1 as usize].wrapping_add(imm) as u64) {
-							Ok(data) => data as i32 as i64,
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::LWU => {
-						self.x[rd as usize] = match self.mmu.load_word(self.x[rs1 as usize].wrapping_add(imm) as u64) {
-							Ok(data) => data as i64,
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::ORI => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] | imm);
-					},
-					Instruction::SLLI => {
-						let shamt = (imm & match self.xlen {
-							Xlen::Bit32 => 0x1f,
-							Xlen::Bit64 => 0x3f
-						}) as u32;
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] << shamt);
-					},
-					Instruction::SLLIW => {
-						let shamt = (imm as u32) & 0x1f;
-						self.x[rd as usize] = (self.x[rs1 as usize] << shamt) as i32 as i64;
-					},
-					Instruction::SLTI => {
-						self.x[rd as usize] = match self.x[rs1 as usize] < imm {
-							true => 1,
-							false => 0
-						}
-					},
-					Instruction::SLTIU => {
-						self.x[rd as usize] = match self.unsigned_data(self.x[rs1 as usize]) < self.unsigned_data(imm) {
-							true => 1,
-							false => 0
-						}
-					},
-					Instruction::SRAI => {
-						let shamt = (imm & match self.xlen {
-							Xlen::Bit32 => 0x1f,
-							Xlen::Bit64 => 0x3f
-						}) as u32;
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] >> shamt);
-					},
-					Instruction::SRAIW => {
-						let shamt = (imm as u32) & 0x1f;
-						self.x[rd as usize] = ((self.x[rs1 as usize] as i32) >> shamt) as i32 as i64;
-					},
-					Instruction::SRLI => {
-						let shamt = (imm & match self.xlen {
-							Xlen::Bit32 => 0x1f,
-							Xlen::Bit64 => 0x3f
-						}) as u32;
-						self.x[rd as usize] = self.sign_extend((self.unsigned_data(self.x[rs1 as usize]) >> shamt) as i64);
-					},
-					Instruction::SRLIW => {
-						let shamt = (imm as u32) & 0x1f;
-						self.x[rd as usize] = ((self.x[rs1 as usize] as u32) >> shamt) as i32 as i64;
-					},
-					Instruction::XORI => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] ^ imm);
-					},
-					_ => {
-						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(instruction_address);
-						panic!();
-					}
-				};
-			},
-			InstructionFormat::J => {
-				let rd = (word >> 7) & 0x1f; // [11:7]
-				let imm = (
-					match word & 0x80000000 { // imm[31:20] = [31]
-						0x80000000 => 0xfff00000,
-						_ => 0
-					} |
-					(word & 0x000ff000) | // imm[19:12] = [19:12]
-					((word & 0x00100000) >> 9) | // imm[11] = [20]
-					((word & 0x7fe00000) >> 20) // imm[10:1] = [30:21]
-				) as i32 as i64 as u64;
-				match instruction {
-					Instruction::JAL => {
-						self.x[rd as usize] = self.sign_extend(self.pc as i64);
-						self.pc = instruction_address.wrapping_add(imm);
-					},
-					_ => {
-						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(instruction_address);
-						panic!();
-					}
-				};
-			},
-			InstructionFormat::R => {
-				let rd = (word >> 7) & 0x1f; // [11:7]
-				let rs1 = (word >> 15) & 0x1f; // [19:15]
-				let rs2 = (word >> 20) & 0x1f; // [24:20]
-				let rs3 = (word >> 27) & 0x1f; //[31:27]
-				match instruction {
-					Instruction::FMADDD => {
-						self.f[rd as usize] = self.f[rs1 as usize] * self.f[rs2 as usize] + self.f[rs3 as usize];
-					},
-					Instruction::FMULD => {
-						self.f[rd as usize] = self.f[rs1 as usize] * self.f[rs2 as usize];
-					},
-					Instruction::FMVDX => {
-						self.f[rd as usize] = f64::from_bits(self.x[rs1 as usize] as u64);
-					},
-					Instruction::FMVXD => {
-						self.x[rd as usize] = self.f[rs1 as usize].to_bits() as i64;
-					},
-					Instruction::FMVXW => {
-						self.x[rd as usize] = self.f[rs1 as usize].to_bits() as u32 as i32 as i64;
-					},
-					Instruction::FMVWX => {
-						self.f[rd as usize] = f64::from_bits(self.x[rs1 as usize] as u32 as u64);
-					},
-					Instruction::FNMSUBD => {
-						self.f[rd as usize] = -(self.f[rs1 as usize] * self.f[rs2 as usize]) + self.f[rs3 as usize];
-					},
-					Instruction::FSGNJD => {
-						// @TODO: Confirm this logic is correct
-						let rs1_bits = self.f[rs1 as usize].to_bits();
-						let rs2_bits = self.f[rs2 as usize].to_bits();
-						let sign_bit = rs2_bits & 0x8000000000000000;
-						self.f[rd as usize] = f64::from_bits(sign_bit | (rs1_bits & 0x7fffffffffffffff));
-					},
-					Instruction::FSGNJXD => {
-						// @TODO: Confirm this logic is correct
-						let rs1_bits = self.f[rs1 as usize].to_bits();
-						let rs2_bits = self.f[rs2 as usize].to_bits();
-						let sign_bit = (rs1_bits ^ rs2_bits) & 0x8000000000000000;
-						self.f[rd as usize] = f64::from_bits(sign_bit | (rs1_bits & 0x7fffffffffffffff));
-					},
-					Instruction::FSUBD => {
-						self.f[rd as usize] = self.f[rs1 as usize] - self.f[rs2 as usize];
-					},
-					Instruction::LRD => {
-						// @TODO: Implement properly
-						self.x[rd as usize] = match self.mmu.load_doubleword(self.x[rs1 as usize] as u64) {
-							Ok(data) => {
-								self.is_reservation_set = true;
-								self.reservation = self.x[rs1 as usize] as u64; // Is virtual address ok?
-								data as i64
-							},
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::LRW => {
-						// @TODO: Implement properly
-						self.x[rd as usize] = match self.mmu.load_word(self.x[rs1 as usize] as u64) {
-							Ok(data) => {
-								self.is_reservation_set = true;
-								self.reservation = self.x[rs1 as usize] as u64; // Is virtual address ok?
-								data as i32 as i64
-							},
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::MRET |
-					Instruction::SRET |
-					Instruction::URET => {
-						// @TODO: Throw error if higher privilege return instruction is executed
-						// @TODO: Implement propertly
-						let csr_epc_address = match instruction {
-							Instruction::MRET => CSR_MEPC_ADDRESS,
-							Instruction::SRET => CSR_SEPC_ADDRESS,
-							Instruction::URET => CSR_UEPC_ADDRESS,
-							_ => panic!() // shouldn't happen
-						};
-						self.pc = match self.read_csr(csr_epc_address) {
-							Ok(data) => data,
-							Err(e) => return Err(e)
-						};
-						match instruction {
-							Instruction::MRET => {
-								let status = self.read_csr_raw(CSR_MSTATUS_ADDRESS);
-								let mpie = (status >> 7) & 1;
-								let mpp = (status >> 11) & 0x3;
-								// Override MIE[3] with MPIE[7], set MPIE[7] to 1, set MPP[12:11] to 0
-								let new_status = (status & !0x1888) | (mpie << 3) | (1 << 7);
-								self.write_csr_raw(CSR_MSTATUS_ADDRESS, new_status);
-								self.privilege_mode = match mpp {
-									0 => PrivilegeMode::User,
-									1 => PrivilegeMode::Supervisor,
-									3 => PrivilegeMode::Machine,
-									_ => panic!() // Shouldn't happen
-								};
-							},
-							Instruction::SRET => {
-								let status = self.read_csr_raw(CSR_SSTATUS_ADDRESS);
-								let spie = (status >> 5) & 1;
-								let spp = (status >> 8) & 1;
-								// Override SIE[1] with SPIE[5], set SPIE[5] to 1, set SPP[8] to 0
-								let new_status = (status & !0x122) | (spie << 1) | (1 << 5);
-								self.write_csr_raw(CSR_SSTATUS_ADDRESS, new_status);
-								self.privilege_mode = match spp {
-									0 => PrivilegeMode::User,
-									1 => PrivilegeMode::Supervisor,
-									_ => panic!() // Shouldn't happen
-								};
-							},
-							Instruction::URET => {
-								panic!("Not implemented yet.");
-							},
-							_ => panic!() // shouldn't happen
-						};
-						self.mmu.update_privilege_mode(self.privilege_mode.clone());
-					},
-					Instruction::MUL => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize].wrapping_mul(self.x[rs2 as usize]));
-					},
-					Instruction::MULH => {
-						self.x[rd as usize] = match self.xlen {
-							Xlen::Bit32 => {
-								self.sign_extend((self.x[rs1 as usize] * self.x[rs2 as usize]) >> 32)
-							},
-							Xlen::Bit64 => {
-								((self.x[rs1 as usize] as i128) * (self.x[rs2 as usize] as i128) >> 64) as i64
-							}
-						};
-					},
-					Instruction::MULHU => {
-						self.x[rd as usize] = match self.xlen {
-							Xlen::Bit32 => {
-								self.sign_extend((((self.x[rs1 as usize] as u32 as u64) * (self.x[rs2 as usize] as u32 as u64)) >> 32) as i64)
-							},
-							Xlen::Bit64 => {
-								((self.x[rs1 as usize] as u64 as u128).wrapping_mul(self.x[rs2 as usize] as u64 as u128) >> 64) as i64
-							}
-						};
-					},
-					Instruction::MULHSU => {
-						self.x[rd as usize] = match self.xlen {
-							Xlen::Bit32 => {
-								self.sign_extend(((self.x[rs1 as usize] as i64).wrapping_mul(self.x[rs2 as usize] as u32 as i64) >> 32) as i64)
-							},
-							Xlen::Bit64 => {
-								((self.x[rs1 as usize] as u128).wrapping_mul(self.x[rs2 as usize] as u64 as u128) >> 64) as i64
-							}
-						};
-					},
-					Instruction::MULW => {
-						self.x[rd as usize] = self.sign_extend((self.x[rs1 as usize] as i32).wrapping_mul(self.x[rs2 as usize] as i32) as i64);
-					},
-					Instruction::OR => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] | self.x[rs2 as usize]);
-					},
-					Instruction::REM => {
-						self.x[rd as usize] = match self.x[rs2 as usize] {
-							0 => self.x[rs1 as usize],
-							_ => self.sign_extend(self.x[rs1 as usize].wrapping_rem(self.x[rs2 as usize]))
-						};
-					},
-					Instruction::REMU => {
-						self.x[rd as usize] = match self.x[rs2 as usize] {
-							0 => self.x[rs1 as usize],
-							_ => self.sign_extend(self.unsigned_data(self.x[rs1 as usize]).wrapping_rem(self.unsigned_data(self.x[rs2 as usize])) as i64)
-						};
-					},
-					Instruction::REMUW => {
-						self.x[rd as usize] = match self.x[rs2 as usize] {
-							0 => self.x[rs1 as usize],
-							_ => self.sign_extend((self.x[rs1 as usize] as u32).wrapping_rem(self.x[rs2 as usize] as u32) as i32 as i64)
-						};
-					},
-					Instruction::REMW => {
-						self.x[rd as usize] = match self.x[rs2 as usize] {
-							0 => self.x[rs1 as usize],
-							_ => self.sign_extend((self.x[rs1 as usize] as i32).wrapping_rem((self.x[rs2 as usize]) as i32) as i64)
-						};
-					},
-					Instruction::SCD => {
-						// @TODO: Implement properly
-						match self.is_reservation_set && self.reservation == (self.x[rs1 as usize] as u64) {
-							true => match self.mmu.store_doubleword(self.x[rs1 as usize] as u64, self.x[rs2 as usize] as u64) {
-								Ok(()) => {
-									self.x[rd as usize] = 0;
-									self.is_reservation_set = false;
-								},
-								Err(e) => return Err(e)
-							},
-							false => {
-								self.x[rd as usize] = 1;
-							}
-						};
-					},
-					Instruction::SCW => {
-						// @TODO: Implement properly
-						match self.is_reservation_set && self.reservation == (self.x[rs1 as usize] as u64) {
-							true => match self.mmu.store_word(self.x[rs1 as usize] as u64, self.x[rs2 as usize] as u32) {
-								Ok(()) => {
-									self.x[rd as usize] = 0;
-									self.is_reservation_set = false;
-								},
-								Err(e) => return Err(e)
-							},
-							false => {
-								self.x[rd as usize] = 1;
-							}
-						};
-					},
-					Instruction::SFENCEVMA => {
-						// @TODO: Implement
-					},
-					Instruction::SUBW => {
-						self.x[rd as usize] = self.x[rs1 as usize].wrapping_sub(self.x[rs2 as usize]) as i32 as i64;
-					},
-					Instruction::SLL => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize].wrapping_shl(self.x[rs2 as usize] as u32));
-					},
-					Instruction::SLLW => {
-						self.x[rd as usize] = (self.x[rs1 as usize] as u32).wrapping_shl(self.x[rs2 as usize] as u32) as i32 as i64;
-					},
-					Instruction::SLT => {
-						self.x[rd as usize] = match self.x[rs1 as usize] < self.x[rs2 as usize] {
-							true => 1,
-							false => 0
-						}
-					},
-					Instruction::SLTU => {
-						self.x[rd as usize] = match self.unsigned_data(self.x[rs1 as usize]) < self.unsigned_data(self.x[rs2 as usize]) {
-							true => 1,
-							false => 0
-						}
-					},
-					Instruction::SRA => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize].wrapping_shr(self.x[rs2 as usize] as u32));
-					},
-					Instruction::SRAW => {
-						self.x[rd as usize] = (self.x[rs1 as usize] as i32).wrapping_shr(self.x[rs2 as usize] as u32) as i32 as i64;
-					},
-					Instruction::SRL => {
-						self.x[rd as usize] = self.sign_extend(self.unsigned_data(self.x[rs1 as usize]).wrapping_shr(self.x[rs2 as usize] as u32) as i64);
-					},
-					Instruction::SRLW => {
-						self.x[rd as usize] = (self.x[rs1 as usize] as u32).wrapping_shr(self.x[rs2 as usize] as u32) as i32 as i64;
-					},
-					Instruction::WFI => {
-						self.wfi = true;
-					},
-					Instruction::XOR => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] ^ self.x[rs2 as usize]);
-					},
-					_ => {
-						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(instruction_address);
-						panic!();
-					}
-				};
-			},
-			InstructionFormat::S => {
-				let rs1 = (word >> 15) & 0x1f; // [19:15]
-				let rs2 = (word >> 20) & 0x1f; // [24:20]
-				let imm = (
-					match word & 0x80000000 {
-						0x80000000 => 0xfffff000,
-						_ => 0
-					} | // imm[31:12] = [31]
-					((word & 0xfe000000) >> 20) | // imm[11:5] = [31:25],
-					((word & 0x00000f80) >> 7) // imm[4:0] = [11:7]
-				) as i32 as i64;
-				match instruction {
-					Instruction::FSD => {
-						match self.mmu.store_doubleword(self.x[rs1 as usize].wrapping_add(imm) as u64, self.f[rs2 as usize].to_bits()) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::FSW => {
-						match self.mmu.store_word(self.x[rs1 as usize].wrapping_add(imm) as u64, self.f[rs2 as usize].to_bits() as u32) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::SB => {
-						match self.mmu.store(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u8) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::SH => {
-						match self.mmu.store_halfword(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u16) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::SW => {
-						match self.mmu.store_word(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u32) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::SD => {
-						match self.mmu.store_doubleword(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u64) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-					},
-					_ => {
-						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(instruction_address);
-						panic!();
-					}
-				};
-			},
-			InstructionFormat::U => {
-				let rd = (word >> 7) & 0x1f; // [11:7]
-				let imm = (
-					match word & 0x80000000 {
-						0x80000000 => 0xffffffff00000000,
-						_ => 0
-					} | // imm[63:32] = [31]
-					((word as u64) & 0xfffff000) // imm[31:12] = [31:12]
-				) as u64;
-				match instruction {
-					Instruction::LUI => {
-						self.x[rd as usize] = imm as i64;
-					}
-					_ => {
-						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(instruction_address);
-						panic!();
-					}
-				};
-			}
-		}
-		self.x[0] = 0; // hard-wired zero
-		Ok(())
-	}
-
 	fn dump_instruction(&mut self, address: u64) {
 		let word = match self.mmu.load_word(address) {
 			Ok(word) => word,
@@ -2134,32 +1247,32 @@ impl Cpu {
 		// @TODO: Fetching can make a side effect,
 		// for example updating page table entry or update peripheral hardware registers
 		// by accessing them. How can we avoid it?
-		let v_address = self.pc;
-		let mut word = match self.mmu.fetch_word(v_address) {
+		let original_word = match self.mmu.fetch_word(self.pc) {
 			Ok(data) => data,
 			Err(_e) => {
-				let s = format!("PC:{:016x}, InstructionPageFault Trap!\n", v_address);
+				let s = format!("PC:{:016x}, InstructionPageFault Trap!\n", self.pc);
 				self.put_bytes_to_terminal(s.as_bytes());
 				return;
 			}
 		};
-		let instruction = match self.decode(word) {
-			Ok(instruction) => instruction,
-			Err(()) => match self.decode(self.uncompress(word & 0xffff)) {
-				Ok(instruction) => {
-					word = word & 0xffff;
-					instruction
-				},
-				Err(()) => {
-					println!("Unknown instruction PC:{:x} WORD:{:x}", self.pc, word);
-					self.dump_instruction(self.pc);
-					panic!();
-				}
+
+		let word = match (original_word & 0x3) == 0x3 {
+			true => original_word,
+			false => self.uncompress(original_word & 0xffff)
+		};
+
+		let inst = match self.decode(word) {
+			Ok(inst) => inst,
+			Err(()) => {
+				println!("Unknown instruction PC:{:x} WORD:{:x}", self.pc, original_word);
+				self.dump_instruction(self.pc);
+				panic!();
 			}
 		};
+
 		let s = format!("PC:{:016x}, Word:{:08x}, Inst:{}\n",
-			self.unsigned_data(v_address as i64),
-			word, get_instruction_name(&instruction));
+			self.unsigned_data(self.pc as i64),
+			original_word, inst.name);
 		self.put_bytes_to_terminal(s.as_bytes());
 	}
 
@@ -2174,8 +1287,7 @@ impl Cpu {
 	}
 }
 
-// @TODO: Rename to Instruction
-struct InstructionData {
+struct Instruction {
 	mask: u32,
 	data: u32, // @TODO: rename
 	name: &'static str,
@@ -2288,6 +1400,52 @@ fn dump_format_i(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> Str
 	s
 }
 
+fn dump_format_i_mem(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> String {
+	let f = parse_format_i(word);
+	let mut s = String::new();
+	s += &format!("{}", get_register_name(f.rd));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rd]);
+	}
+	s += &format!(",{:X}({}", f.imm, get_register_name(f.rs1));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs1]);
+	}
+	s += &format!(")");
+	s
+}
+
+struct FormatJ {
+	rd: usize,
+	imm: u64
+}
+
+fn parse_format_j(word: u32) -> FormatJ {
+	FormatJ {
+		rd: ((word >> 7) & 0x1f) as usize, // [11:7]
+		imm: (
+			match word & 0x80000000 { // imm[31:20] = [31]
+				0x80000000 => 0xfff00000,
+				_ => 0
+			} |
+			(word & 0x000ff000) | // imm[19:12] = [19:12]
+			((word & 0x00100000) >> 9) | // imm[11] = [20]
+			((word & 0x7fe00000) >> 20) // imm[10:1] = [30:21]
+		) as i32 as i64 as u64
+	}
+}
+
+fn dump_format_j(cpu: &mut Cpu, word: u32, address: u64, evaluate: bool) -> String {
+	let f = parse_format_j(word);
+	let mut s = String::new();
+	s += &format!("{}", get_register_name(f.rd));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rd]);
+	}
+	s += &format!(",{:X}", address.wrapping_add(f.imm));
+	s
+}
+
 struct FormatR {
 	rd: usize,
 	rs1: usize,
@@ -2317,6 +1475,81 @@ fn dump_format_r(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> Str
 	if evaluate {
 		s += &format!(":{:X}", cpu.x[f.rs2]);
 	}
+	s
+}
+
+// has rs3
+struct FormatR2 {
+	rd: usize,
+	rs1: usize,
+	rs2: usize,
+	rs3: usize
+}
+
+fn parse_format_r2(word: u32) -> FormatR2 {
+	FormatR2 {
+		rd: ((word >> 7) & 0x1f) as usize, // [11:7]
+		rs1: ((word >> 15) & 0x1f) as usize, // [19:15]
+		rs2: ((word >> 20) & 0x1f) as usize, // [24:20]
+		rs3: ((word >> 27) & 0x1f) as usize // [31:27]
+	}
+}
+
+fn dump_format_r2(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> String {
+	let f = parse_format_r2(word);
+	let mut s = String::new();
+	s += &format!("{}", get_register_name(f.rd));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rd]);
+	}
+	s += &format!(",{}", get_register_name(f.rs1));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs1]);
+	}
+	s += &format!(",{}", get_register_name(f.rs2));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs2]);
+	}
+	s += &format!(",{}", get_register_name(f.rs3));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs3]);
+	}
+	s
+}
+
+struct FormatS {
+	rs1: usize,
+	rs2: usize,
+	imm: i64
+}
+
+fn parse_format_s(word: u32) -> FormatS {
+	FormatS {
+		rs1: ((word >> 15) & 0x1f) as usize, // [19:15]
+		rs2: ((word >> 20) & 0x1f) as usize, // [24:20]
+		imm: (
+			match word & 0x80000000 {
+				0x80000000 => 0xfffff000,
+				_ => 0
+			} | // imm[31:12] = [31]
+			((word >> 20) & 0xfe0) | // imm[11:5] = [31:25]
+			((word >> 7) & 0x1f) // imm[4:0] = [11:7]
+		) as i32 as i64
+	}
+}
+
+fn dump_format_s(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> String {
+	let f = parse_format_s(word);
+	let mut s = String::new();
+	s += &format!("{}", get_register_name(f.rs2));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs2]);
+	}
+	s += &format!(",{:X}({}", f.imm, get_register_name(f.rs1));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs1]);
+	}
+	s += &format!(")");
 	s
 }
 
@@ -2360,12 +1593,11 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 51;
+const INSTRUCTION_NUM: usize = 116;
 
 // @TODO: Reorder in often used order as 
-// @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
-const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
-	InstructionData {
+const INSTRUCTIONS: [Instruction; INSTRUCTION_NUM] = [
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x00000033,
 		name: "ADD",
@@ -2376,7 +1608,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00000013,
 		name: "ADDI",
@@ -2387,7 +1619,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x0000001b,
 		name: "ADDIW",
@@ -2398,7 +1630,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x0000003b,
 		name: "ADDW",
@@ -2409,7 +1641,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x0000302f,
 		name: "AMOADD.D",
@@ -2428,7 +1660,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x0000202f,
 		name: "AMOADD.W",
@@ -2447,7 +1679,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x6000302f,
 		name: "AMOAND.D",
@@ -2466,7 +1698,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x6000202f,
 		name: "AMOAND.W",
@@ -2485,7 +1717,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0xe000302f,
 		name: "AMOMAXU.D",
@@ -2508,7 +1740,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0xe000202f,
 		name: "AMOMAXU.W",
@@ -2531,7 +1763,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x4000302f,
 		name: "AMOOR.D",
@@ -2550,7 +1782,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x4000202f,
 		name: "AMOOR.W",
@@ -2569,7 +1801,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x0800302f,
 		name: "AMOSWAP.D",
@@ -2588,7 +1820,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xf800707f,
 		data: 0x0800202f,
 		name: "AMOSWAP.W",
@@ -2607,7 +1839,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x00007033,
 		name: "AND",
@@ -2618,7 +1850,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00007013,
 		name: "ANDI",
@@ -2629,7 +1861,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000007f,
 		data: 0x00000017,
 		name: "AUIPC",
@@ -2640,7 +1872,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_u
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00000063,
 		name: "BEQ",
@@ -2653,7 +1885,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_b
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00005063,
 		name: "BGE",
@@ -2666,7 +1898,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_b
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00007063,
 		name: "BGEU",
@@ -2679,7 +1911,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_b
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00004063,
 		name: "BLT",
@@ -2692,7 +1924,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_b
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00006063,
 		name: "BLTU",
@@ -2705,7 +1937,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_b
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00001063,
 		name: "BNE",
@@ -2718,7 +1950,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_b
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00003073,
 		name: "CSRRC",
@@ -2738,7 +1970,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_csr
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00007073,
 		name: "CSRRCI",
@@ -2757,7 +1989,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_csr
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00002073,
 		name: "CSRRS",
@@ -2777,7 +2009,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_csr
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00006073,
 		name: "CSRRSI",
@@ -2796,7 +2028,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_csr
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00001073,
 		name: "CSRRW",
@@ -2816,7 +2048,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_csr
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00005073,
 		name: "CSRRWI",
@@ -2835,7 +2067,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_csr
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x02004033,
 		name: "DIV",
@@ -2854,7 +2086,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x02005033,
 		name: "DIVU",
@@ -2871,7 +2103,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x0200503b,
 		name: "DIVUW",
@@ -2888,7 +2120,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x0200403b,
 		name: "DIVW",
@@ -2907,7 +2139,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xffffffff,
 		data: 0x00100073,
 		name: "EBREAK",
@@ -2917,7 +2149,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xffffffff,
 		data: 0x00000073,
 		name: "ECALL",
@@ -2935,7 +2167,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00007f,
 		data: 0x02000053,
 		name: "FADD.D",
@@ -2946,7 +2178,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0007f,
 		data: 0xd2200053,
 		name: "FCVT.D.L",
@@ -2957,7 +2189,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0007f,
 		data: 0x42000053,
 		name: "FCVT.D.S",
@@ -2969,7 +2201,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0007f,
 		data: 0xd2000053,
 		name: "FCVT.D.W",
@@ -2980,7 +2212,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0007f,
 		data: 0xd2100053,
 		name: "FCVT.D.WU",
@@ -2991,7 +2223,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0007f,
 		data: 0x40100053,
 		name: "FCVT.S.D",
@@ -3003,7 +2235,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfff0007f,
 		data: 0xc2000053,
 		name: "FCVT.W.D",
@@ -3015,7 +2247,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00007f,
 		data: 0x1a000053,
 		name: "FDIV.D",
@@ -3037,7 +2269,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x0000000f,
 		name: "FENCE",
@@ -3047,7 +2279,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x0000100f,
 		name: "FENCE.I",
@@ -3057,7 +2289,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0xa2002053,
 		name: "FEQ.D",
@@ -3071,7 +2303,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_empty
 	},
-	InstructionData {
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00003007,
 		name: "FLD",
@@ -3085,7 +2317,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_i
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0xa2000053,
 		name: "FLE.D",
@@ -3099,7 +2331,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0xa2001053,
 		name: "FLT.D",
@@ -3113,7 +2345,172 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		},
 		disassemble: dump_format_r
 	},
-	InstructionData {
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00002007,
+		name: "FLW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.f[f.rd] = match cpu.mmu.load_word(cpu.x[f.rs1].wrapping_add(f.imm) as u64) {
+				Ok(data) => f64::from_bits(data as i32 as i64 as u64),
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i_mem
+	},
+	Instruction {
+		mask: 0x0600007f,
+		data: 0x02000043,
+		name: "FMADD.D",
+		operation: |cpu, word, _address| {
+			// @TODO: Update fcsr if needed?
+			let f = parse_format_r2(word);
+			cpu.f[f.rd] = cpu.f[f.rs1] * cpu.f[f.rs2] + cpu.f[f.rs3];
+			Ok(())
+		},
+		disassemble: dump_format_r2
+	},
+	Instruction {
+		mask: 0xfe00007f,
+		data: 0x12000053,
+		name: "FMUL.D",
+		operation: |cpu, word, _address| {
+			// @TODO: Update fcsr if needed?
+			let f = parse_format_r(word);
+			cpu.f[f.rd] = cpu.f[f.rs1] * cpu.f[f.rs2];
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfff0707f,
+		data: 0xf2000053,
+		name: "FMV.D.X",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.f[f.rd] = f64::from_bits(cpu.x[f.rs1] as u64);
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfff0707f,
+		data: 0xe2000053,
+		name: "FMV.X.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.f[f.rs1].to_bits() as i64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfff0707f,
+		data: 0xe0000053,
+		name: "FMV.X.W",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.f[f.rs1].to_bits() as i32 as i64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfff0707f,
+		data: 0xf0000053,
+		name: "FMV.W.X",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.f[f.rd] = f64::from_bits(cpu.x[f.rs1] as u32 as u64);
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0x0600007f,
+		data: 0x0200004b,
+		name: "FNMSUB.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r2(word);
+			cpu.f[f.rd] = -(cpu.f[f.rs1] * cpu.f[f.rs2]) + cpu.f[f.rs3];
+			Ok(())
+		},
+		disassemble: dump_format_r2
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00003027,
+		name: "FSD",
+		operation: |cpu, word, _address| {
+			let f = parse_format_s(word);
+			cpu.mmu.store_doubleword(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.f[f.rs2].to_bits())
+		},
+		disassemble: dump_format_s
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x22000053,
+		name: "FSGNJ.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let rs1_bits = cpu.f[f.rs1].to_bits();
+			let rs2_bits = cpu.f[f.rs2].to_bits();
+			let sign_bit = rs2_bits & 0x8000000000000000;
+			cpu.f[f.rd] = f64::from_bits(sign_bit | (rs1_bits & 0x7fffffffffffffff));
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x22002053,
+		name: "FSGNJX.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let rs1_bits = cpu.f[f.rs1].to_bits();
+			let rs2_bits = cpu.f[f.rs2].to_bits();
+			let sign_bit = (rs1_bits ^ rs2_bits) & 0x8000000000000000;
+			cpu.f[f.rd] = f64::from_bits(sign_bit | (rs1_bits & 0x7fffffffffffffff));
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00007f,
+		data: 0x0a000053,
+		name: "FSUB.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			// @TODO: Update fcsr if needed?
+			cpu.f[f.rd] = cpu.f[f.rs1] - cpu.f[f.rs2];
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00002027,
+		name: "FSW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_s(word);
+			cpu.mmu.store_word(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.f[f.rs2].to_bits() as u32)
+		},
+		disassemble: dump_format_s
+	},
+	Instruction {
+		mask: 0x0000007f,
+		data: 0x0000006f,
+		name: "JAL",
+		operation: |cpu, word, address| {
+			let f = parse_format_j(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.pc as i64);
+			cpu.pc = address.wrapping_add(f.imm);
+			Ok(())
+		},
+		disassemble: dump_format_j
+	},
+	Instruction {
 		mask: 0x0000707f,
 		data: 0x00000067,
 		name: "JALR",
@@ -3127,7 +2524,11 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		disassemble: |cpu, word, _address, evaluate| {
 			let f = parse_format_i(word);
 			let mut s = String::new();
-			s += &format!("{:X}({}", f.imm, get_register_name(f.rs1));
+			s += &format!("{}", get_register_name(f.rd));
+			if evaluate {
+				s += &format!(":{:X}", cpu.x[f.rd]);
+			}
+			s += &format!(",{:X}({}", f.imm, get_register_name(f.rs1));
 			if evaluate {
 				s += &format!(":{:X}", cpu.x[f.rs1]);
 			}
@@ -3135,7 +2536,666 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			s
 		}
 	},
-	InstructionData {
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00000003,
+		name: "LB",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = match cpu.mmu.load(cpu.x[f.rs1].wrapping_add(f.imm) as u64) {
+				Ok(data) => data as i8 as i64,
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i_mem
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00004003,
+		name: "LBU",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = match cpu.mmu.load(cpu.x[f.rs1].wrapping_add(f.imm) as u64) {
+				Ok(data) => data as i64,
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i_mem
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00003003,
+		name: "LD",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = match cpu.mmu.load_doubleword(cpu.x[f.rs1].wrapping_add(f.imm) as u64) {
+				Ok(data) => data as i64,
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i_mem
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00001003,
+		name: "LH",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = match cpu.mmu.load_halfword(cpu.x[f.rs1].wrapping_add(f.imm) as u64) {
+				Ok(data) => data as i16 as i64,
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i_mem
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00005003,
+		name: "LHU",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = match cpu.mmu.load_halfword(cpu.x[f.rs1].wrapping_add(f.imm) as u64) {
+				Ok(data) => data as i64,
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i_mem
+	},
+	Instruction {
+		mask: 0xf9f0707f,
+		data: 0x1000302f,
+		name: "LR.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			// @TODO: Implement properly
+			cpu.x[f.rd] = match cpu.mmu.load_doubleword(cpu.x[f.rs1] as u64) {
+				Ok(data) => {
+					cpu.is_reservation_set = true;
+					cpu.reservation = cpu.x[f.rs1] as u64; // Is virtual address ok?
+					data as i64
+				},
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xf9f0707f,
+		data: 0x1000202f,
+		name: "LR.W",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			// @TODO: Implement properly
+			cpu.x[f.rd] = match cpu.mmu.load_word(cpu.x[f.rs1] as u64) {
+				Ok(data) => {
+					cpu.is_reservation_set = true;
+					cpu.reservation = cpu.x[f.rs1] as u64; // Is virtual address ok?
+					data as i32 as i64
+				},
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0x0000007f,
+		data: 0x00000037,
+		name: "LUI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_u(word);
+			cpu.x[f.rd] = f.imm as i64;
+			Ok(())
+		},
+		disassemble: dump_format_u
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00002003,
+		name: "LW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = match cpu.mmu.load_word(cpu.x[f.rs1].wrapping_add(f.imm) as u64) {
+				Ok(data) => data as i32 as i64,
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i_mem
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00006003,
+		name: "LWU",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = match cpu.mmu.load_word(cpu.x[f.rs1].wrapping_add(f.imm) as u64) {
+				Ok(data) => data as i64,
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i_mem
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x02000033,
+		name: "MUL",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_mul(cpu.x[f.rs2]));
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x02001033,
+		name: "MULH",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = match cpu.xlen {
+				Xlen::Bit32 => {
+					cpu.sign_extend((cpu.x[f.rs1] * cpu.x[f.rs2]) >> 32)
+				},
+				Xlen::Bit64 => {
+					((cpu.x[f.rs1] as i128) * (cpu.x[f.rs2] as i128) >> 64) as i64
+				}
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x02003033,
+		name: "MULHU",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = match cpu.xlen {
+				Xlen::Bit32 => {
+					cpu.sign_extend((((cpu.x[f.rs1] as u32 as u64) * (cpu.x[f.rs2] as u32 as u64)) >> 32) as i64)
+				},
+				Xlen::Bit64 => {
+					((cpu.x[f.rs1] as u64 as u128).wrapping_mul(cpu.x[f.rs2] as u64 as u128) >> 64) as i64
+				}
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x02002033,
+		name: "MULHSU",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = match cpu.xlen {
+				Xlen::Bit32 => {
+					cpu.sign_extend(((cpu.x[f.rs1] as i64).wrapping_mul(cpu.x[f.rs2] as u32 as i64) >> 32) as i64)
+				},
+				Xlen::Bit64 => {
+					((cpu.x[f.rs1] as u128).wrapping_mul(cpu.x[f.rs2] as u64 as u128) >> 64) as i64
+				}
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x0200003b,
+		name: "MULW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend((cpu.x[f.rs1] as i32).wrapping_mul(cpu.x[f.rs2] as i32) as i64);
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xffffffff,
+		data: 0x30200073,
+		name: "MRET",
+		operation: |cpu, _word, _address| {
+			cpu.pc = match cpu.read_csr(CSR_MEPC_ADDRESS) {
+				Ok(data) => data,
+				Err(e) => return Err(e)
+			};
+			let status = cpu.read_csr_raw(CSR_MSTATUS_ADDRESS);
+			let mpie = (status >> 7) & 1;
+			let mpp = (status >> 11) & 0x3;
+			// Override MIE[3] with MPIE[7], set MPIE[7] to 1, set MPP[12:11] to 0
+			let new_status = (status & !0x1888) | (mpie << 3) | (1 << 7);
+			cpu.write_csr_raw(CSR_MSTATUS_ADDRESS, new_status);
+			cpu.privilege_mode = match mpp {
+				0 => PrivilegeMode::User,
+				1 => PrivilegeMode::Supervisor,
+				3 => PrivilegeMode::Machine,
+				_ => panic!() // Shouldn't happen
+			};
+			cpu.mmu.update_privilege_mode(cpu.privilege_mode.clone());
+			Ok(())
+		},
+		disassemble: dump_empty
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x00006033,
+		name: "OR",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] | cpu.x[f.rs2]);
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00006013,
+		name: "ORI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] | f.imm);
+			Ok(())
+		},
+		disassemble: dump_format_i
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x02006033,
+		name: "REM",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let dividend = cpu.x[f.rs1];
+			let divisor = cpu.x[f.rs2];
+			if divisor == 0 {
+				cpu.x[f.rd] = dividend;
+			} else if dividend == cpu.most_negative() && divisor == -1 {
+				cpu.x[f.rd] = 0;
+			} else {
+				cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_rem(cpu.x[f.rs2]));
+			}
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x02007033,
+		name: "REMU",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let dividend = cpu.unsigned_data(cpu.x[f.rs1]);
+			let divisor = cpu.unsigned_data(cpu.x[f.rs2]);
+			cpu.x[f.rd] = match divisor {
+				0 => cpu.sign_extend(dividend as i64),
+				_ => cpu.sign_extend(dividend.wrapping_rem(divisor) as i64)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x0200703b,
+		name: "REMUW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let dividend = cpu.x[f.rs1] as u32;
+			let divisor = cpu.x[f.rs2] as u32;
+			cpu.x[f.rd] = match divisor {
+				0 => dividend as i32 as i64,
+				_ => dividend.wrapping_rem(divisor) as i32 as i64
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x0200603b,
+		name: "REMW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let dividend = cpu.x[f.rs1] as i32;
+			let divisor = cpu.x[f.rs2] as i32;
+			if divisor == 0 {
+				cpu.x[f.rd] = dividend as i64;
+			} else if dividend == std::i32::MIN && divisor == -1 {
+				cpu.x[f.rd] = 0;
+			} else {
+				cpu.x[f.rd] = dividend.wrapping_rem(divisor) as i64;
+			}
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00000023,
+		name: "SB",
+		operation: |cpu, word, _address| {
+			let f = parse_format_s(word);
+			cpu.mmu.store(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.x[f.rs2] as u8)
+		},
+		disassemble: dump_format_s
+	},
+	Instruction {
+		mask: 0xf800707f,
+		data: 0x1800302f,
+		name: "SC.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			// @TODO: Implement properly
+			cpu.x[f.rd] = match cpu.is_reservation_set && cpu.reservation == (cpu.x[f.rs1] as u64) {
+				true => match cpu.mmu.store_doubleword(cpu.x[f.rs1] as u64, cpu.x[f.rs2] as u64) {
+					Ok(()) => {
+						cpu.is_reservation_set = false;
+						0
+					},
+					Err(e) => return Err(e)
+				},
+				false => 1
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xf800707f,
+		data: 0x1800202f,
+		name: "SC.W",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			// @TODO: Implement properly
+			cpu.x[f.rd] = match cpu.is_reservation_set && cpu.reservation == (cpu.x[f.rs1] as u64) {
+				true => match cpu.mmu.store_word(cpu.x[f.rs1] as u64, cpu.x[f.rs2] as u32) {
+					Ok(()) => {
+						cpu.is_reservation_set = false;
+						0
+					},
+					Err(e) => return Err(e)
+				},
+				false => 1
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00003023,
+		name: "SD",
+		operation: |cpu, word, _address| {
+			let f = parse_format_s(word);
+			cpu.mmu.store_doubleword(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.x[f.rs2] as u64)
+		},
+		disassemble: dump_format_s
+	},
+	Instruction {
+		mask: 0xfe007fff,
+		data: 0x12000073,
+		name: "SFENCE.VMA",
+		operation: |_cpu, _word, _address| {
+			// Do nothing?
+			Ok(())
+		},
+		disassemble: dump_empty
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00001023,
+		name: "SH",
+		operation: |cpu, word, _address| {
+			let f = parse_format_s(word);
+			cpu.mmu.store_halfword(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.x[f.rs2] as u16)
+		},
+		disassemble: dump_format_s
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x00001033,
+		name: "SLL",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_shl(cpu.x[f.rs2] as u32));
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfc00707f,
+		data: 0x00001013,
+		name: "SLLI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let mask = match cpu.xlen {
+				Xlen::Bit32 => 0x1f,
+				Xlen::Bit64 => 0x3f
+			};
+			let shamt = (word >> 20) & mask;
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] << shamt);
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x0000101b,
+		name: "SLLIW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let shamt = f.rs2 as u32;
+			cpu.x[f.rd] = (cpu.x[f.rs1] << shamt) as i32 as i64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x0000103b,
+		name: "SLLW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = (cpu.x[f.rs1] as u32).wrapping_shl(cpu.x[f.rs2] as u32) as i32 as i64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x00002033,
+		name: "SLT",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = match cpu.x[f.rs1] < cpu.x[f.rs2] {
+				true => 1,
+				false => 0
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00002013,
+		name: "SLTI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = match cpu.x[f.rs1] < f.imm {
+				true => 1,
+				false => 0
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00003013,
+		name: "SLTIU",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = match cpu.unsigned_data(cpu.x[f.rs1]) < cpu.unsigned_data(f.imm) {
+				true => 1,
+				false => 0
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x00003033,
+		name: "SLTU",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = match cpu.unsigned_data(cpu.x[f.rs1]) < cpu.unsigned_data(cpu.x[f.rs2]) {
+				true => 1,
+				false => 0
+			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x40005033,
+		name: "SRA",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_shr(cpu.x[f.rs2] as u32));
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfc00707f,
+		data: 0x40005013,
+		name: "SRAI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let mask = match cpu.xlen {
+				Xlen::Bit32 => 0x1f,
+				Xlen::Bit64 => 0x3f
+			};
+			let shamt = (word >> 20) & mask;
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] >> shamt);
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfc00707f,
+		data: 0x4000501b,
+		name: "SRAIW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let shamt = ((word >> 20) & 0x1f) as u32;
+			cpu.x[f.rd] = ((cpu.x[f.rs1] as i32) >> shamt) as i64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x4000503b,
+		name: "SRAW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = (cpu.x[f.rs1] as i32).wrapping_shr(cpu.x[f.rs2] as u32) as i64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xffffffff,
+		data: 0x10200073,
+		name: "SRET",
+		operation: |cpu, _word, _address| {
+			// @TODO: Throw error if higher privilege return instruction is executed
+			cpu.pc = match cpu.read_csr(CSR_SEPC_ADDRESS) {
+				Ok(data) => data,
+				Err(e) => return Err(e)
+			};
+			let status = cpu.read_csr_raw(CSR_SSTATUS_ADDRESS);
+			let spie = (status >> 5) & 1;
+			let spp = (status >> 8) & 1;
+			// Override SIE[1] with SPIE[5], set SPIE[5] to 1, set SPP[8] to 0
+			let new_status = (status & !0x122) | (spie << 1) | (1 << 5);
+			cpu.write_csr_raw(CSR_SSTATUS_ADDRESS, new_status);
+			cpu.privilege_mode = match spp {
+				0 => PrivilegeMode::User,
+				1 => PrivilegeMode::Supervisor,
+				_ => panic!() // Shouldn't happen
+			};
+			cpu.mmu.update_privilege_mode(cpu.privilege_mode.clone());
+			Ok(())
+		},
+		disassemble: dump_empty
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x00005033,
+		name: "SRL",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.unsigned_data(cpu.x[f.rs1]).wrapping_shr(cpu.x[f.rs2] as u32) as i64);
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfc00707f,
+		data: 0x00005013,
+		name: "SRLI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let mask = match cpu.xlen {
+				Xlen::Bit32 => 0x1f,
+				Xlen::Bit64 => 0x3f
+			};
+			let shamt = (word >> 20) & mask;
+			cpu.x[f.rd] = cpu.sign_extend((cpu.unsigned_data(cpu.x[f.rs1]) >> shamt) as i64);
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfc00707f,
+		data: 0x0000501b,
+		name: "SRLIW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let mask = match cpu.xlen {
+				Xlen::Bit32 => 0x1f,
+				Xlen::Bit64 => 0x3f
+			};
+			let shamt = (word >> 20) & mask;
+			cpu.x[f.rd] = ((cpu.x[f.rs1] as u32) >> shamt) as i32 as i64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x0000503b,
+		name: "SRLW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = (cpu.x[f.rs1] as u32).wrapping_shr(cpu.x[f.rs2] as u32) as i32 as i64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
 		mask: 0xfe00707f,
 		data: 0x40000033,
 		name: "SUB",
@@ -3145,5 +3205,68 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x4000003b,
+		name: "SUBW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.x[f.rs1].wrapping_sub(cpu.x[f.rs2]) as i32 as i64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00002023,
+		name: "SW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_s(word);
+			cpu.mmu.store_word(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.x[f.rs2] as u32)
+		},
+		disassemble: dump_format_s
+	},
+	Instruction {
+		mask: 0xffffffff,
+		data: 0x00200073,
+		name: "URET",
+		operation: |_cpu, _word, _address| {
+			// @TODO: Implement
+			panic!("URET instruction is not implemented yet.");
+		},
+		disassemble: dump_empty
+	},
+	Instruction {
+		mask: 0xffffffff,
+		data: 0x10500073,
+		name: "WFI",
+		operation: |cpu, _word, _address| {
+			cpu.wfi = true;
+			Ok(())
+		},
+		disassemble: dump_empty
+	},
+	Instruction {
+		mask: 0xfe00707f,
+		data: 0x00004033,
+		name: "XOR",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] ^ cpu.x[f.rs2]);
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	Instruction {
+		mask: 0x0000707f,
+		data: 0x00004013,
+		name: "XORI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] ^ f.imm);
+			Ok(())
+		},
+		disassemble: dump_format_i
 	},
 ];
