@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FSUBD,
 	JAL,
 	LB,
 	LBU,
@@ -261,7 +260,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FSUBD => "FSUBD",
 		Instruction::JAL => "JAL",
 		Instruction::LB => "LB",
 		Instruction::LBU => "LBU",
@@ -337,7 +335,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
-		Instruction::FSUBD |
 		Instruction::LRD |
 		Instruction::LRW |
 		Instruction::MRET |
@@ -1524,10 +1521,6 @@ impl Cpu {
 				7 => Instruction::REMUW,
 				_ => return Err(())
 			},
-			0x53 => match funct7 {
-				0x5 => Instruction::FSUBD,
-				_ => return Err(())
-			},
 			0x6f => Instruction::JAL,
 			0x73 => match funct3 {
 				0 => {
@@ -1693,9 +1686,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::FSUBD => {
-						self.f[rd as usize] = self.f[rs1 as usize] - self.f[rs2 as usize];
-					},
 					Instruction::LRD => {
 						// @TODO: Implement properly
 						self.x[rd as usize] = match self.mmu.load_doubleword(self.x[rs1 as usize] as u64) {
@@ -2310,7 +2300,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 63;
+const INSTRUCTION_NUM: usize = 64;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3190,6 +3180,18 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			let rs2_bits = cpu.f[f.rs2].to_bits();
 			let sign_bit = (rs1_bits ^ rs2_bits) & 0x8000000000000000;
 			cpu.f[f.rd] = f64::from_bits(sign_bit | (rs1_bits & 0x7fffffffffffffff));
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00007f,
+		data: 0x0a000053,
+		name: "FSUB.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			// @TODO: Update fcsr if needed?
+			cpu.f[f.rd] = cpu.f[f.rs1] - cpu.f[f.rs2];
 			Ok(())
 		},
 		disassemble: dump_format_r
