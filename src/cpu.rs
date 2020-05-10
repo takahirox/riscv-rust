@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SRA,
 	SRAI,
 	SRAIW,
 	SRAW,
@@ -221,7 +220,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SRA => "SRA",
 		Instruction::SRAI => "SRAI",
 		Instruction::SRAIW => "SRAIW",
 		Instruction::SRAW => "SRAW",
@@ -247,7 +245,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::SUBW |
-		Instruction::SRA |
 		Instruction::SRAW |
 		Instruction::SRET |
 		Instruction::SRL |
@@ -1323,7 +1320,6 @@ impl Cpu {
 				},
 				5 => match funct7 {
 					0 => Instruction::SRL,
-					0x20 => Instruction::SRA,
 					_ => return Err(())
 				},
 				_ => return Err(())
@@ -1446,9 +1442,6 @@ impl Cpu {
 					},
 					Instruction::SUBW => {
 						self.x[rd as usize] = self.x[rs1 as usize].wrapping_sub(self.x[rs2 as usize]) as i32 as i64;
-					},
-					Instruction::SRA => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize].wrapping_shr(self.x[rs2 as usize] as u32));
 					},
 					Instruction::SRAW => {
 						self.x[rd as usize] = (self.x[rs1 as usize] as i32).wrapping_shr(self.x[rs2 as usize] as u32) as i32 as i64;
@@ -1865,7 +1858,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 101;
+const INSTRUCTION_NUM: usize = 102;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3334,6 +3327,17 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 				true => 1,
 				false => 0
 			};
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x40005033,
+		name: "SRA",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_shr(cpu.x[f.rs2] as u32));
 			Ok(())
 		},
 		disassemble: dump_format_r
