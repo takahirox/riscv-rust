@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FNMSUBD,
 	FSD,
 	FSW,
 	FSGNJD,
@@ -266,7 +265,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FNMSUBD => "FNMSUB.D",
 		Instruction::FSD => "FSD",
 		Instruction::FSW => "FSW",
 		Instruction::FSGNJD => "FSGNJD",
@@ -347,7 +345,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
-		Instruction::FNMSUBD |
 		Instruction::FSGNJD |
 		Instruction::FSGNJXD |
 		Instruction::FSUBD |
@@ -1544,10 +1541,6 @@ impl Cpu {
 				7 => Instruction::REMUW,
 				_ => return Err(())
 			},
-			0x4b => match funct7 & 0x3 {
-				1 => Instruction::FNMSUBD,
-				_ => return Err(())
-			},
 			0x53 => match funct7 {
 				0x5 => Instruction::FSUBD,
 				0x11 => match funct3 {
@@ -1722,9 +1715,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::FNMSUBD => {
-						self.f[rd as usize] = -(self.f[rs1 as usize] * self.f[rs2 as usize]) + self.f[rs3 as usize];
-					},
 					Instruction::FSGNJD => {
 						// @TODO: Confirm this logic is correct
 						let rs1_bits = self.f[rs1 as usize].to_bits();
@@ -2332,7 +2322,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 58;
+const INSTRUCTION_NUM: usize = 59;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3166,6 +3156,17 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0x0600007f,
+		data: 0x0200004b,
+		name: "FNMSUB.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r2(word);
+			cpu.f[f.rd] = -(cpu.f[f.rs1] * cpu.f[f.rs2]) + cpu.f[f.rs3];
+			Ok(())
+		},
+		disassemble: dump_format_r2
 	},
 	InstructionData {
 		mask: 0x0000707f,
