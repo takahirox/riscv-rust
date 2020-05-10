@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FSD,
 	FSW,
 	FSGNJD,
 	FSGNJXD,
@@ -265,7 +264,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FSD => "FSD",
 		Instruction::FSW => "FSW",
 		Instruction::FSGNJD => "FSGNJD",
 		Instruction::FSGNJXD => "FSGNJXD",
@@ -377,7 +375,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::URET |
 		Instruction::WFI |
 		Instruction::XOR => InstructionFormat::R,
-		Instruction::FSD |
 		Instruction::FSW |
 		Instruction::SB |
 		Instruction::SD |
@@ -1464,7 +1461,6 @@ impl Cpu {
 			},
 			0x27 => match funct3 {
 				2 => Instruction::FSW,
-				3 => Instruction::FSD,
 				_ => return Err(())
 			},
 			0x2f => match funct3 {
@@ -1958,12 +1954,6 @@ impl Cpu {
 					((word & 0x00000f80) >> 7) // imm[4:0] = [11:7]
 				) as i32 as i64;
 				match instruction {
-					Instruction::FSD => {
-						match self.mmu.store_doubleword(self.x[rs1 as usize].wrapping_add(imm) as u64, self.f[rs2 as usize].to_bits()) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-					},
 					Instruction::FSW => {
 						match self.mmu.store_word(self.x[rs1 as usize].wrapping_add(imm) as u64, self.f[rs2 as usize].to_bits() as u32) {
 							Ok(()) => {},
@@ -2282,6 +2272,42 @@ fn dump_format_r2(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> St
 	s
 }
 
+struct FormatS {
+	rs1: usize,
+	rs2: usize,
+	imm: i64
+}
+
+fn parse_format_s(word: u32) -> FormatS {
+	FormatS {
+		rs1: ((word >> 15) & 0x1f) as usize, // [19:15]
+		rs2: ((word >> 20) & 0x1f) as usize, // [24:20]
+		imm: (
+			match word & 0x80000000 {
+				0x80000000 => 0xfffff000,
+				_ => 0
+			} | // imm[31:12] = [31]
+			((word >> 20) & 0xfe0) | // imm[11:5] = [31:25]
+			((word >> 7) & 0x1f) // imm[4:0] = [11:7]
+		) as i32 as i64
+	}
+}
+
+fn dump_format_s(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> String {
+	let f = parse_format_s(word);
+	let mut s = String::new();
+	s += &format!("{}", get_register_name(f.rs2));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs2]);
+	}
+	s += &format!(",{:X}({}", f.imm, get_register_name(f.rs1));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs1]);
+	}
+	s += &format!(")");
+	s
+}
+
 struct FormatU {
 	rd: usize,
 	imm: u64
@@ -2322,7 +2348,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 59;
+const INSTRUCTION_NUM: usize = 60;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3167,6 +3193,16 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_r2
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00003027,
+		name: "FSD",
+		operation: |cpu, word, _address| {
+			let f = parse_format_s(word);
+			cpu.mmu.store_doubleword(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.f[f.rs2].to_bits())
+		},
+		disassemble: dump_format_s
 	},
 	InstructionData {
 		mask: 0x0000707f,
