@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SLL,
 	SLLI,
 	SLLIW,
 	SLLW,
@@ -229,7 +228,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SLL => "SLL",
 		Instruction::SLLI => "SLLI",
 		Instruction::SLLIW => "SLLIW",
 		Instruction::SLLW => "SLLW",
@@ -267,7 +265,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::SUBW |
-		Instruction::SLL |
 		Instruction::SLLW |
 		Instruction::SLT |
 		Instruction::SLTU |
@@ -1345,10 +1342,6 @@ impl Cpu {
 				_ => return Err(())
 			},
 			0x33 => match funct3 {
-				1 => match funct7 {
-					0 => Instruction::SLL,
-					_ => return Err(())
-				},
 				2 => match funct7 {
 					0 => Instruction::SLT,
 					_ => return Err(())
@@ -1510,9 +1503,6 @@ impl Cpu {
 					},
 					Instruction::SUBW => {
 						self.x[rd as usize] = self.x[rs1 as usize].wrapping_sub(self.x[rs2 as usize]) as i32 as i64;
-					},
-					Instruction::SLL => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize].wrapping_shl(self.x[rs2 as usize] as u32));
 					},
 					Instruction::SLLW => {
 						self.x[rd as usize] = (self.x[rs1 as usize] as u32).wrapping_shl(self.x[rs2 as usize] as u32) as i32 as i64;
@@ -1947,7 +1937,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 93;
+const INSTRUCTION_NUM: usize = 94;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3313,6 +3303,17 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			cpu.mmu.store_halfword(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.x[f.rs2] as u16)
 		},
 		disassemble: dump_format_s
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x00001033,
+		name: "SLL",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_shl(cpu.x[f.rs2] as u32));
+			Ok(())
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xfe00707f,
