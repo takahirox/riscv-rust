@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FLW,
 	FMADDD,
 	FMVDX,
 	FMVXD,
@@ -272,7 +271,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FLW => "FLW",
 		Instruction::FMADDD => "FMADD.D",
 		Instruction::FMVDX => "FMV.D.X",
 		Instruction::FMVXD => "FMV.X.D",
@@ -341,7 +339,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::FLW |
 		Instruction::LB |
 		Instruction::LBU |
 		Instruction::LD |
@@ -1453,10 +1450,6 @@ impl Cpu {
 				6 => Instruction::LWU,
 				_ => return Err(())
 			},
-			0x07 => match funct3 {
-				2 => Instruction::FLW,
-				_ => return Err(())
-			},
 			0x13 => match funct3 {
 				1 => Instruction::SLLI,
 				2 => Instruction::SLTI,
@@ -1643,15 +1636,6 @@ impl Cpu {
 					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
 				) as i32 as i64;
 				match instruction {
-					Instruction::FLW => {
-						// @TODO: Implement properly
-						self.f[rd as usize] = match self.mmu.load_word(self.x[rs1 as usize].wrapping_add(imm) as u64) {
-							Ok(data) => {
-								f64::from_bits(data as i32 as i64 as u64)
-							},
-							Err(e) => return Err(e)
-						};
-					},
 					Instruction::LB => {
 						self.x[rd as usize] = match self.mmu.load(self.x[rs1 as usize].wrapping_add(imm) as u64) {
 							Ok(data) => data as i8 as i64,
@@ -2281,6 +2265,21 @@ fn dump_format_i(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> Str
 	s
 }
 
+fn dump_format_i_mem(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> String {
+	let f = parse_format_i(word);
+	let mut s = String::new();
+	s += &format!("{}", get_register_name(f.rd));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rd]);
+	}
+	s += &format!(",{:X}({}", f.imm, get_register_name(f.rs1));
+	if evaluate {
+		s += &format!(":{:X}", cpu.x[f.rs1]);
+	}
+	s += &format!(")");
+	s
+}
+
 struct FormatR {
 	rd: usize,
 	rs1: usize,
@@ -2353,7 +2352,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 52;
+const INSTRUCTION_NUM: usize = 53;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3105,6 +3104,20 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00002007,
+		name: "FLW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.f[f.rd] = match cpu.mmu.load_word(cpu.x[f.rs1].wrapping_add(f.imm) as u64) {
+				Ok(data) => f64::from_bits(data as i32 as i64 as u64),
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i_mem
 	},
 	InstructionData {
 		mask: 0xfe00007f,
