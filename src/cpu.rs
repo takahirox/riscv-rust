@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FSGNJXD,
 	FSUBD,
 	JAL,
 	LB,
@@ -262,7 +261,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FSGNJXD => "FSGNJXD",
 		Instruction::FSUBD => "FSUBD",
 		Instruction::JAL => "JAL",
 		Instruction::LB => "LB",
@@ -339,7 +337,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
-		Instruction::FSGNJXD |
 		Instruction::FSUBD |
 		Instruction::LRD |
 		Instruction::LRW |
@@ -1529,10 +1526,6 @@ impl Cpu {
 			},
 			0x53 => match funct7 {
 				0x5 => Instruction::FSUBD,
-				0x11 => match funct3 {
-					2 => Instruction::FSGNJXD,
-					_ => return Err(())
-				},
 				_ => return Err(())
 			},
 			0x6f => Instruction::JAL,
@@ -1700,13 +1693,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::FSGNJXD => {
-						// @TODO: Confirm this logic is correct
-						let rs1_bits = self.f[rs1 as usize].to_bits();
-						let rs2_bits = self.f[rs2 as usize].to_bits();
-						let sign_bit = (rs1_bits ^ rs2_bits) & 0x8000000000000000;
-						self.f[rd as usize] = f64::from_bits(sign_bit | (rs1_bits & 0x7fffffffffffffff));
-					},
 					Instruction::FSUBD => {
 						self.f[rd as usize] = self.f[rs1 as usize] - self.f[rs2 as usize];
 					},
@@ -2324,7 +2310,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 62;
+const INSTRUCTION_NUM: usize = 63;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3189,6 +3175,20 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			let rs1_bits = cpu.f[f.rs1].to_bits();
 			let rs2_bits = cpu.f[f.rs2].to_bits();
 			let sign_bit = rs2_bits & 0x8000000000000000;
+			cpu.f[f.rd] = f64::from_bits(sign_bit | (rs1_bits & 0x7fffffffffffffff));
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x22002053,
+		name: "FSGNJX.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let rs1_bits = cpu.f[f.rs1].to_bits();
+			let rs2_bits = cpu.f[f.rs2].to_bits();
+			let sign_bit = (rs1_bits ^ rs2_bits) & 0x8000000000000000;
 			cpu.f[f.rd] = f64::from_bits(sign_bit | (rs1_bits & 0x7fffffffffffffff));
 			Ok(())
 		},
