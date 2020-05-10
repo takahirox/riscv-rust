@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FEQD,
 	FLD,
 	FLED,
 	FLTD,
@@ -277,7 +276,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FEQD => "FEQ.D",
 		Instruction::FLD => "FLD",
 		Instruction::FLED => "FLE.D",
 		Instruction::FLTD => "FLT.D",
@@ -371,7 +369,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
-		Instruction::FEQD |
 		Instruction::FLED |
 		Instruction::FLTD |
 		Instruction::FMADDD |
@@ -1601,7 +1598,6 @@ impl Cpu {
 				0x51 => match funct3 {
 					0 => Instruction::FLED,
 					1 => Instruction::FLTD,
-					2 => Instruction::FEQD,
 					_ => return Err(())
 				},
 				0x70 => match funct5 {
@@ -1813,12 +1809,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::FEQD => {
-						self.x[rd as usize] = match self.f[rs1 as usize] == self.f[rs2 as usize] {
-							true => 1,
-							false => 0
-						};
-					},
 					Instruction::FLED => {
 						self.x[rd as usize] = match self.f[rs1 as usize] <= self.f[rs2 as usize] {
 							true => 1,
@@ -2405,7 +2395,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 47;
+const INSTRUCTION_NUM: usize = 48;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3098,6 +3088,20 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		name: "FENCE.I",
 		operation: |_cpu, _word, _address| {
 			// Do nothing?
+			Ok(())
+		},
+		disassemble: dump_empty
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0xa2002053,
+		name: "FEQ.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = match cpu.f[f.rs1] == cpu.f[f.rs2] {
+				true => 1,
+				false => 0
+			};
 			Ok(())
 		},
 		disassemble: dump_empty
