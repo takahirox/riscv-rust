@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	LW,
 	LWU,
 	MUL,
 	MULH,
@@ -249,7 +248,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::LW => "LW",
 		Instruction::LWU => "LWU",
 		Instruction::MRET => "MRET",
 		Instruction::MUL => "MUL",
@@ -297,7 +295,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::LW |
 		Instruction::LWU |
 		Instruction::ORI |
 		Instruction::SLLI |
@@ -1379,7 +1376,6 @@ impl Cpu {
 
 		let instruction = match opcode {
 			0x03 => match funct3 {
-				2 => Instruction::LW,
 				6 => Instruction::LWU,
 				_ => return Err(())
 			},
@@ -1518,13 +1514,6 @@ impl Cpu {
 					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
 				) as i32 as i64;
 				match instruction {
-					Instruction::LW => {
-						//println!("RS1:{:X} RS1VAL:{:X}", rs1, self.x[rs1 as usize]);
-						self.x[rd as usize] = match self.mmu.load_word(self.x[rs1 as usize].wrapping_add(imm) as u64) {
-							Ok(data) => data as i32 as i64,
-							Err(e) => return Err(e)
-						};
-					},
 					Instruction::LWU => {
 						self.x[rd as usize] = match self.mmu.load_word(self.x[rs1 as usize].wrapping_add(imm) as u64) {
 							Ok(data) => data as i64,
@@ -2198,7 +2187,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 73;
+const INSTRUCTION_NUM: usize = 74;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3260,6 +3249,20 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_u
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00002003,
+		name: "LW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_i(word);
+			cpu.x[f.rd] = match cpu.mmu.load_word(cpu.x[f.rs1].wrapping_add(f.imm) as u64) {
+				Ok(data) => data as i32 as i64,
+				Err(e) => return Err(e)
+			};
+			Ok(())
+		},
+		disassemble: dump_format_i_mem
 	},
 	InstructionData {
 		mask: 0xfe00707f,
