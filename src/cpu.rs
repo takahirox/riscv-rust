@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	OR,
 	ORI,
 	REM,
 	REMU,
@@ -241,7 +240,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::OR => "OR",
 		Instruction::ORI => "ORI",
 		Instruction::REM => "REM",
 		Instruction::REMU => "REMU",
@@ -291,7 +289,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAI |
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
-		Instruction::OR |
 		Instruction::REM |
 		Instruction::REMU |
 		Instruction::REMUW |
@@ -1422,7 +1419,6 @@ impl Cpu {
 					_ => return Err(())
 				},
 				6 => match funct7 {
-					0 => Instruction::OR,
 					1 => Instruction::REM,
 					_ => return Err(())
 				},
@@ -1577,9 +1573,6 @@ impl Cpu {
 							_ => panic!() // shouldn't happen
 						};
 						self.mmu.update_privilege_mode(self.privilege_mode.clone());
-					},
-					Instruction::OR => {
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] | self.x[rs2 as usize]);
 					},
 					Instruction::REM => {
 						self.x[rd as usize] = match self.x[rs2 as usize] {
@@ -2095,7 +2088,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 81;
+const INSTRUCTION_NUM: usize = 82;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3287,6 +3280,17 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_empty
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x00006033,
+		name: "OR",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] | cpu.x[f.rs2]);
+			Ok(())
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xfe00707f,
