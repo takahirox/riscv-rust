@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FENCE,
 	FEQD,
 	FLD,
 	FLED,
@@ -192,7 +191,6 @@ enum Instruction {
 enum InstructionFormat {
 	I,
 	J,
-	O, // Other, temporal format name
 	R,
 	S,
 	U
@@ -279,7 +277,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FENCE => "FENCE",
 		Instruction::FEQD => "FEQ.D",
 		Instruction::FLD => "FLD",
 		Instruction::FLED => "FLE.D",
@@ -374,7 +371,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
-		Instruction::FENCE => InstructionFormat::O,
 		Instruction::FEQD |
 		Instruction::FLED |
 		Instruction::FLTD |
@@ -1477,7 +1473,6 @@ impl Cpu {
 				3 => Instruction::FLD,
 				_ => return Err(())
 			},
-			0x0f => Instruction::FENCE,
 			0x13 => match funct3 {
 				1 => Instruction::SLLI,
 				2 => Instruction::SLTI,
@@ -1804,18 +1799,6 @@ impl Cpu {
 					Instruction::JAL => {
 						self.x[rd as usize] = self.sign_extend(self.pc as i64);
 						self.pc = instruction_address.wrapping_add(imm);
-					},
-					_ => {
-						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(instruction_address);
-						panic!();
-					}
-				};
-			},
-			InstructionFormat::O => {
-				match instruction {
-					Instruction::FENCE => {
-						// @TODO: Implement
 					},
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
@@ -2422,7 +2405,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 45;
+const INSTRUCTION_NUM: usize = 47;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3098,6 +3081,26 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x0000000f,
+		name: "FENCE",
+		operation: |_cpu, _word, _address| {
+			// Do nothing?
+			Ok(())
+		},
+		disassemble: dump_empty
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x0000100f,
+		name: "FENCE.I",
+		operation: |_cpu, _word, _address| {
+			// Do nothing?
+			Ok(())
+		},
+		disassemble: dump_empty
 	},
 	InstructionData {
 		mask: 0x0000707f,
