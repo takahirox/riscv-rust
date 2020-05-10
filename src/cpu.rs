@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SRAIW,
 	SRAW,
 	SRET,
 	SRL,
@@ -219,7 +218,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SRAIW => "SRAIW",
 		Instruction::SRAW => "SRAW",
 		Instruction::SRET => "SRET",
 		Instruction::SRL => "SRL",
@@ -239,7 +237,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
 		Instruction::SRLI |
 		Instruction::SRLIW |
-		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::SUBW |
 		Instruction::SRAW |
@@ -1300,7 +1297,6 @@ impl Cpu {
 			0x1b => match funct3 {
 				5 => match funct7 {
 					0 => Instruction::SRLIW,
-					0x20 => Instruction::SRAIW,
 					_ => return Err(())
 				},
 				_ => return Err(())
@@ -1364,10 +1360,6 @@ impl Cpu {
 					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
 				) as i32 as i64;
 				match instruction {
-					Instruction::SRAIW => {
-						let shamt = (imm as u32) & 0x1f;
-						self.x[rd as usize] = ((self.x[rs1 as usize] as i32) >> shamt) as i32 as i64;
-					},
 					Instruction::SRLI => {
 						let shamt = (imm & match self.xlen {
 							Xlen::Bit32 => 0x1f,
@@ -1847,7 +1839,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 103;
+const INSTRUCTION_NUM: usize = 104;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3343,6 +3335,18 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			};
 			let shamt = (word >> 20) & mask;
 			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] >> shamt);
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfc00707f,
+		data: 0x4000501b,
+		name: "SRAIW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let shamt = ((word >> 20) & 0x1f) as u32;
+			cpu.x[f.rd] = ((cpu.x[f.rs1] as i32) >> shamt) as i32 as i64;
 			Ok(())
 		},
 		disassemble: dump_format_r
