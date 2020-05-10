@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SD,
 	SFENCEVMA,
 	SH,
 	SLL,
@@ -232,7 +231,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SD => "SD",
 		Instruction::SFENCEVMA => "SFENCE_VMA",
 		Instruction::SH => "SH",
 		Instruction::SLL => "SLL",
@@ -286,7 +284,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::URET |
 		Instruction::WFI |
 		Instruction::XOR => InstructionFormat::R,
-		Instruction::SD |
 		Instruction::SH |
 		Instruction::SW => InstructionFormat::S,
 	}
@@ -1352,7 +1349,6 @@ impl Cpu {
 			0x23 => match funct3 {
 				1 => Instruction::SH,
 				2 => Instruction::SW,
-				3 => Instruction::SD,
 				_ => return Err(())
 			},
 			0x33 => match funct3 {
@@ -1589,12 +1585,6 @@ impl Cpu {
 					},
 					Instruction::SW => {
 						match self.mmu.store_word(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u32) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-					},
-					Instruction::SD => {
-						match self.mmu.store_doubleword(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u64) {
 							Ok(()) => {},
 							Err(e) => return Err(e)
 						};
@@ -1974,7 +1964,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 90;
+const INSTRUCTION_NUM: usize = 91;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3310,6 +3300,16 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00003023,
+		name: "SD",
+		operation: |cpu, word, _address| {
+			let f = parse_format_s(word);
+			cpu.mmu.store_doubleword(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.x[f.rs2] as u64)
+		},
+		disassemble: dump_format_s
 	},
 	InstructionData {
 		mask: 0xfe00707f,
