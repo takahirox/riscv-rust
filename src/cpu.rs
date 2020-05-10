@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SH,
 	SLL,
 	SLLI,
 	SLLIW,
@@ -230,7 +229,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SH => "SH",
 		Instruction::SLL => "SLL",
 		Instruction::SLLI => "SLLI",
 		Instruction::SLLIW => "SLLIW",
@@ -281,7 +279,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::URET |
 		Instruction::WFI |
 		Instruction::XOR => InstructionFormat::R,
-		Instruction::SH |
 		Instruction::SW => InstructionFormat::S,
 	}
 }
@@ -1344,7 +1341,6 @@ impl Cpu {
 				_ => return Err(())
 			},
 			0x23 => match funct3 {
-				1 => Instruction::SH,
 				2 => Instruction::SW,
 				_ => return Err(())
 			},
@@ -1570,12 +1566,6 @@ impl Cpu {
 					((word & 0x00000f80) >> 7) // imm[4:0] = [11:7]
 				) as i32 as i64;
 				match instruction {
-					Instruction::SH => {
-						match self.mmu.store_halfword(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u16) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-					},
 					Instruction::SW => {
 						match self.mmu.store_word(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u32) {
 							Ok(()) => {},
@@ -1957,7 +1947,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 92;
+const INSTRUCTION_NUM: usize = 93;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3313,6 +3303,16 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_empty
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00001023,
+		name: "SH",
+		operation: |cpu, word, _address| {
+			let f = parse_format_s(word);
+			cpu.mmu.store_halfword(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.x[f.rs2] as u16)
+		},
+		disassemble: dump_format_s
 	},
 	InstructionData {
 		mask: 0xfe00707f,
