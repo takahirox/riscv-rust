@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SFENCEVMA,
 	SH,
 	SLL,
 	SLLI,
@@ -231,7 +230,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SFENCEVMA => "SFENCE_VMA",
 		Instruction::SH => "SH",
 		Instruction::SLL => "SLL",
 		Instruction::SLLI => "SLLI",
@@ -271,7 +269,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::SUBW |
-		Instruction::SFENCEVMA |
 		Instruction::SLL |
 		Instruction::SLLW |
 		Instruction::SLT |
@@ -1391,7 +1388,6 @@ impl Cpu {
 			0x73 => match funct3 {
 				0 => {
 					match funct7 {
-						9 => Instruction::SFENCEVMA,
 						_ => match word {
 							0x00200073 => Instruction::URET,
 							0x10200073 => Instruction::SRET,
@@ -1515,9 +1511,6 @@ impl Cpu {
 							_ => panic!() // shouldn't happen
 						};
 						self.mmu.update_privilege_mode(self.privilege_mode.clone());
-					},
-					Instruction::SFENCEVMA => {
-						// @TODO: Implement
 					},
 					Instruction::SUBW => {
 						self.x[rd as usize] = self.x[rs1 as usize].wrapping_sub(self.x[rs2 as usize]) as i32 as i64;
@@ -1964,7 +1957,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 91;
+const INSTRUCTION_NUM: usize = 92;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3310,6 +3303,16 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			cpu.mmu.store_doubleword(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.x[f.rs2] as u64)
 		},
 		disassemble: dump_format_s
+	},
+	InstructionData {
+		mask: 0xfe007fff,
+		data: 0x12000073,
+		name: "SFENCE.VMA",
+		operation: |_cpu, _word, _address| {
+			// Do nothing?
+			Ok(())
+		},
+		disassemble: dump_empty
 	},
 	InstructionData {
 		mask: 0xfe00707f,
