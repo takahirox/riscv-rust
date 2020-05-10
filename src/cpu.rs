@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SRAI,
 	SRAIW,
 	SRAW,
 	SRET,
@@ -220,7 +219,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SRAI => "SRAI",
 		Instruction::SRAIW => "SRAIW",
 		Instruction::SRAW => "SRAW",
 		Instruction::SRET => "SRET",
@@ -241,7 +239,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
 		Instruction::SRLI |
 		Instruction::SRLIW |
-		Instruction::SRAI |
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::SUBW |
@@ -1296,7 +1293,6 @@ impl Cpu {
 				5 => match funct7 & !1 {
 					0 => Instruction::SRLI,
 					1 => Instruction::SRLI, // temporal workaround for xv6
-					0x20 => Instruction::SRAI,
 					_ => return Err(())
 				}
 				_ => return Err(())
@@ -1368,13 +1364,6 @@ impl Cpu {
 					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
 				) as i32 as i64;
 				match instruction {
-					Instruction::SRAI => {
-						let shamt = (imm & match self.xlen {
-							Xlen::Bit32 => 0x1f,
-							Xlen::Bit64 => 0x3f
-						}) as u32;
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] >> shamt);
-					},
 					Instruction::SRAIW => {
 						let shamt = (imm as u32) & 0x1f;
 						self.x[rd as usize] = ((self.x[rs1 as usize] as i32) >> shamt) as i32 as i64;
@@ -1858,7 +1847,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 102;
+const INSTRUCTION_NUM: usize = 103;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3338,6 +3327,22 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_shr(cpu.x[f.rs2] as u32));
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfc00707f,
+		data: 0x40005013,
+		name: "SRAI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let mask = match cpu.xlen {
+				Xlen::Bit32 => 0x1f,
+				Xlen::Bit64 => 0x3f
+			};
+			let shamt = (word >> 20) & mask;
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] >> shamt);
 			Ok(())
 		},
 		disassemble: dump_format_r
