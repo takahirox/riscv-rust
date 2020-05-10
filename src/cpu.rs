@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	FDIVD,
 	FENCE,
 	FEQD,
 	FLD,
@@ -280,7 +279,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::FDIVD => "FDIV.D",
 		Instruction::FENCE => "FENCE",
 		Instruction::FEQD => "FEQ.D",
 		Instruction::FLD => "FLD",
@@ -377,7 +375,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
 		Instruction::FENCE => InstructionFormat::O,
-		Instruction::FDIVD |
 		Instruction::FEQD |
 		Instruction::FLED |
 		Instruction::FLTD |
@@ -908,7 +905,7 @@ impl Cpu {
 		self.csr[CSR_FCSR_ADDRESS as usize] |= 0x10;
 	}
 
-	fn _set_fcsr_dz(&mut self) {
+	fn set_fcsr_dz(&mut self) {
 		self.csr[CSR_FCSR_ADDRESS as usize] |= 0x8;
 	}
 
@@ -1601,7 +1598,6 @@ impl Cpu {
 			0x53 => match funct7 {
 				0x5 => Instruction::FSUBD,
 				0x9 => Instruction::FMULD,
-				0xd => Instruction::FDIVD,
 				0x11 => match funct3 {
 					0 => Instruction::FSGNJD,
 					2 => Instruction::FSGNJXD,
@@ -1834,12 +1830,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::FDIVD => {
-						self.f[rd as usize] = match self.f[rs2 as usize] == 0.0 {
-							true => 0.0, // @TODO: Implement properly
-							false => self.f[rs1 as usize] / self.f[rs2 as usize]
-						};
-					},
 					Instruction::FEQD => {
 						self.x[rd as usize] = match self.f[rs1 as usize] == self.f[rs2 as usize] {
 							true => 1,
@@ -2432,7 +2422,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 44;
+const INSTRUCTION_NUM: usize = 45;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3083,6 +3073,28 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			let f = parse_format_r(word);
 			// Is this implementation correct?
 			cpu.x[f.rd] = cpu.f[f.rs1] as u32 as i32 as i64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00007f,
+		data: 0x1a000053,
+		name: "FDIV.D",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let dividend = cpu.f[f.rs1];
+			let divisor = cpu.f[f.rs2];
+			// Is this implementation correct?
+			if divisor == 0.0 {
+				cpu.f[f.rd] = std::f64::INFINITY;
+				cpu.set_fcsr_dz();
+			} else if divisor == -0.0 {
+				cpu.f[f.rd] = std::f64::NEG_INFINITY;
+				cpu.set_fcsr_dz();
+			} else {
+				cpu.f[f.rd] = dividend / divisor;
+			}
 			Ok(())
 		},
 		disassemble: dump_format_r
