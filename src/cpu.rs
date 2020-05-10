@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SW,
 	URET,
 	WFI,
 	XOR,
@@ -127,7 +126,6 @@ enum Instruction {
 enum InstructionFormat {
 	I,
 	R,
-	S
 }
 
 fn _get_privilege_mode_name(mode: &PrivilegeMode) -> &'static str {
@@ -211,7 +209,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SW => "SW",
 		Instruction::URET => "URET",
 		Instruction::WFI => "WFI",
 		Instruction::XOR => "XOR",
@@ -225,7 +222,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::URET |
 		Instruction::WFI |
 		Instruction::XOR => InstructionFormat::R,
-		Instruction::SW => InstructionFormat::S,
 	}
 }
 
@@ -1268,10 +1264,6 @@ impl Cpu {
 				4 => Instruction::XORI,
 				_ => return Err(())
 			},
-			0x23 => match funct3 {
-				2 => Instruction::SW,
-				_ => return Err(())
-			},
 			0x33 => match funct3 {
 				4 => match funct7 {
 					0 => Instruction::XOR,
@@ -1350,31 +1342,6 @@ impl Cpu {
 					},
 					Instruction::XOR => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] ^ self.x[rs2 as usize]);
-					},
-					_ => {
-						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
-						self.dump_instruction(instruction_address);
-						panic!();
-					}
-				};
-			},
-			InstructionFormat::S => {
-				let rs1 = (word >> 15) & 0x1f; // [19:15]
-				let rs2 = (word >> 20) & 0x1f; // [24:20]
-				let imm = (
-					match word & 0x80000000 {
-						0x80000000 => 0xfffff000,
-						_ => 0
-					} | // imm[31:12] = [31]
-					((word & 0xfe000000) >> 20) | // imm[11:5] = [31:25],
-					((word & 0x00000f80) >> 7) // imm[4:0] = [11:7]
-				) as i32 as i64;
-				match instruction {
-					Instruction::SW => {
-						match self.mmu.store_word(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u32) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
 					},
 					_ => {
 						println!("{}", get_instruction_name(&instruction).to_owned() + " instruction is not supported yet.");
@@ -1751,7 +1718,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 111;
+const INSTRUCTION_NUM: usize = 112;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3375,5 +3342,15 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00002023,
+		name: "SW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_s(word);
+			cpu.mmu.store_word(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.x[f.rs2] as u32)
+		},
+		disassemble: dump_format_s
 	},
 ];
