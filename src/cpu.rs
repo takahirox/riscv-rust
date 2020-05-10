@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SRAW,
 	SRET,
 	SRL,
 	SRLI,
@@ -218,7 +217,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SRAW => "SRAW",
 		Instruction::SRET => "SRET",
 		Instruction::SRL => "SRL",
 		Instruction::SRLI => "SRLI",
@@ -239,7 +237,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRLIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::SUBW |
-		Instruction::SRAW |
 		Instruction::SRET |
 		Instruction::SRL |
 		Instruction::SRLW |
@@ -1323,7 +1320,6 @@ impl Cpu {
 				},
 				5 => match funct7 {
 					0 => Instruction::SRLW,
-					0x20 => Instruction::SRAW,
 					_ => return Err(())
 				},
 				_ => return Err(())
@@ -1423,9 +1419,6 @@ impl Cpu {
 					},
 					Instruction::SUBW => {
 						self.x[rd as usize] = self.x[rs1 as usize].wrapping_sub(self.x[rs2 as usize]) as i32 as i64;
-					},
-					Instruction::SRAW => {
-						self.x[rd as usize] = (self.x[rs1 as usize] as i32).wrapping_shr(self.x[rs2 as usize] as u32) as i32 as i64;
 					},
 					Instruction::SRL => {
 						self.x[rd as usize] = self.sign_extend(self.unsigned_data(self.x[rs1 as usize]).wrapping_shr(self.x[rs2 as usize] as u32) as i64);
@@ -1839,7 +1832,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 104;
+const INSTRUCTION_NUM: usize = 105;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3346,7 +3339,18 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			let shamt = ((word >> 20) & 0x1f) as u32;
-			cpu.x[f.rd] = ((cpu.x[f.rs1] as i32) >> shamt) as i32 as i64;
+			cpu.x[f.rd] = ((cpu.x[f.rs1] as i32) >> shamt) as i64;
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x4000503b,
+		name: "SRAW",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			cpu.x[f.rd] = (cpu.x[f.rs1] as i32).wrapping_shr(cpu.x[f.rs2] as u32) as i64;
 			Ok(())
 		},
 		disassemble: dump_format_r
