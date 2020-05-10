@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SRLI,
 	SRLIW,
 	SRLW,
 	SUBW,
@@ -215,7 +214,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SRLI => "SRLI",
 		Instruction::SRLIW => "SRLIW",
 		Instruction::SRLW => "SRLW",
 		Instruction::SUBW => "SUBW",
@@ -229,7 +227,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::SRLI |
 		Instruction::SRLIW |
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::SUBW |
@@ -1278,11 +1275,6 @@ impl Cpu {
 		let instruction = match opcode {
 			0x13 => match funct3 {
 				4 => Instruction::XORI,
-				5 => match funct7 & !1 {
-					0 => Instruction::SRLI,
-					1 => Instruction::SRLI, // temporal workaround for xv6
-					_ => return Err(())
-				}
 				_ => return Err(())
 			},
 			0x1b => match funct3 {
@@ -1345,13 +1337,6 @@ impl Cpu {
 					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
 				) as i32 as i64;
 				match instruction {
-					Instruction::SRLI => {
-						let shamt = (imm & match self.xlen {
-							Xlen::Bit32 => 0x1f,
-							Xlen::Bit64 => 0x3f
-						}) as u32;
-						self.x[rd as usize] = self.sign_extend((self.unsigned_data(self.x[rs1 as usize]) >> shamt) as i64);
-					},
 					Instruction::SRLIW => {
 						let shamt = (imm as u32) & 0x1f;
 						self.x[rd as usize] = ((self.x[rs1 as usize] as u32) >> shamt) as i32 as i64;
@@ -1803,7 +1788,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 107;
+const INSTRUCTION_NUM: usize = 108;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3330,7 +3315,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		mask: 0xffffffff,
 		data: 0x10200073,
 		name: "SRET",
-		operation: |cpu, word, _address| {
+		operation: |cpu, _word, _address| {
 			// @TODO: Throw error if higher privilege return instruction is executed
 			cpu.pc = match cpu.read_csr(CSR_SEPC_ADDRESS) {
 				Ok(data) => data,
@@ -3359,6 +3344,22 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.unsigned_data(cpu.x[f.rs1]).wrapping_shr(cpu.x[f.rs2] as u32) as i64);
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfc00707f,
+		data: 0x00005013,
+		name: "SRLI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let mask = match cpu.xlen {
+				Xlen::Bit32 => 0x1f,
+				Xlen::Bit64 => 0x3f
+			};
+			let shamt = (word >> 20) & mask;
+			cpu.x[f.rd] = cpu.sign_extend((cpu.unsigned_data(cpu.x[f.rs1]) >> shamt) as i64);
 			Ok(())
 		},
 		disassemble: dump_format_r
