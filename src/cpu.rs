@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	WFI,
 	XOR,
 	XORI
 }
@@ -208,7 +207,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::WFI => "WFI",
 		Instruction::XOR => "XOR",
 		Instruction::XORI => "XORI"
 	}
@@ -217,7 +215,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
 		Instruction::XORI => InstructionFormat::I,
-		Instruction::WFI |
 		Instruction::XOR => InstructionFormat::R,
 	}
 }
@@ -1268,17 +1265,6 @@ impl Cpu {
 				},
 				_ => return Err(())
 			},
-			0x73 => match funct3 {
-				0 => {
-					match funct7 {
-						_ => match word {
-							0x10500073 => Instruction::WFI,
-							_ => return Err(())
-						}
-					}
-				}
-				_ => return Err(())
-			},
 			_ => return Err(())
 		};
 		Ok(instruction)
@@ -1314,9 +1300,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::WFI => {
-						self.wfi = true;
-					},
 					Instruction::XOR => {
 						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] ^ self.x[rs2 as usize]);
 					},
@@ -1695,7 +1678,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 113;
+const INSTRUCTION_NUM: usize = 114;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3337,6 +3320,16 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |_cpu, _word, _address| {
 			// @TODO: Implement
 			panic!("URET instruction is not implemented yet.");
+		},
+		disassemble: dump_empty
+	},
+	InstructionData {
+		mask: 0xffffffff,
+		data: 0x10500073,
+		name: "WFI",
+		operation: |cpu, _word, _address| {
+			cpu.wfi = true;
+			Ok(())
 		},
 		disassemble: dump_empty
 	},
