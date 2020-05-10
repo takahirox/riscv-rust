@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SB,
 	SCD,
 	SCW,
 	SD,
@@ -235,7 +234,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SB => "SB",
 		Instruction::SCD => "SC.D",
 		Instruction::SCW => "SC.W",
 		Instruction::SD => "SD",
@@ -294,7 +292,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::URET |
 		Instruction::WFI |
 		Instruction::XOR => InstructionFormat::R,
-		Instruction::SB |
 		Instruction::SD |
 		Instruction::SH |
 		Instruction::SW => InstructionFormat::S,
@@ -1359,7 +1356,6 @@ impl Cpu {
 				_ => return Err(())
 			},
 			0x23 => match funct3 {
-				0 => Instruction::SB,
 				1 => Instruction::SH,
 				2 => Instruction::SW,
 				3 => Instruction::SD,
@@ -1636,12 +1632,6 @@ impl Cpu {
 					((word & 0x00000f80) >> 7) // imm[4:0] = [11:7]
 				) as i32 as i64;
 				match instruction {
-					Instruction::SB => {
-						match self.mmu.store(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u8) {
-							Ok(()) => {},
-							Err(e) => return Err(e)
-						};
-					},
 					Instruction::SH => {
 						match self.mmu.store_halfword(self.x[rs1 as usize].wrapping_add(imm) as u64, self.x[rs2 as usize] as u16) {
 							Ok(()) => {},
@@ -2035,7 +2025,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 87;
+const INSTRUCTION_NUM: usize = 88;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3319,6 +3309,16 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0x0000707f,
+		data: 0x00000023,
+		name: "SB",
+		operation: |cpu, word, _address| {
+			let f = parse_format_s(word);
+			cpu.mmu.store(cpu.x[f.rs1].wrapping_add(f.imm) as u64, cpu.x[f.rs2] as u8)
+		},
+		disassemble: dump_format_s
 	},
 	InstructionData {
 		mask: 0xfe00707f,
