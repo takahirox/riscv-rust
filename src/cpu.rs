@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	REM,
 	REMU,
 	REMUW,
 	REMW,
@@ -239,7 +238,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::REM => "REM",
 		Instruction::REMU => "REMU",
 		Instruction::REMUW => "REMUW",
 		Instruction::REMW => "REMW",
@@ -286,7 +284,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAI |
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
-		Instruction::REM |
 		Instruction::REMU |
 		Instruction::REMUW |
 		Instruction::REMW |
@@ -1414,10 +1411,6 @@ impl Cpu {
 					0x20 => Instruction::SRA,
 					_ => return Err(())
 				},
-				6 => match funct7 {
-					1 => Instruction::REM,
-					_ => return Err(())
-				},
 				7 => match funct7 {
 					1 => Instruction::REMU,
 					_ => return Err(())
@@ -1566,12 +1559,6 @@ impl Cpu {
 							_ => panic!() // shouldn't happen
 						};
 						self.mmu.update_privilege_mode(self.privilege_mode.clone());
-					},
-					Instruction::REM => {
-						self.x[rd as usize] = match self.x[rs2 as usize] {
-							0 => self.x[rs1 as usize],
-							_ => self.sign_extend(self.x[rs1 as usize].wrapping_rem(self.x[rs2 as usize]))
-						};
 					},
 					Instruction::REMU => {
 						self.x[rd as usize] = match self.x[rs2 as usize] {
@@ -2081,7 +2068,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 83;
+const INSTRUCTION_NUM: usize = 84;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3252,7 +3239,7 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		mask: 0xffffffff,
 		data: 0x30200073,
 		name: "MRET",
-		operation: |cpu, word, _address| {
+		operation: |cpu, _word, _address| {
 			cpu.pc = match cpu.read_csr(CSR_MEPC_ADDRESS) {
 				Ok(data) => data,
 				Err(e) => return Err(e)
@@ -3295,6 +3282,25 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_i
+	},
+	InstructionData {
+		mask: 0xfe00707f,
+		data: 0x02006033,
+		name: "REM",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let dividend = cpu.x[f.rs1];
+			let divisor = cpu.x[f.rs2];
+			if divisor == 0 {
+				cpu.x[f.rd] = dividend;
+			} else if dividend == cpu.most_negative() && divisor == -1 {
+				cpu.x[f.rd] = 0;
+			} else {
+				cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_rem(cpu.x[f.rs2]));
+			}
+			Ok(())
+		},
+		disassemble: dump_format_r
 	},
 	InstructionData {
 		mask: 0xfe00707f,
