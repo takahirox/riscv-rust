@@ -114,7 +114,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	ECALL,
 	FADDD,
 	FCVTDL,
 	FCVTDW,
@@ -285,7 +284,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::ECALL => "ECALL",
 		Instruction::FADDD => "FADD.D",
 		Instruction::FCVTDL => "FCVT.D.L",
 		Instruction::FCVTDS => "FCVT.D.S",
@@ -390,7 +388,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::XORI => InstructionFormat::I,
 		Instruction::JAL => InstructionFormat::J,
 		Instruction::FENCE => InstructionFormat::O,
-		Instruction::ECALL |
 		Instruction::FADDD |
 		Instruction::FCVTDL |
 		Instruction::FCVTDS |
@@ -1656,7 +1653,6 @@ impl Cpu {
 					match funct7 {
 						9 => Instruction::SFENCEVMA,
 						_ => match word {
-							0x00000073 => Instruction::ECALL,
 							0x00200073 => Instruction::URET,
 							0x10200073 => Instruction::SRET,
 							0x10500073 => Instruction::WFI,
@@ -1845,18 +1841,6 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::ECALL => {
-						let exception_type = match self.privilege_mode {
-							PrivilegeMode::User => TrapType::EnvironmentCallFromUMode,
-							PrivilegeMode::Supervisor => TrapType::EnvironmentCallFromSMode,
-							PrivilegeMode::Machine => TrapType::EnvironmentCallFromMMode,
-							PrivilegeMode::Reserved => panic!()
-						};
-						return Err(Trap {
-							trap_type: exception_type,
-							value: instruction_address
-						});
-					},
 					Instruction::FADDD => {
 						self.f[rd as usize] = self.f[rs1 as usize] + self.f[rs2 as usize];
 					},
@@ -2477,7 +2461,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 36;
+const INSTRUCTION_NUM: usize = 37;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3031,6 +3015,24 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |_cpu, _word, _address| {
 			// @TODO: Implement
 			Ok(())
+		},
+		disassemble: dump_empty
+	},
+	InstructionData {
+		mask: 0xffffffff,
+		data: 0x00000073,
+		name: "ECALL",
+		operation: |cpu, _word, address| {
+			let exception_type = match cpu.privilege_mode {
+				PrivilegeMode::User => TrapType::EnvironmentCallFromUMode,
+				PrivilegeMode::Supervisor => TrapType::EnvironmentCallFromSMode,
+				PrivilegeMode::Machine => TrapType::EnvironmentCallFromMMode,
+				PrivilegeMode::Reserved => panic!("Unknown Privilege mode")
+			};
+			return Err(Trap {
+				trap_type: exception_type,
+				value: address
+			});
 		},
 		disassemble: dump_empty
 	},
