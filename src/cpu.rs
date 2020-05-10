@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	MRET,
 	OR,
 	ORI,
 	REM,
@@ -242,7 +241,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::MRET => "MRET",
 		Instruction::OR => "OR",
 		Instruction::ORI => "ORI",
 		Instruction::REM => "REM",
@@ -293,7 +291,6 @@ fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 		Instruction::SRAI |
 		Instruction::SRAIW |
 		Instruction::XORI => InstructionFormat::I,
-		Instruction::MRET |
 		Instruction::OR |
 		Instruction::REM |
 		Instruction::REMU |
@@ -1458,7 +1455,6 @@ impl Cpu {
 							0x00200073 => Instruction::URET,
 							0x10200073 => Instruction::SRET,
 							0x10500073 => Instruction::WFI,
-							0x30200073 => Instruction::MRET,
 							_ => return Err(())
 						}
 					}
@@ -1548,13 +1544,11 @@ impl Cpu {
 				let rs2 = (word >> 20) & 0x1f; // [24:20]
 				let rs3 = (word >> 27) & 0x1f; //[31:27]
 				match instruction {
-					Instruction::MRET |
 					Instruction::SRET |
 					Instruction::URET => {
 						// @TODO: Throw error if higher privilege return instruction is executed
 						// @TODO: Implement propertly
 						let csr_epc_address = match instruction {
-							Instruction::MRET => CSR_MEPC_ADDRESS,
 							Instruction::SRET => CSR_SEPC_ADDRESS,
 							Instruction::URET => CSR_UEPC_ADDRESS,
 							_ => panic!() // shouldn't happen
@@ -1564,20 +1558,6 @@ impl Cpu {
 							Err(e) => return Err(e)
 						};
 						match instruction {
-							Instruction::MRET => {
-								let status = self.read_csr_raw(CSR_MSTATUS_ADDRESS);
-								let mpie = (status >> 7) & 1;
-								let mpp = (status >> 11) & 0x3;
-								// Override MIE[3] with MPIE[7], set MPIE[7] to 1, set MPP[12:11] to 0
-								let new_status = (status & !0x1888) | (mpie << 3) | (1 << 7);
-								self.write_csr_raw(CSR_MSTATUS_ADDRESS, new_status);
-								self.privilege_mode = match mpp {
-									0 => PrivilegeMode::User,
-									1 => PrivilegeMode::Supervisor,
-									3 => PrivilegeMode::Machine,
-									_ => panic!() // Shouldn't happen
-								};
-							},
 							Instruction::SRET => {
 								let status = self.read_csr_raw(CSR_SSTATUS_ADDRESS);
 								let spie = (status >> 5) & 1;
@@ -2115,7 +2095,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 80;
+const INSTRUCTION_NUM: usize = 81;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3281,6 +3261,32 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 			Ok(())
 		},
 		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xffffffff,
+		data: 0x30200073,
+		name: "MRET",
+		operation: |cpu, word, _address| {
+			cpu.pc = match cpu.read_csr(CSR_MEPC_ADDRESS) {
+				Ok(data) => data,
+				Err(e) => return Err(e)
+			};
+			let status = cpu.read_csr_raw(CSR_MSTATUS_ADDRESS);
+			let mpie = (status >> 7) & 1;
+			let mpp = (status >> 11) & 0x3;
+			// Override MIE[3] with MPIE[7], set MPIE[7] to 1, set MPP[12:11] to 0
+			let new_status = (status & !0x1888) | (mpie << 3) | (1 << 7);
+			cpu.write_csr_raw(CSR_MSTATUS_ADDRESS, new_status);
+			cpu.privilege_mode = match mpp {
+				0 => PrivilegeMode::User,
+				1 => PrivilegeMode::Supervisor,
+				3 => PrivilegeMode::Machine,
+				_ => panic!() // Shouldn't happen
+			};
+			cpu.mmu.update_privilege_mode(cpu.privilege_mode.clone());
+			Ok(())
+		},
+		disassemble: dump_empty
 	},
 	InstructionData {
 		mask: 0xfe00707f,
