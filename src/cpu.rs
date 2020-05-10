@@ -117,7 +117,6 @@ pub enum TrapType {
 }
 
 enum Instruction {
-	SLLI,
 	SLLIW,
 	SLLW,
 	SLT,
@@ -228,7 +227,6 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 
 fn get_instruction_name(instruction: &Instruction) -> &'static str {
 	match instruction {
-		Instruction::SLLI => "SLLI",
 		Instruction::SLLIW => "SLLIW",
 		Instruction::SLLW => "SLLW",
 		Instruction::SLT => "SLT",
@@ -255,7 +253,6 @@ fn get_instruction_name(instruction: &Instruction) -> &'static str {
 
 fn get_instruction_format(instruction: &Instruction) -> InstructionFormat {
 	match instruction {
-		Instruction::SLLI |
 		Instruction::SLLIW |
 		Instruction::SLTI |
 		Instruction::SLTIU |
@@ -1316,7 +1313,6 @@ impl Cpu {
 
 		let instruction = match opcode {
 			0x13 => match funct3 {
-				1 => Instruction::SLLI,
 				2 => Instruction::SLTI,
 				3 => Instruction::SLTIU,
 				4 => Instruction::XORI,
@@ -1406,13 +1402,6 @@ impl Cpu {
 					((word >> 20) & 0x000007ff) // imm[10:0] = [30:20]
 				) as i32 as i64;
 				match instruction {
-					Instruction::SLLI => {
-						let shamt = (imm & match self.xlen {
-							Xlen::Bit32 => 0x1f,
-							Xlen::Bit64 => 0x3f
-						}) as u32;
-						self.x[rd as usize] = self.sign_extend(self.x[rs1 as usize] << shamt);
-					},
 					Instruction::SLLIW => {
 						let shamt = (imm as u32) & 0x1f;
 						self.x[rd as usize] = (self.x[rs1 as usize] << shamt) as i32 as i64;
@@ -1937,7 +1926,7 @@ fn get_register_name(num: usize) -> &'static str {
 	}
 }
 
-const INSTRUCTION_NUM: usize = 94;
+const INSTRUCTION_NUM: usize = 95;
 
 // @TODO: Reorder in often used order as 
 // @TODO: Move all the instructions to INSTRUCTIONS from the current decode() and operate()
@@ -3311,6 +3300,22 @@ const INSTRUCTIONS: [InstructionData; INSTRUCTION_NUM] = [
 		operation: |cpu, word, _address| {
 			let f = parse_format_r(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1].wrapping_shl(cpu.x[f.rs2] as u32));
+			Ok(())
+		},
+		disassemble: dump_format_r
+	},
+	InstructionData {
+		mask: 0xfc00707f,
+		data: 0x00001013,
+		name: "SLLI",
+		operation: |cpu, word, _address| {
+			let f = parse_format_r(word);
+			let mask = match cpu.xlen {
+				Xlen::Bit32 => 0x1f,
+				Xlen::Bit64 => 0x3f
+			};
+			let shamt = (word >> 20) & mask;
+			cpu.x[f.rd] = cpu.sign_extend(cpu.x[f.rs1] << shamt);
 			Ok(())
 		},
 		disassemble: dump_format_r
