@@ -37,6 +37,14 @@ impl WasmRiscv {
 		}
 	}
 
+	pub fn disassemble_next_instruction(&mut self) {
+		let s = self.emulator.get_mut_cpu().disassemble_next_instruction();
+		let bytes = s.as_bytes();
+		for i in 0..bytes.len() {
+			self.emulator.get_mut_terminal().put_byte(bytes[i]);
+		}
+	}
+
 	pub fn get_output(&mut self) -> u8 {
 		self.emulator.get_mut_terminal().get_output()
 	}

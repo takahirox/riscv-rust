@@ -1231,11 +1231,12 @@ impl Cpu {
 		0xffffffff // Return invalid value
 	}
 
-	pub fn dump_next_instruction(&mut self) -> String {
+	pub fn disassemble_next_instruction(&mut self) -> String {
 		// @TODO: Fetching can make a side effect,
-		// for example updating page table entry or update peripheral hardware registers
-		// by accessing them. How can we avoid it?
-		let original_word = match self.mmu.fetch_word(self.pc) {
+		// for example updating page table entry or update peripheral hardware registers.
+		// But ideally disassembling doesn't want to cause any side effect.
+		// How can we avoid side effect?
+		let mut original_word = match self.mmu.fetch_word(self.pc) {
 			Ok(data) => data,
 			Err(_e) => {
 				return format!("PC:{:016x}, InstructionPageFault Trap!\n", self.pc);
@@ -1244,19 +1245,24 @@ impl Cpu {
 
 		let word = match (original_word & 0x3) == 0x3 {
 			true => original_word,
-			false => self.uncompress(original_word & 0xffff)
+			false => {
+				original_word &= 0xffff;
+				self.uncompress(original_word)
+			}
 		};
 
-		let inst = match self.decode(word) {
+		let inst = {match self.decode(word) {
 			Ok(inst) => inst,
 			Err(()) => {
 				return format!("Unknown instruction PC:{:x} WORD:{:x}", self.pc, original_word);
 			}
-		};
+		}};
 
-		return format!("PC:{:016x}, Word:{:08x}, Inst:{}\n",
-			self.unsigned_data(self.pc as i64),
-			original_word, inst.name);
+		let mut s = format!("PC:{:016x} ", self.unsigned_data(self.pc as i64));
+		s += &format!("{:08x} ", original_word);
+		s += &format!("{} ", inst.name);
+		s += &format!("{}", (inst.disassemble)(self, word, self.pc, true));
+		s
 	}
 
 	pub fn get_mut_terminal(&mut self) -> &mut Box<dyn Terminal> {
@@ -1566,6 +1572,37 @@ fn dump_empty(_cpu: &mut Cpu, _word: u32, _address: u64, _evaluate: bool) -> Str
 fn get_register_name(num: usize) -> &'static str {
 	match num {
 		0 => "zero",
+		1 => "ra",
+		2 => "sp",
+		3 => "gp",
+		4 => "tp",
+		5 => "t0",
+		6 => "t1",
+		7 => "t2",
+		8 => "s0",
+		9 => "s1",
+		10 => "a0",
+		11 => "a1",
+		12 => "a2",
+		13 => "a3",
+		14 => "a4",
+		15 => "a5",
+		16 => "a6",
+		17 => "a7",
+		18 => "s2",
+		19 => "s3",
+		20 => "s4",
+		21 => "s5",
+		22 => "s6",
+		23 => "s7",
+		24 => "s8",
+		25 => "s9",
+		26 => "s10",
+		27 => "s11",
+		28 => "t3",
+		29 => "t4",
+		30 => "t5",
+		31 => "t6",
 		_ => panic!("Unknown register num {:X}", num)
 	}
 }

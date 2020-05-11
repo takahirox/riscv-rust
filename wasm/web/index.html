@@ -21,7 +21,17 @@
       const COLUMNS = 80;
       const MINIMUM_ROWS = 24;
 
+      const runButton = document.getElementById('run-button');
+	  const fileSelect = document.getElementById('file-select');
+	  const debuggerCheckbox = document.getElementById('debugger-checkbox');
+
+      let currentRiscv = null;
+      let inDebugMode = false;
+
       const terminal = new Terminal();
+      terminal.prompt = () => {
+        terminal.write('\r\n$ ');
+      };
       terminal.setOption('cursorBlink', true);
       terminal.setOption('convertEol', true);
       terminal.open(document.getElementById('terminal'));
@@ -39,14 +49,14 @@
       terminal.writeln('');
 
       const run = async () => {
-        document.getElementById('run-button').disabled = true;
-        document.getElementById('file-select').disabled = true;
+        runButton.disabled = true;
+        fileSelect.disabled = true;
+        debuggerCheckbox.disabled = true;
 
         terminal.clear();
         setupInputEventHandlers();
 
-        const selectElement = document.getElementById('file-select');
-        const selectedOption = selectElement.selectedOptions[0];
+        const selectedOption = fileSelect.selectedOptions[0];
         const filename = selectedOption.value;
         const isLinux = filename === 'linux/bbl';
         const isXv6 = filename === 'xv6/kernel';
@@ -78,6 +88,7 @@
         }
 
         const riscv = WasmRiscv.new();
+        currentRiscv = riscv;
         riscv.init(new Uint8Array(elfBuffer), new Uint8Array(fsBuffer), new Uint8Array(dtbBuffer));
 
         const outputToTerminal = () => {
@@ -95,19 +106,97 @@
           }
         };
 
-        const run_cycles = () => {
-          setTimeout(run_cycles, 0);
+        riscv.runCycles = () => {
+          if (inDebugMode) {
+            riscv.runStep(0);
+            return;
+          }
+          setTimeout(riscv.runCycles, 0);
           riscv.run_cycles(0x10000);
           outputToTerminal();
           while (inputs.length > 0) {
             riscv.put_input(inputs.shift());
           }
         };
-        run_cycles();
+
+        riscv.runStep = (step) => {
+          riscv.run_cycles(step);
+          riscv.disassemble_next_instruction();
+          outputToTerminal();
+          terminal.prompt();
+        };
+
+        if (debuggerCheckbox.checked) {
+          inDebugMode = true;
+          terminal.writeln('Debug mode. Commands:');
+          terminal.writeln('  c: continue');
+          terminal.writeln('  s: step');
+          terminal.writeln('  Ctrl-A: Enter debug mode');
+          terminal.writeln('');
+          riscv.runStep(0);
+        } else {
+          riscv.runCycles();
+        }
       };
 
       const setupInputEventHandlers = () => {
         terminal.onKey(event => {
+          if (inDebugMode) {
+            const printable = !event.domEvent.altKey &&
+              !event.domEvent.altGraphKey &&
+              !event.domEvent.ctrlKey &&
+              !event.domEvent.metaKey;
+            switch(event.domEvent.keyCode) {
+              case 8: // backspace
+                // Do not delete the prompt
+                if (terminal._core.buffer.x > 2) {
+                  terminal.write('\b \b');
+                }
+                break;
+              case 13: // new line
+                const lines = terminal._core.buffer.lines;
+                // Is there easier way to get last line?
+                const y = terminal._core.buffer.y < terminal.rows - 1 ? terminal._core.buffer.y : lines.length - 1;
+                const line = lines.get(y);
+                const length = line.getTrimmedLength();
+                let command = '';
+                for (let i = 2; i < length; i++) {
+                  command += line.getString(i);
+                }
+                switch (command.trim()) {
+                  case '':
+                    terminal.prompt();
+                    break;
+                  case 'c':
+                    inDebugMode = false;
+                    terminal.writeln('');
+                    currentRiscv.runCycles();
+                    break;
+                  case 's':
+                    terminal.writeln('');
+                    currentRiscv.runStep(1);
+                    break;
+                  default:
+                    terminal.writeln('');
+                    terminal.writeln('Unknown command.');
+                    terminal.prompt();
+                    break;
+                }
+                break;
+              default:
+                if (printable) {
+                  terminal.write(event.key);
+                }
+                break;
+            }
+            return;
+          }
+
+          if (debuggerCheckbox.checked && event.key.charCodeAt(0) === 1) { // Ctrl-A
+            inDebugMode = true;
+            return;
+          }
+
           // xterm.js doesn't handle function keys so
           // handling by myself here
           switch (event.domEvent.keyCode) {
@@ -179,6 +268,7 @@
               break;
             default:
               inputs.push(event.key.charCodeAt(0));
+              break;
           }
         });
         // I don't know why but terminal.onKey doesn't catch
@@ -186,7 +276,12 @@
         document.addEventListener('keydown', event => {
           switch (event.keyCode) {
             case 32: // Space
-              inputs.push(32);
+              if (inDebudMode) {
+                terminal.write(32);
+              } else {
+                inputs.push(32);
+              }
+              break;
           }
           event.preventDefault();
         });
@@ -216,9 +311,9 @@
       init()
         .then(_wasm => {
           wasm = _wasm;
-          const runButton = document.getElementById('run-button');
           runButton.addEventListener('click', run);
           runButton.disabled = false;
+          debuggerCheckbox.disabled = false;
         })
         .catch(error => console.error(error));
 
@@ -244,6 +339,7 @@
       <option value="xv6/kernel">xv6 (tiny OS)</option>
     </select>
     <button id="run-button" disabled>Run</button>
+    <input id="debugger-checkbox" type="checkbox" disabled>Debugger</input>
     <div id="terminal"></div>
     <div>
       <a href="https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html">Linux</a>, <a href="https://github.com/mit-pdos/xv6-riscv" target="_blank">xv6</a> on <a href="https://github.com/takahirox/riscv-rust" target="_blank">RISC-V processor emulator in Rust+WASM</a>

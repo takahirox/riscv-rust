@@ -60,8 +60,9 @@ impl Emulator {
 	pub fn run_test(&mut self) {
 		println!("This elf file seems riscv-tests elf file. Running in test mode.");
 		loop {
-			let dump = self.cpu.dump_next_instruction();
-			self.put_bytes_to_terminal(dump.as_bytes());
+			let disas = self.cpu.disassemble_next_instruction();
+			self.put_bytes_to_terminal(disas.as_bytes());
+			self.put_bytes_to_terminal(&[10]); // new line
 
 			self.tick();
 
@@ -473,5 +474,9 @@ impl Emulator {
 
 	pub fn get_mut_terminal(&mut self) -> &mut Box<dyn Terminal> {
 		self.cpu.get_mut_terminal()
+	}
+
+	pub fn get_mut_cpu(&mut self) -> &mut Cpu {
+		&mut self.cpu
 	}
 }
