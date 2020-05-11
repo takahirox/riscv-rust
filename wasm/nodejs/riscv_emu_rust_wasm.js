@@ -77,6 +77,11 @@ class WasmRiscv {
         wasm.wasmriscv_run_cycles(this.ptr, cycles);
     }
     /**
+    */
+    disassemble_next_instruction() {
+        wasm.wasmriscv_disassemble_next_instruction(this.ptr);
+    }
+    /**
     * @returns {number}
     */
     get_output() {

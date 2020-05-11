@@ -22,6 +22,9 @@ export class WasmRiscv {
 */
   run_cycles(cycles: number): void;
 /**
+*/
+  disassemble_next_instruction(): void;
+/**
 * @returns {number} 
 */
   get_output(): number;
