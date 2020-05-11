@@ -1231,28 +1231,14 @@ impl Cpu {
 		0xffffffff // Return invalid value
 	}
 
-	fn dump_instruction(&mut self, address: u64) {
-		let word = match self.mmu.load_word(address) {
-			Ok(word) => word,
-			Err(_e) => return // @TODO: What should we do if trap happens?
-		};
-		let pc = self.unsigned_data(address as i64);
-		let opcode = word & 0x7f; // [6:0]
-		println!("Pc:{:016x}, Opcode:{:07b}, Word:{:016x}", pc, opcode, word);
-	}
-
-	// For riscv-tests
-
-	pub fn dump_current_instruction_to_terminal(&mut self) {
+	pub fn dump_next_instruction(&mut self) -> String {
 		// @TODO: Fetching can make a side effect,
 		// for example updating page table entry or update peripheral hardware registers
 		// by accessing them. How can we avoid it?
 		let original_word = match self.mmu.fetch_word(self.pc) {
 			Ok(data) => data,
 			Err(_e) => {
-				let s = format!("PC:{:016x}, InstructionPageFault Trap!\n", self.pc);
-				self.put_bytes_to_terminal(s.as_bytes());
-				return;
+				return format!("PC:{:016x}, InstructionPageFault Trap!\n", self.pc);
 			}
 		};
 
@@ -1264,22 +1250,13 @@ impl Cpu {
 		let inst = match self.decode(word) {
 			Ok(inst) => inst,
 			Err(()) => {
-				println!("Unknown instruction PC:{:x} WORD:{:x}", self.pc, original_word);
-				self.dump_instruction(self.pc);
-				panic!();
+				return format!("Unknown instruction PC:{:x} WORD:{:x}", self.pc, original_word);
 			}
 		};
 
-		let s = format!("PC:{:016x}, Word:{:08x}, Inst:{}\n",
+		return format!("PC:{:016x}, Word:{:08x}, Inst:{}\n",
 			self.unsigned_data(self.pc as i64),
 			original_word, inst.name);
-		self.put_bytes_to_terminal(s.as_bytes());
-	}
-
-	pub fn put_bytes_to_terminal(&mut self, bytes: &[u8]) {
-		for i in 0..bytes.len() {
-			self.get_mut_terminal().put_byte(bytes[i]);
-		}
 	}
 
 	pub fn get_mut_terminal(&mut self) -> &mut Box<dyn Terminal> {

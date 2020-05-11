@@ -60,7 +60,8 @@ impl Emulator {
 	pub fn run_test(&mut self) {
 		println!("This elf file seems riscv-tests elf file. Running in test mode.");
 		loop {
-			self.cpu.dump_current_instruction_to_terminal();
+			let dump = self.cpu.dump_next_instruction();
+			self.put_bytes_to_terminal(dump.as_bytes());
 
 			self.tick();
 
@@ -74,14 +75,20 @@ impl Emulator {
 			if endcode != 0 {
 				match endcode {
 					1 => {
-						self.cpu.put_bytes_to_terminal(format!("Test Passed with {:X}\n", endcode).as_bytes())
+						self.put_bytes_to_terminal(format!("Test Passed with {:X}\n", endcode).as_bytes())
 					},
 					_ => {
-						self.cpu.put_bytes_to_terminal(format!("Test Failed with {:X}\n", endcode).as_bytes())
+						self.put_bytes_to_terminal(format!("Test Failed with {:X}\n", endcode).as_bytes())
 					}
 				};
 				break;
 			}
+		}
+	}
+
+	fn put_bytes_to_terminal(&mut self, bytes: &[u8]) {
+		for i in 0..bytes.len() {
+			self.cpu.get_mut_terminal().put_byte(bytes[i]);
 		}
 	}
 
