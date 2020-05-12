@@ -12,26 +12,19 @@
   <body>
     <script type="module">
       import init, { WasmRiscv } from "./riscv_emu_rust_wasm.js";
+      import App from './App.js';
 
       const resourcePath = '../../resources/';
-
-      let wasm;
-      const inputs = [];
-
       const COLUMNS = 80;
       const MINIMUM_ROWS = 24;
+
+      let wasm;
 
       const runButton = document.getElementById('run-button');
 	  const fileSelect = document.getElementById('file-select');
 	  const debuggerCheckbox = document.getElementById('debugger-checkbox');
 
-      let currentRiscv = null;
-      let inDebugMode = false;
-
       const terminal = new Terminal();
-      terminal.prompt = () => {
-        terminal.write('\r\n$ ');
-      };
       terminal.setOption('cursorBlink', true);
       terminal.setOption('convertEol', true);
       terminal.open(document.getElementById('terminal'));
@@ -53,8 +46,9 @@
         fileSelect.disabled = true;
         debuggerCheckbox.disabled = true;
 
+        const debugMode = debuggerCheckbox.checked;
+
         terminal.clear();
-        setupInputEventHandlers();
 
         const selectedOption = fileSelect.selectedOptions[0];
         const filename = selectedOption.value;
@@ -88,203 +82,19 @@
         }
 
         const riscv = WasmRiscv.new();
-        currentRiscv = riscv;
         riscv.init(new Uint8Array(elfBuffer), new Uint8Array(fsBuffer), new Uint8Array(dtbBuffer));
 
-        const outputToTerminal = () => {
-          const output_bytes = [];
-          while (true) {
-            const output_data = riscv.get_output();
-            if (output_data !== 0) {
-              output_bytes.push(output_data);
-            } else {
-              break;
-            }
-          }
-          if (output_bytes.length > 0) {
-            terminal.write(u8s_to_strings(output_bytes));
-          }
-        };
+        const app = new App(riscv, terminal, {
+          debugModeEnabled: debugMode
+        });
 
-        riscv.runCycles = () => {
-          if (inDebugMode) {
-            riscv.runStep(0);
-            return;
-          }
-          setTimeout(riscv.runCycles, 0);
-          riscv.run_cycles(0x10000);
-          outputToTerminal();
-          while (inputs.length > 0) {
-            riscv.put_input(inputs.shift());
-          }
-        };
-
-        riscv.runStep = (step) => {
-          riscv.run_cycles(step);
-          riscv.disassemble_next_instruction();
-          outputToTerminal();
-          terminal.prompt();
-        };
-
-        if (debuggerCheckbox.checked) {
-          inDebugMode = true;
-          terminal.writeln('Debug mode. Commands:');
-          terminal.writeln('  c: continue');
-          terminal.writeln('  s: step');
-          terminal.writeln('  Ctrl-A: Enter debug mode');
-          terminal.writeln('');
-          riscv.runStep(0);
+        if (debugMode) {
+          terminal.writeln('Debug mode.');
+          app.displayHelp();
+          app.enterDebugMode();
         } else {
-          riscv.runCycles();
+          app.continue();
         }
-      };
-
-      const setupInputEventHandlers = () => {
-        terminal.onKey(event => {
-          if (inDebugMode) {
-            const printable = !event.domEvent.altKey &&
-              !event.domEvent.altGraphKey &&
-              !event.domEvent.ctrlKey &&
-              !event.domEvent.metaKey;
-            switch(event.domEvent.keyCode) {
-              case 8: // backspace
-                // Do not delete the prompt
-                if (terminal._core.buffer.x > 2) {
-                  terminal.write('\b \b');
-                }
-                break;
-              case 13: // new line
-                const lines = terminal._core.buffer.lines;
-                // Is there easier way to get last line?
-                const y = terminal._core.buffer.y < terminal.rows - 1 ? terminal._core.buffer.y : lines.length - 1;
-                const line = lines.get(y);
-                const length = line.getTrimmedLength();
-                let command = '';
-                for (let i = 2; i < length; i++) {
-                  command += line.getString(i);
-                }
-                switch (command.trim()) {
-                  case '':
-                    terminal.prompt();
-                    break;
-                  case 'c':
-                    inDebugMode = false;
-                    terminal.writeln('');
-                    currentRiscv.runCycles();
-                    break;
-                  case 's':
-                    terminal.writeln('');
-                    currentRiscv.runStep(1);
-                    break;
-                  default:
-                    terminal.writeln('');
-                    terminal.writeln('Unknown command.');
-                    terminal.prompt();
-                    break;
-                }
-                break;
-              default:
-                if (printable) {
-                  terminal.write(event.key);
-                }
-                break;
-            }
-            return;
-          }
-
-          if (debuggerCheckbox.checked && event.key.charCodeAt(0) === 1) { // Ctrl-A
-            inDebugMode = true;
-            return;
-          }
-
-          // xterm.js doesn't handle function keys so
-          // handling by myself here
-          switch (event.domEvent.keyCode) {
-            case 33: // Page up
-              inputs.push(27, 91, 53, 126);
-              break;
-            case 34: // Page down
-              inputs.push(27, 91, 54, 126);
-              break;
-            case 35: // End
-              inputs.push(27, 91, 52, 126);
-              break;
-            case 36: // Home
-              inputs.push(27, 91, 49, 126);
-              break;
-            case 37: // Arrow Left
-              inputs.push(27, 91, 68);
-              break;
-            case 38: // Arrow Up
-              inputs.push(27, 91, 65);
-              break;
-            case 39: // Arrow Right
-              inputs.push(27, 91, 67);
-              break;
-            case 40: // Arrow Down
-              inputs.push(27, 91, 66);
-              break;
-            case 45: // Insert
-              inputs.push(27, 91, 50, 126);
-              break;
-            case 46: // Delete
-              inputs.push(127);
-              break;
-            case 112: // F1
-              inputs.push(27, 79, 80);
-              break;
-            case 113: // F2
-              inputs.push(27, 79, 81);
-              break;
-            case 114: // F3
-              inputs.push(27, 79, 82);
-              break;
-            case 115: // F4
-              inputs.push(27, 79, 83);
-              break;
-            case 116: // F5
-              inputs.push(27, 91, 49, 53, 126);
-              break;
-            case 117: // F6
-              inputs.push(27, 91, 49, 55, 126);
-              break;
-            case 118: // F7
-              inputs.push(27, 91, 49, 6, 126);
-              break;
-            case 119: // F8
-              inputs.push(27, 91, 49, 57, 126);
-              break;
-            case 120: // F9
-              inputs.push(27, 91, 50, 48, 126);
-              break;
-            case 121: // F10
-              inputs.push(27, 91, 50, 49, 126);
-              break;
-            case 122: // F11
-              inputs.push(27, 91, 50, 50, 126);
-              break;
-            case 123: // F12
-              inputs.push(27, 91, 50, 51, 126);
-              break;
-            default:
-              inputs.push(event.key.charCodeAt(0));
-              break;
-          }
-        });
-        // I don't know why but terminal.onKey doesn't catch
-        // space key so handling in document keydown event listener.
-        document.addEventListener('keydown', event => {
-          switch (event.keyCode) {
-            case 32: // Space
-              if (inDebudMode) {
-                terminal.write(32);
-              } else {
-                inputs.push(32);
-              }
-              break;
-          }
-          event.preventDefault();
-        });
       };
 
       // From https://github.com/xtermjs/xterm.js/tree/master/addons/xterm-addon-fit
@@ -316,23 +126,6 @@
           debuggerCheckbox.disabled = false;
         })
         .catch(error => console.error(error));
-
-      const charTable = {};
-
-      const u8_to_char = u8 => {
-        if (charTable[u8] === undefined) {
-          charTable[u8] = String.fromCharCode(u8);
-        }
-        return charTable[u8];
-      };
-
-      const u8s_to_strings = u8s => {
-        let s = '';
-        for (const u8 of u8s) {
-          s += u8_to_char(u8);
-        }
-        return s;
-      };
     </script>
     <select id="file-select">
       <option value="linux/bbl" selected>Linux</option>
