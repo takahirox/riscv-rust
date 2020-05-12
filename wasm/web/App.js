@@ -53,7 +53,6 @@ export default class App {
   }
 
   _handleKeyInput(key, keyCode) {
-    console.log(this.debugModeEnabled, key, key.charCodeAt(0));
     if (this.debugModeEnabled && key.charCodeAt(0) === 1) { // Ctrl-A
       this.enterDebugMode();
       return;
