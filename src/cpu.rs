@@ -292,7 +292,7 @@ impl Cpu {
 				return result;
 			},
 			Err(()) => {
-				panic!("Unknown instruction PC:{:X} WORD:{:X}", instruction_address, original_word);
+				panic!("Unknown instruction PC:{:x} WORD:{:x}", instruction_address, original_word);
 			}
 		};
 	}
@@ -577,7 +577,7 @@ impl Cpu {
 			},
 			PrivilegeMode::Reserved => panic!() // shouldn't happen
 		};
-		//println!("Trap! {:X} Clock:{:X}", cause, self.clock);
+		//println!("Trap! {:x} Clock:{:x}", cause, self.clock);
 		true
 	}
 
@@ -709,7 +709,7 @@ impl Cpu {
 				8 => AddressingMode::SV39,
 				9 => AddressingMode::SV48,
 				_ => {
-					println!("Unknown addressing_mode {:X}", value >> 60);
+					println!("Unknown addressing_mode {:x}", value >> 60);
 					panic!();
 				}
 			}
@@ -1160,7 +1160,7 @@ impl Cpu {
 								if rs1 != 0 && rs2 != 0 {
 									// C.MV
 									// add rs1, x0, rs2
-									// println!("C.MV RS1:{:X} RS2:{:X}", rs1, rs2);
+									// println!("C.MV RS1:{:x} RS2:{:x}", rs1, rs2);
 									return (rs2 << 20) | (rs1 << 7) | 0x33;
 								}
 								// rs1 == 0 && rs2 != 0 is Hints
@@ -1305,13 +1305,13 @@ fn dump_format_b(cpu: &mut Cpu, word: u32, address: u64, evaluate: bool) -> Stri
 	let mut s = String::new();
 	s += &format!("{}", get_register_name(f.rs1));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rs1]);
+		s += &format!(":{:x}", cpu.x[f.rs1]);
 	}
 	s += &format!(",{}", get_register_name(f.rs2));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rs2]);
+		s += &format!(":{:x}", cpu.x[f.rs2]);
 	}
-	s += &format!(",{:X}", address.wrapping_add(f.imm));
+	s += &format!(",{:x}", address.wrapping_add(f.imm));
 	s
 }
 
@@ -1334,16 +1334,16 @@ fn dump_format_csr(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> S
 	let mut s = String::new();
 	s += &format!("{}", get_register_name(f.rd));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rd]);
+		s += &format!(":{:x}", cpu.x[f.rd]);
 	}
 	// @TODO: Use CSR name
-	s += &format!(",{:X}", f.csr);
+	s += &format!(",{:x}", f.csr);
 	if evaluate {
-		s += &format!(":{:X}", cpu.read_csr_raw(f.csr));
+		s += &format!(":{:x}", cpu.read_csr_raw(f.csr));
 	}
 	s += &format!(",{}", get_register_name(f.rs));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rs]);
+		s += &format!(":{:x}", cpu.x[f.rs]);
 	}
 	s
 }
@@ -1373,13 +1373,13 @@ fn dump_format_i(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> Str
 	let mut s = String::new();
 	s += &format!("{}", get_register_name(f.rd));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rd]);
+		s += &format!(":{:x}", cpu.x[f.rd]);
 	}
 	s += &format!(",{}", get_register_name(f.rs1));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rs1]);
+		s += &format!(":{:x}", cpu.x[f.rs1]);
 	}
-	s += &format!(",{:X}", f.imm);
+	s += &format!(",{:x}", f.imm);
 	s
 }
 
@@ -1388,11 +1388,11 @@ fn dump_format_i_mem(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) ->
 	let mut s = String::new();
 	s += &format!("{}", get_register_name(f.rd));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rd]);
+		s += &format!(":{:x}", cpu.x[f.rd]);
 	}
-	s += &format!(",{:X}({}", f.imm, get_register_name(f.rs1));
+	s += &format!(",{:x}({}", f.imm, get_register_name(f.rs1));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rs1]);
+		s += &format!(":{:x}", cpu.x[f.rs1]);
 	}
 	s += &format!(")");
 	s
@@ -1423,9 +1423,9 @@ fn dump_format_j(cpu: &mut Cpu, word: u32, address: u64, evaluate: bool) -> Stri
 	let mut s = String::new();
 	s += &format!("{}", get_register_name(f.rd));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rd]);
+		s += &format!(":{:x}", cpu.x[f.rd]);
 	}
-	s += &format!(",{:X}", address.wrapping_add(f.imm));
+	s += &format!(",{:x}", address.wrapping_add(f.imm));
 	s
 }
 
@@ -1448,15 +1448,15 @@ fn dump_format_r(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> Str
 	let mut s = String::new();
 	s += &format!("{}", get_register_name(f.rd));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rd]);
+		s += &format!(":{:x}", cpu.x[f.rd]);
 	}
 	s += &format!(",{}", get_register_name(f.rs1));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rs1]);
+		s += &format!(":{:x}", cpu.x[f.rs1]);
 	}
 	s += &format!(",{}", get_register_name(f.rs2));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rs2]);
+		s += &format!(":{:x}", cpu.x[f.rs2]);
 	}
 	s
 }
@@ -1483,19 +1483,19 @@ fn dump_format_r2(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> St
 	let mut s = String::new();
 	s += &format!("{}", get_register_name(f.rd));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rd]);
+		s += &format!(":{:x}", cpu.x[f.rd]);
 	}
 	s += &format!(",{}", get_register_name(f.rs1));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rs1]);
+		s += &format!(":{:x}", cpu.x[f.rs1]);
 	}
 	s += &format!(",{}", get_register_name(f.rs2));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rs2]);
+		s += &format!(":{:x}", cpu.x[f.rs2]);
 	}
 	s += &format!(",{}", get_register_name(f.rs3));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rs3]);
+		s += &format!(":{:x}", cpu.x[f.rs3]);
 	}
 	s
 }
@@ -1526,11 +1526,11 @@ fn dump_format_s(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> Str
 	let mut s = String::new();
 	s += &format!("{}", get_register_name(f.rs2));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rs2]);
+		s += &format!(":{:x}", cpu.x[f.rs2]);
 	}
-	s += &format!(",{:X}({}", f.imm, get_register_name(f.rs1));
+	s += &format!(",{:x}({}", f.imm, get_register_name(f.rs1));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rs1]);
+		s += &format!(":{:x}", cpu.x[f.rs1]);
 	}
 	s += &format!(")");
 	s
@@ -1559,9 +1559,9 @@ fn dump_format_u(cpu: &mut Cpu, word: u32, _address: u64, evaluate: bool) -> Str
 	let mut s = String::new();
 	s += &format!("{}", get_register_name(f.rd));
 	if evaluate {
-		s += &format!(":{:X}", cpu.x[f.rd]);
+		s += &format!(":{:x}", cpu.x[f.rd]);
 	}
-	s += &format!(",{:X}", f.imm);
+	s += &format!(",{:x}", f.imm);
 	s
 }
 
@@ -1603,7 +1603,7 @@ fn get_register_name(num: usize) -> &'static str {
 		29 => "t4",
 		30 => "t5",
 		31 => "t6",
-		_ => panic!("Unknown register num {:X}", num)
+		_ => panic!("Unknown register num {}", num)
 	}
 }
 
@@ -2540,11 +2540,11 @@ const INSTRUCTIONS: [Instruction; INSTRUCTION_NUM] = [
 			let mut s = String::new();
 			s += &format!("{}", get_register_name(f.rd));
 			if evaluate {
-				s += &format!(":{:X}", cpu.x[f.rd]);
+				s += &format!(":{:x}", cpu.x[f.rd]);
 			}
-			s += &format!(",{:X}({}", f.imm, get_register_name(f.rs1));
+			s += &format!(",{:x}({}", f.imm, get_register_name(f.rs1));
 			if evaluate {
-				s += &format!(":{:X}", cpu.x[f.rs1]);
+				s += &format!(":{:x}", cpu.x[f.rs1]);
 			}
 			s += &format!(")");
 			s
