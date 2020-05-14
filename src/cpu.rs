@@ -1265,6 +1265,10 @@ impl Cpu {
 		s
 	}
 
+	pub fn get_mut_mmu(&mut self) -> &mut Mmu {
+		&mut self.mmu
+	}
+
 	pub fn get_mut_terminal(&mut self) -> &mut Box<dyn Terminal> {
 		self.mmu.get_mut_uart().get_mut_terminal()
 	}
