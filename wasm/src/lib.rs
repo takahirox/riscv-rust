@@ -60,9 +60,18 @@ impl WasmRiscv {
 	///        of valid memory address range)
 	pub fn load_doubleword(&mut self, address: u64, error: &mut [u8]) -> u64 {
 		for i in 0..8 {
-			if !self.emulator.get_mut_cpu().get_mut_mmu().validate_address(address.wrapping_add(i)) {
-				error[0] = 2;
-				return 0;
+			match self.emulator.get_mut_cpu()
+				.get_mut_mmu().validate_address(address.wrapping_add(i)) {
+				Ok(valid) => {
+					if !valid {
+						error[0] = 2;
+						return 0;
+					}
+				},
+				Err(()) => {
+					error[0] = 1;
+					return 0;
+				}
 			}
 		}
 		match self.emulator.get_mut_cpu().get_mut_mmu().load_doubleword(address) {
