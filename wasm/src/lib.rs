@@ -45,6 +45,38 @@ impl WasmRiscv {
 		}
 	}
 
+	/// Loads eight-byte data from memory. Loading can cause an error or trap.
+	/// If an error or trap happens `error[0]` holds non-zero error code and
+	/// this method returns zero. Otherwise `error[0]` holds zero and this
+	/// method returns loaded data.
+	///
+	/// # Arguments
+	/// * `address` eight-byte virtual address
+	/// * `error` If an error or trap happens error[0] holds non-zero.
+	///    Otherwize zero.
+	///   * 0: No error
+	///   * 1: Page fault
+	///   * 2: Invalid address (e.g. translated physical address points to out
+	///        of valid memory address range)
+	pub fn load_doubleword(&mut self, address: u64, error: &mut [u8]) -> u64 {
+		for i in 0..8 {
+			if !self.emulator.get_mut_cpu().get_mut_mmu().validate_address(address.wrapping_add(i)) {
+				error[0] = 2;
+				return 0;
+			}
+		}
+		match self.emulator.get_mut_cpu().get_mut_mmu().load_doubleword(address) {
+			Ok(data) => {
+				error[0] = 0;
+				data
+			},
+			Err(_trap) => {
+				error[0] = 1;
+				0
+			}
+		}
+	}
+
 	pub fn get_output(&mut self) -> u8 {
 		self.emulator.get_mut_terminal().get_output()
 	}
