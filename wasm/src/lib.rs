@@ -86,6 +86,14 @@ impl WasmRiscv {
 		}
 	}
 
+	pub fn read_register(&self, reg: u8) -> u64 {
+		self.emulator.get_cpu().read_register(reg) as u64
+	}
+
+	pub fn read_pc(&self) -> u64 {
+		self.emulator.get_cpu().read_pc()
+	}
+
 	pub fn get_output(&mut self) -> u8 {
 		self.emulator.get_mut_terminal().get_output()
 	}
