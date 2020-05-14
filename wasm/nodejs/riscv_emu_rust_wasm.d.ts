@@ -25,6 +25,25 @@ export class WasmRiscv {
 */
   disassemble_next_instruction(): void;
 /**
+* Loads eight-byte data from memory. Loading can cause an error or trap.
+* If an error or trap happens `error[0]` holds non-zero error code and
+* this method returns zero. Otherwise `error[0]` holds zero and this
+* method returns loaded data.
+*
+* # Arguments
+* * `address` eight-byte virtual address
+* * `error` If an error or trap happens error[0] holds non-zero.
+*    Otherwize zero.
+*   * 0: No error
+*   * 1: Page fault
+*   * 2: Invalid address (e.g. translated physical address points to out
+*        of valid memory address range)
+* @param {BigInt} address 
+* @param {Uint8Array} error 
+* @returns {BigInt} 
+*/
+  load_doubleword(address: BigInt, error: Uint8Array): BigInt;
+/**
 * @returns {number} 
 */
   get_output(): number;

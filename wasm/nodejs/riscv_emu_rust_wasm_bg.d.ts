@@ -7,6 +7,8 @@ export function wasmriscv_init(a: number, b: number, c: number, d: number, e: nu
 export function wasmriscv_run(a: number): void;
 export function wasmriscv_run_cycles(a: number, b: number): void;
 export function wasmriscv_disassemble_next_instruction(a: number): void;
+export function wasmriscv_load_doubleword(a: number, b: number, c: number, d: number, e: number, f: number): void;
 export function wasmriscv_get_output(a: number): number;
 export function wasmriscv_put_input(a: number, b: number): void;
 export function __wbindgen_malloc(a: number): number;
+export function __wbindgen_free(a: number, b: number): void;

@@ -27,6 +27,18 @@ function passArray8ToWasm0(arg, malloc) {
     WASM_VECTOR_LEN = arg.length;
     return ptr;
 }
+
+const u32CvtShim = new Uint32Array(2);
+
+const uint64CvtShim = new BigUint64Array(u32CvtShim.buffer);
+
+let cachegetInt32Memory0 = null;
+function getInt32Memory0() {
+    if (cachegetInt32Memory0 === null || cachegetInt32Memory0.buffer !== wasm.memory.buffer) {
+        cachegetInt32Memory0 = new Int32Array(wasm.memory.buffer);
+    }
+    return cachegetInt32Memory0;
+}
 /**
 */
 class WasmRiscv {
@@ -80,6 +92,43 @@ class WasmRiscv {
     */
     disassemble_next_instruction() {
         wasm.wasmriscv_disassemble_next_instruction(this.ptr);
+    }
+    /**
+    * Loads eight-byte data from memory. Loading can cause an error or trap.
+    * If an error or trap happens `error[0]` holds non-zero error code and
+    * this method returns zero. Otherwise `error[0]` holds zero and this
+    * method returns loaded data.
+    *
+    * # Arguments
+    * * `address` eight-byte virtual address
+    * * `error` If an error or trap happens error[0] holds non-zero.
+    *    Otherwize zero.
+    *   * 0: No error
+    *   * 1: Page fault
+    *   * 2: Invalid address (e.g. translated physical address points to out
+    *        of valid memory address range)
+    * @param {BigInt} address
+    * @param {Uint8Array} error
+    * @returns {BigInt}
+    */
+    load_doubleword(address, error) {
+        try {
+            uint64CvtShim[0] = address;
+            const low0 = u32CvtShim[0];
+            const high0 = u32CvtShim[1];
+            var ptr1 = passArray8ToWasm0(error, wasm.__wbindgen_malloc);
+            var len1 = WASM_VECTOR_LEN;
+            wasm.wasmriscv_load_doubleword(8, this.ptr, low0, high0, ptr1, len1);
+            var r0 = getInt32Memory0()[8 / 4 + 0];
+            var r1 = getInt32Memory0()[8 / 4 + 1];
+            u32CvtShim[0] = r0;
+            u32CvtShim[1] = r1;
+            const n2 = uint64CvtShim[0];
+            return n2;
+        } finally {
+            error.set(getUint8Memory0().subarray(ptr1 / 1, ptr1 / 1 + len1));
+            wasm.__wbindgen_free(ptr1, len1 * 1);
+        }
     }
     /**
     * @returns {number}
