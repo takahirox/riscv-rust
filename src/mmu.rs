@@ -30,7 +30,8 @@ pub enum AddressingMode {
 enum MemoryAccessType {
 	Execute,
 	Read,
-	Write
+	Write,
+	DontCare
 }
 
 fn _get_addressing_mode_name(mode: &AddressingMode) -> &'static str {
@@ -326,6 +327,23 @@ impl Mmu {
 		}
 	}
 
+	pub fn validate_address(&mut self, v_address: u64) -> bool {
+		// @TODO: Support other access types?
+		let p_address = match self.translate_address(v_address, MemoryAccessType::DontCare) {
+			Ok(address) => address,
+			Err(()) => return false
+		};
+		let effective_address = self.get_effective_address(p_address);
+		match effective_address {
+			0x00001020..=0x00001fff => true,
+			0x02000000..=0x0200ffff => true,
+			0x0C000000..=0x0fffffff => true,
+			0x10000000..=0x100000ff => true,
+			0x10001000..=0x10001FFF => true,
+			_ => self.memory.validate_address(effective_address)
+		}
+	}
+
 	fn translate_address(&mut self, address: u64, access_type: MemoryAccessType) -> Result<u64, ()> {
 		match self.addressing_mode {
 			AddressingMode::None => Ok(address),
@@ -421,7 +439,8 @@ impl Mmu {
 				if w == 0 {
 					return Err(());
 				}
-			}
+			},
+			_ => {}
 		};
 
 		let offset = v_address & 0xfff; // [11:0]
