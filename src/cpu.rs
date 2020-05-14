@@ -251,6 +251,16 @@ impl Cpu {
 
 	//
 
+	pub fn read_register(&self, reg: u8) -> i64 {
+		self.x[reg as usize]
+	}
+
+	pub fn read_pc(&self) -> u64 {
+		self.pc
+	}
+
+	//
+
 	pub fn tick(&mut self) {
 		let instruction_address = self.pc;
 		match self.tick_operate() {
