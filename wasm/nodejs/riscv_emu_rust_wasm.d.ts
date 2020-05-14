@@ -44,6 +44,15 @@ export class WasmRiscv {
 */
   load_doubleword(address: BigInt, error: Uint8Array): BigInt;
 /**
+* @param {number} reg 
+* @returns {BigInt} 
+*/
+  read_register(reg: number): BigInt;
+/**
+* @returns {BigInt} 
+*/
+  read_pc(): BigInt;
+/**
 * @returns {number} 
 */
   get_output(): number;

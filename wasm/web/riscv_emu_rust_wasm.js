@@ -129,6 +129,31 @@ export class WasmRiscv {
         }
     }
     /**
+    * @param {number} reg
+    * @returns {BigInt}
+    */
+    read_register(reg) {
+        wasm.wasmriscv_read_register(8, this.ptr, reg);
+        var r0 = getInt32Memory0()[8 / 4 + 0];
+        var r1 = getInt32Memory0()[8 / 4 + 1];
+        u32CvtShim[0] = r0;
+        u32CvtShim[1] = r1;
+        const n0 = uint64CvtShim[0];
+        return n0;
+    }
+    /**
+    * @returns {BigInt}
+    */
+    read_pc() {
+        wasm.wasmriscv_read_pc(8, this.ptr);
+        var r0 = getInt32Memory0()[8 / 4 + 0];
+        var r1 = getInt32Memory0()[8 / 4 + 1];
+        u32CvtShim[0] = r0;
+        u32CvtShim[1] = r1;
+        const n0 = uint64CvtShim[0];
+        return n0;
+    }
+    /**
     * @returns {number}
     */
     get_output() {
