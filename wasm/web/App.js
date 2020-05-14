@@ -223,7 +223,29 @@ export default class App {
       case 'mem':
         if (command.length === 2) {
           this.terminal.writeln('');
-          return this.displayMemoryContent(command[1]);
+          this.displayMemoryContent(command[1]);
+          return true;
+        } else {
+          return false;
+        }
+        break;
+      case 'p':
+      case 'pc':
+        if (command.length === 1) {
+          this.terminal.writeln('');
+          this.displayPCContent();
+          return true;
+        } else {
+          return false;
+        }
+        break;
+      case 'r':
+      case 're':
+      case 'reg':
+        if (command.length === 2) {
+          this.terminal.writeln('');
+          this.displayRegisterContent(command[1]);
+          return true;
         } else {
           return false;
         }
@@ -257,6 +279,8 @@ export default class App {
     this.terminal.writeln('  continue: Continue the main program. Ctrl-A enters debug mode again.');
     this.terminal.writeln('  help: Show this message');
     this.terminal.writeln('  mem <virtual_address>: Show eight-byte content of memory');
+    this.terminal.writeln('  pc: Show PC content');
+    this.terminal.writeln('  reg <register_num>: Show register content');
     this.terminal.writeln('  step [num]: Run [num](one if omitted) step(s) execution');
   }
 
@@ -289,7 +313,8 @@ export default class App {
   displayMemoryContent(vAddressStr) {
     const vAddress = parseInt(vAddressStr);
     if (isNaN(vAddress)) {
-      return false;
+      this.terminal.write('Invalid address.');
+      return;
     }
     const error = new Uint8Array([0]);
     const data = this.riscv.load_doubleword(BigInt(vAddress), error);
@@ -307,7 +332,23 @@ export default class App {
         this.terminal.write('Unknown error code.');
         break;
     }
-    return true;
+  }
+
+  displayRegisterContent(regNumStr) {
+    const regNum = parseInt(regNumStr);
+    if (isNaN(regNum)) {
+      this.terminal.write('Invalid register number.');
+      return;
+    }
+    if (regNum < 0 || regNum > 31) {
+      this.terminal.write('Register number should be 0-31.');
+      return;
+    }
+    this.terminal.write('0x' + this.riscv.read_register(regNum).toString(16));
+  }
+
+  displayPCContent() {
+    this.terminal.write('0x' + this.riscv.read_pc().toString(16));
   }
 
   flush() {
