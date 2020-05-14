@@ -218,6 +218,16 @@ export default class App {
           return false;
         }
         break;
+      case 'm':
+      case 'me':
+      case 'mem':
+        if (command.length === 2) {
+          this.terminal.writeln('');
+          return this.displayMemoryContent(command[1]);
+        } else {
+          return false;
+        }
+        break;
       case 's':
       case 'st':
       case 'ste':
@@ -246,7 +256,8 @@ export default class App {
     this.terminal.writeln('Commands:');
     this.terminal.writeln('  continue: Continue the main program. Ctrl-A enters debug mode again.');
     this.terminal.writeln('  help: Show this message');
-    this.terminal.writeln('  step [num(default=1)]: Run num step execution');
+    this.terminal.writeln('  mem <virtual_address>: Show eight-byte content of memory');
+    this.terminal.writeln('  step [num]: Run [num](one if omitted) step(s) execution');
   }
 
   step(num) {
@@ -273,6 +284,30 @@ export default class App {
     this.lastCommandStrings = '';
     this.terminal.writeln('');
     runCycles();
+  }
+
+  displayMemoryContent(vAddressStr) {
+    const vAddress = parseInt(vAddressStr);
+    if (isNaN(vAddress)) {
+      return false;
+    }
+    const error = new Uint8Array([0]);
+    const data = this.riscv.load_doubleword(BigInt(vAddress), error);
+    switch (error[0]) {
+      case 0:
+        this.terminal.write('0x' + data.toString(16));
+        break;
+      case 1:
+        this.terminal.write('Page fault.');
+        break;
+      case 2:
+        this.terminal.write('Invalid address.');
+        break;
+      default:
+        this.terminal.write('Unknown error code.');
+        break;
+    }
+    return true;
   }
 
   flush() {
