@@ -1,3 +1,5 @@
+const DTB_ADDRESS_RANGE: [usize; 2] = [0x1020, 0x1fff];
+
 use memory::Memory;
 use cpu::{PrivilegeMode, Trap, TrapType, Xlen};
 use device::virtio_block_disk::VirtioBlockDisk;
@@ -76,6 +78,9 @@ impl Mmu {
 		println!("DTB SIZE:{:X}", data.len());
 		for i in 0..data.len() {
 			self.dtb.push(data[i]);
+		}
+		while DTB_ADDRESS_RANGE[0] + self.dtb.len() <= DTB_ADDRESS_RANGE[1] {
+			self.dtb.push(0);
 		}
 	}
 
@@ -276,7 +281,8 @@ impl Mmu {
 		match address {
 			// I don't know why but dtb data seems to be stored from 0x1020 on Linux.
 			// It might be from self.x[0xb] initialization?
-			0x00001020..=0x00001ea2 => self.dtb[address as usize - 0x1020],
+			// And DTB size is arbitray.
+			0x00001020..=0x00001fff => self.dtb[address as usize - 0x1020],
 			0x02000000..=0x0200ffff => self.clint.load(effective_address),
 			0x0C000000..=0x0fffffff => self.plic.load(effective_address),
 			0x10000000..=0x100000ff => self.uart.load(effective_address),
