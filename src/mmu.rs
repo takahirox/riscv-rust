@@ -1,3 +1,5 @@
+const DTB_ADDRESS_RANGE: [usize; 2] = [0x1020, 0x1fff];
+
 use memory::Memory;
 use cpu::{PrivilegeMode, Trap, TrapType, Xlen};
 use device::virtio_block_disk::VirtioBlockDisk;
@@ -30,7 +32,8 @@ pub enum AddressingMode {
 enum MemoryAccessType {
 	Execute,
 	Read,
-	Write
+	Write,
+	DontCare
 }
 
 fn _get_addressing_mode_name(mode: &AddressingMode) -> &'static str {
@@ -75,6 +78,9 @@ impl Mmu {
 		println!("DTB SIZE:{:X}", data.len());
 		for i in 0..data.len() {
 			self.dtb.push(data[i]);
+		}
+		while DTB_ADDRESS_RANGE[0] + self.dtb.len() <= DTB_ADDRESS_RANGE[1] {
+			self.dtb.push(0);
 		}
 	}
 
@@ -275,7 +281,8 @@ impl Mmu {
 		match address {
 			// I don't know why but dtb data seems to be stored from 0x1020 on Linux.
 			// It might be from self.x[0xb] initialization?
-			0x00001020..=0x00001ea2 => self.dtb[address as usize - 0x1020],
+			// And DTB size is arbitray.
+			0x00001020..=0x00001fff => self.dtb[address as usize - 0x1020],
 			0x02000000..=0x0200ffff => self.clint.load(effective_address),
 			0x0C000000..=0x0fffffff => self.plic.load(effective_address),
 			0x10000000..=0x100000ff => self.uart.load(effective_address),
@@ -324,6 +331,24 @@ impl Mmu {
 		for i in 0..8 {
 			self.store_raw(address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8);
 		}
+	}
+
+	pub fn validate_address(&mut self, v_address: u64) -> Result<bool, ()> {
+		// @TODO: Support other access types?
+		let p_address = match self.translate_address(v_address, MemoryAccessType::DontCare) {
+			Ok(address) => address,
+			Err(()) => return Err(())
+		};
+		let effective_address = self.get_effective_address(p_address);
+		let valid = match effective_address {
+			0x00001020..=0x00001fff => true,
+			0x02000000..=0x0200ffff => true,
+			0x0C000000..=0x0fffffff => true,
+			0x10000000..=0x100000ff => true,
+			0x10001000..=0x10001FFF => true,
+			_ => self.memory.validate_address(effective_address)
+		};
+		Ok(valid)
 	}
 
 	fn translate_address(&mut self, address: u64, access_type: MemoryAccessType) -> Result<u64, ()> {
@@ -421,7 +446,8 @@ impl Mmu {
 				if w == 0 {
 					return Err(());
 				}
-			}
+			},
+			_ => {}
 		};
 
 		let offset = v_address & 0xfff; // [11:0]

@@ -44,4 +44,11 @@ impl Memory {
 			self.write_byte(address.wrapping_add(i), (value >> (i * 8)) as u8);
 		}
 	}
+
+	pub fn validate_address(&self, address: u64) -> bool {
+		if address < DRAM_BASE {
+			return false;
+		}
+		return ((address - DRAM_BASE) as usize) < self.data.len()
+	}
 }
