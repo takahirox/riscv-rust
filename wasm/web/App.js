@@ -1,3 +1,21 @@
+// Mac/iOS doesn't seem to support BigUint64Array
+// used in JS-WASM bridge. There might be no way
+// to precisely simulate so just applying workaround
+// here to avoid reference error and trying to avoid
+// the path using BigUint64Array in continue().
+const polyfillBigUint64ArrayIfNeeded = () => {
+  if ('BigUint64Array' in window) {
+    return false;
+  }
+
+  // This is not correct polyfill but just assigning
+  // the same width typed array so far.
+  window.BigUint64Array = Float64Array;
+  return true;
+};
+
+const usingBigUint64ArrayPolyfill = polyfillBigUint64ArrayIfNeeded();
+
 const charTable = {};
 
 const u8_to_char = u8 => {
@@ -345,8 +363,29 @@ export default class App {
       }
       setTimeout(runCycles, 0);
       let broken = false;
-      if (this.riscv.run_until_breakpoints(this.breakpoints, this.runCyclesNum)) {
-        this.inDebugMode = true;
+      if (this.breakpoints.length === 0) {
+        // If no breakpoint set, we don't need check breakpoints
+        // so calling run_cycles() which should be faster than
+        // run_until_breakpoints()
+        this.riscv.run_cycles(this.runCyclesNum);
+      } else if (usingBigUint64ArrayPolyfill) {
+        // run_until_breakpoints() requires BigUint64Array but
+        // BigUint64Array polyfill(?) used in App is not workable
+        // so going alternative way without run_until_breakpoints().
+        // But this way will see the big JS-WASM bridge cost.
+        // So I don't recommend users to use continue command
+        // on the platform where BigUint64Array is not supported.
+        for (let i = 0; i < this.runCyclesNum; i++) {
+          this.riscv.run_cycles(1);
+          if (this.breakpoints.includes(this.riscv.read_pc())) {
+            this.inDebugMode = true;
+            break;
+          }
+        }
+      } else {
+        if (this.riscv.run_until_breakpoints(this.breakpoints, this.runCyclesNum)) {
+          this.inDebugMode = true;
+        }
       }
       this.flush();
       while (this.inputs.length > 0) {
