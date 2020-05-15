@@ -26,6 +26,21 @@ function passArray8ToWasm0(arg, malloc) {
     return ptr;
 }
 
+let cachegetUint64Memory0 = null;
+function getUint64Memory0() {
+    if (cachegetUint64Memory0 === null || cachegetUint64Memory0.buffer !== wasm.memory.buffer) {
+        cachegetUint64Memory0 = new BigUint64Array(wasm.memory.buffer);
+    }
+    return cachegetUint64Memory0;
+}
+
+function passArray64ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 8);
+    getUint64Memory0().set(arg, ptr / 8);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
+
 const u32CvtShim = new Uint32Array(2);
 
 const uint64CvtShim = new BigUint64Array(u32CvtShim.buffer);
@@ -85,6 +100,41 @@ export class WasmRiscv {
     */
     run_cycles(cycles) {
         wasm.wasmriscv_run_cycles(this.ptr, cycles);
+    }
+    /**
+    * Runs program until breakpoints. Also known as debugger's continue command.
+    * This method takes max_cycles. If the program doesn't hit any breakpoints
+    * in max_cycles cycles this method returns false. Otherwise true.
+    *
+    * Even without this method, you can write the same behavior JS code as the
+    * following code. But JS-WASM bridge cost isn't ignorable now. So this method
+    * has been introduced.
+    *
+    * ```
+    * const runUntilBreakpoints = (riscv, breakpoints, maxCycles) => {
+    *   for (let i = 0; i < maxCycles; i++) {
+    *     riscv.run_cycles(1);
+    *     const pc = riscv.read_pc()
+    *     if (breakpoints.includes(pc)) {
+    *       return true;
+    *     }
+    *   }
+    *   return false;
+    * };
+    * ```
+    *
+    * # Arguments
+    * * `breakpoints` An array including breakpoint virtual addresses
+    * * `max_cycles` See the above description
+    * @param {BigUint64Array} breakpoints
+    * @param {number} max_cycles
+    * @returns {boolean}
+    */
+    run_until_breakpoints(breakpoints, max_cycles) {
+        var ptr0 = passArray64ToWasm0(breakpoints, wasm.__wbindgen_malloc);
+        var len0 = WASM_VECTOR_LEN;
+        var ret = wasm.wasmriscv_run_until_breakpoints(this.ptr, ptr0, len0, max_cycles);
+        return ret !== 0;
     }
     /**
     */
