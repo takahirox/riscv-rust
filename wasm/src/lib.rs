@@ -4,6 +4,7 @@ extern crate riscv_emu_rust;
 mod wasm_terminal;
 
 use wasm_bindgen::prelude::*;
+use std::collections::HashMap;
 
 use riscv_emu_rust::Emulator;
 use wasm_terminal::WasmTerminal;
@@ -35,6 +36,45 @@ impl WasmRiscv {
 		for _i in 0..cycles {
 			self.emulator.tick();
 		}
+	}
+
+	/// Runs program until breakpoints. Also known as debugger's continue command.
+	/// This method takes max_cycles. If the program doesn't hit any breakpoints
+	/// in max_cycles cycles this method returns false. Otherwise true.
+	///
+	/// Even without this method, you can write the same behavior JS code as the
+	/// following code. But JS-WASM bridge cost isn't ignorable now. So this method
+	/// has been introduced.
+	///
+	/// ```
+	/// const runUntilBreakpoints = (riscv, breakpoints, maxCycles) => {
+	///   for (let i = 0; i < maxCycles; i++) {
+	///     riscv.run_cycles(1);
+	///     const pc = riscv.read_pc()
+	///     if (breakpoints.includes(pc)) {
+	///       return true;
+	///     }
+	///   }
+	///   return false;
+	/// };
+	/// ```
+	///
+	/// # Arguments
+	/// * `breakpoints` An array including breakpoint virtual addresses
+	/// * `max_cycles` See the above description
+	pub fn run_until_breakpoints(&mut self, breakpoints: Vec<u64>, max_cycles: u32) -> bool {
+		let mut table = HashMap::new();
+		for i in 0..breakpoints.len() {
+			table.insert(breakpoints[i], true);
+		}
+		for _i in 0..max_cycles {
+			self.emulator.tick();
+			let pc = self.emulator.get_cpu().read_pc();
+			if table.contains_key(&pc) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	pub fn disassemble_next_instruction(&mut self) {

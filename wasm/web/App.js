@@ -1,6 +1,3 @@
-const COLUMNS = 80;
-const MINIMUM_ROWS = 24;
-
 const charTable = {};
 
 const u8_to_char = u8 => {
@@ -26,6 +23,7 @@ export default class App {
     this.runCyclesNum = options.runCyclesNum !== undefined ? options.runCyclesNum : 0x10000;
     this.inDebugMode = false;
     this.inputs = [];
+    this.breakpoints = [];
     this.lastCommandStrings = '';
     this._setupInputEventHandlers();
   }
@@ -163,9 +161,9 @@ export default class App {
         }
         const command = this._parseCommand(commandStrings);
         this.lastCommandStrings = commandStrings;
+        this.terminal.writeln('');
         if (!this._runCommand(command)) {
-          this.terminal.writeln('');
-          this.terminal.write('Unknown command.');
+          this.terminal.writeln('Unknown command.');
         }
         if (this.inDebugMode) {
           this.prompt();
@@ -191,6 +189,26 @@ export default class App {
         return command.length === 1;
 	    break;
       // UGH...
+      case 'b':
+      case 'br':
+      case 'bre':
+      case 'brea':
+      case 'break':
+      case 'breakp':
+      case 'breakpo':
+      case 'breakpoi':
+      case 'breakpoin':
+      case 'breakpoint':
+        if (command.length === 1) {
+          this.displayBreakpoints();
+          return true;
+        } else if (command.length === 2) {
+          this.setBreakpoint(command[1]);
+          return true;
+        } else {
+          return false;
+        }
+        break;
       case 'c':
       case 'co':
       case 'con':
@@ -206,12 +224,24 @@ export default class App {
           return false;
         }
         break;
+      case 'd':
+      case 'de':
+      case 'del':
+      case 'dele':
+      case 'delet':
+      case 'delete':
+        if (command.length === 2) {
+          this.deleteBreakpoint(command[1]);
+          return true;
+        } else {
+          return false;
+        }
+        break;
       case 'h':
       case 'he':
       case 'hel':
       case 'help':
         if (command.length === 1) {
-          this.terminal.writeln('');
           this.displayHelp();
           return true;
         } else {
@@ -222,7 +252,6 @@ export default class App {
       case 'me':
       case 'mem':
         if (command.length === 2) {
-          this.terminal.writeln('');
           this.displayMemoryContent(command[1]);
           return true;
         } else {
@@ -232,7 +261,6 @@ export default class App {
       case 'p':
       case 'pc':
         if (command.length === 1) {
-          this.terminal.writeln('');
           this.displayPCContent();
           return true;
         } else {
@@ -243,7 +271,6 @@ export default class App {
       case 're':
       case 'reg':
         if (command.length === 2) {
-          this.terminal.writeln('');
           this.displayRegisterContent(command[1]);
           return true;
         } else {
@@ -259,11 +286,7 @@ export default class App {
             this.step(1);
             return true;
           case 2:
-            const num = parseInt(command[1]);
-            if (isNaN(num)) {
-              return false;
-            }
-            this.step(num);
+            this.step(command[1]);
             return true;
           default:
             return false;
@@ -276,6 +299,9 @@ export default class App {
 
   displayHelp() {
     this.terminal.writeln('Commands:');
+    this.terminal.writeln('  breakpoint: Show breakpoint set list.');
+    this.terminal.writeln('  breakpoint <virtual_address>: Set breakpoint.');
+    this.terminal.writeln('  delete <virtual_address>: Delete breakpoint.');
     this.terminal.writeln('  continue: Continue the main program. Ctrl-A enters debug mode again.');
     this.terminal.writeln('  help: Show this message');
     this.terminal.writeln('  mem <virtual_address>: Show eight-byte content of memory');
@@ -284,18 +310,21 @@ export default class App {
     this.terminal.writeln('  step [num]: Run [num](one if omitted) step(s) execution');
   }
 
-  step(num) {
-    this.terminal.writeln('');
+  step(numOrNumStr) {
+    const num = parseInt(numOrNumStr);
+    if (isNaN(num)) {
+      this.terminal.writeln('Invalid num.');
+      return false;
+    }
     this.riscv.run_cycles(num);
     this.flush();
     this.riscv.disassemble_next_instruction();
+    this.flush();
+    this.terminal.writeln('');
   }
 
-  continue() {
+  run() {
     const runCycles = () => {
-      if (this.inDebugMode) {
-        return;
-      }
       setTimeout(runCycles, 0);
       this.riscv.run_cycles(this.runCyclesNum);
       this.flush();
@@ -306,30 +335,52 @@ export default class App {
 
     this.inDebugMode = false;
     this.lastCommandStrings = '';
-    this.terminal.writeln('');
+    runCycles();
+  }
+
+  continue() {
+    const runCycles = () => {
+      if (this.inDebugMode) {
+        return;
+      }
+      setTimeout(runCycles, 0);
+      let broken = false;
+      if (this.riscv.run_until_breakpoints(this.breakpoints, this.runCyclesNum)) {
+        this.inDebugMode = true;
+      }
+      this.flush();
+      while (this.inputs.length > 0) {
+        this.riscv.put_input(this.inputs.shift());
+      }
+      if (this.inDebugMode) {
+        this.step(0);
+      }
+    };
+
+    this.inDebugMode = false;
     runCycles();
   }
 
   displayMemoryContent(vAddressStr) {
     const vAddress = parseInt(vAddressStr);
     if (isNaN(vAddress)) {
-      this.terminal.write('Invalid address.');
+      this.terminal.writeln('Invalid address.');
       return;
     }
     const error = new Uint8Array([0]);
     const data = this.riscv.load_doubleword(BigInt(vAddress), error);
     switch (error[0]) {
       case 0:
-        this.terminal.write('0x' + data.toString(16));
+        this.terminal.writeln('0x' + data.toString(16));
         break;
       case 1:
-        this.terminal.write('Page fault.');
+        this.terminal.writeln('Page fault.');
         break;
       case 2:
-        this.terminal.write('Invalid address.');
+        this.terminal.writeln('Invalid address.');
         break;
       default:
-        this.terminal.write('Unknown error code.');
+        this.terminal.writeln('Unknown error code.');
         break;
     }
   }
@@ -337,18 +388,54 @@ export default class App {
   displayRegisterContent(regNumStr) {
     const regNum = parseInt(regNumStr);
     if (isNaN(regNum)) {
-      this.terminal.write('Invalid register number.');
+      this.terminal.writeln('Invalid register number.');
       return;
     }
     if (regNum < 0 || regNum > 31) {
-      this.terminal.write('Register number should be 0-31.');
+      this.terminal.writeln('Register number should be 0-31.');
       return;
     }
-    this.terminal.write('0x' + this.riscv.read_register(regNum).toString(16));
+    this.terminal.writeln('0x' + this.riscv.read_register(regNum).toString(16));
   }
 
   displayPCContent() {
-    this.terminal.write('0x' + this.riscv.read_pc().toString(16));
+    this.terminal.writeln('0x' + this.riscv.read_pc().toString(16));
+  }
+
+  setBreakpoint(vAddressStr) {
+    let vAddress;
+    try {
+      vAddress = BigInt(vAddressStr);
+    } catch (e) {
+      this.terminal.writeln('Invalid virtual address.');
+      return;
+    }
+    if (this.breakpoints.includes(vAddress)) {
+      this.terminal.writeln('Already set.');
+      return;
+    }
+    this.breakpoints.push(vAddress);
+  }
+
+  deleteBreakpoint(vAddressStr) {
+    let vAddress;
+    try {
+      vAddress = BigInt(vAddressStr);
+    } catch (e) {
+      this.terminal.writeln('Invalid virtual address.');
+      return;
+    }
+    if (!this.breakpoints.includes(vAddress)) {
+      this.terminal.writeln('Not found.');
+      return;
+    }
+    this.breakpoints.splice(this.breakpoints.indexOf(vAddress), 1);
+  }
+
+  displayBreakpoints() {
+    for (const b of this.breakpoints) {
+      this.terminal.writeln('0x' + b.toString(16));
+    }
   }
 
   flush() {
@@ -371,11 +458,12 @@ export default class App {
     this.flush();
     this.terminal.writeln('');
     this.riscv.disassemble_next_instruction();
+    this.flush();
+    this.terminal.writeln('');
     this.prompt();
   }
 
   prompt() {
-    this.flush();
-    this.terminal.write('\r\n% ');
+    this.terminal.write('% ');
   }
 }

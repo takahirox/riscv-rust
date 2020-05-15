@@ -22,6 +22,36 @@ export class WasmRiscv {
 */
   run_cycles(cycles: number): void;
 /**
+* Runs program until breakpoints. Also known as debugger's continue command.
+* This method takes max_cycles. If the program doesn't hit any breakpoints
+* in max_cycles cycles this method returns false. Otherwise true.
+*
+* Even without this method, you can write the same behavior JS code as the
+* following code. But JS-WASM bridge cost isn't ignorable now. So this method
+* has been introduced.
+*
+* ```
+* const runUntilBreakpoints = (riscv, breakpoints, maxCycles) => {
+*   for (let i = 0; i < maxCycles; i++) {
+*     riscv.run_cycles(1);
+*     const pc = riscv.read_pc()
+*     if (breakpoints.includes(pc)) {
+*       return true;
+*     }
+*   }
+*   return false;
+* };
+* ```
+*
+* # Arguments
+* * `breakpoints` An array including breakpoint virtual addresses
+* * `max_cycles` See the above description
+* @param {BigUint64Array} breakpoints 
+* @param {number} max_cycles 
+* @returns {boolean} 
+*/
+  run_until_breakpoints(breakpoints: BigUint64Array, max_cycles: number): boolean;
+/**
 */
   disassemble_next_instruction(): void;
 /**
