@@ -35,51 +35,16 @@
       terminal.writeln('You can run the RISC-V port of Linux or xv6 (UNIX V6 rewritten by MIT for x86)');
       terminal.writeln('on your browser. Select OS from the list and press Run button.');
       terminal.writeln('');
-      terminal.writeln('The emulator is still very slow. It takes time to boot. Thank you for your');
-      terminal.writeln('patience.');
+      terminal.writeln('Or you can run your own program. Drag and drop your binary file here.');
+      terminal.writeln('');
+      terminal.writeln('The emulator is still very slow. It takes time to boot Linux or xv6. Thank you');
+      terminal.writeln('for your patience.');
       terminal.writeln('');
       terminal.writeln('Enjoy RISC-V and Operating System on browser!');
       terminal.writeln('');
 
-      const run = async () => {
-        runButton.disabled = true;
-        fileSelect.disabled = true;
-        debuggerCheckbox.disabled = true;
-
+      const run = async (elfBuffer, fsBuffer, dtbBuffer) => {
         const debugMode = debuggerCheckbox.checked;
-
-        terminal.clear();
-
-        const selectedOption = fileSelect.selectedOptions[0];
-        const filename = selectedOption.value;
-        const isLinux = filename === 'linux/bbl';
-        const isXv6 = filename === 'xv6/kernel';
-
-        if (isLinux) {
-          terminal.writeln('login name: root');
-          terminal.writeln('Password: busybear');
-          terminal.writeln('It takes time to boot. Thank you for your patience.');
-          terminal.writeln('');
-        }
-
-        const elfResponse = await fetch(resourcePath + filename);
-        const elfBuffer = await elfResponse.arrayBuffer();
-
-        let fsBuffer;
-        let dtbBuffer;
-
-        if (isLinux) {
-          const fsResponse = await fetch(resourcePath + 'linux/busybear.bin');
-          fsBuffer = await fsResponse.arrayBuffer();
-          const dtbResponse = await fetch(resourcePath + 'linux/dtb.dtb');
-          dtbBuffer = await dtbResponse.arrayBuffer();
-        } else if (isXv6) {
-          const fsResponse = await fetch(resourcePath + 'xv6/fs.img');
-          fsBuffer = await fsResponse.arrayBuffer();
-          dtbBuffer = new ArrayBuffer(0); // dummy
-		} else {
-          throw new Error('Unknown program.');
-        }
 
         const riscv = WasmRiscv.new();
         riscv.init(new Uint8Array(elfBuffer), new Uint8Array(fsBuffer), new Uint8Array(dtbBuffer));
@@ -118,14 +83,91 @@
       window.addEventListener('resize', onResize);
       onResize();
 
+      window.addEventListener('dragover', event => {
+        event.preventDefault();
+      });
+
+      window.addEventListener('drop', event => {
+        event.preventDefault();
+
+        if (runButton.disabled) {
+          return;
+        }
+
+        runButton.disabled = true;
+        fileSelect.disabled = true;
+        debuggerCheckbox.disabled = true;
+
+        terminal.clear();
+
+        const reader = new FileReader();
+        reader.addEventListener('load', event => {
+          terminal.writeln('Running program.');
+          run(event.target.result, new ArrayBuffer(0), new ArrayBuffer(0));
+        });
+        reader.addEventListener('error', error => {
+          terminal.writeln(error.message);
+          runButton.disabled = false;
+          fileSelect.disabled = false;
+          debuggerCheckbox.disabled = false;
+        });
+        reader.readAsArrayBuffer(event.dataTransfer.files[0]);
+        terminal.writeln('Loading program...');
+      });
+
+      const onClick = async event => {
+        runButton.disabled = true;
+        fileSelect.disabled = true;
+        debuggerCheckbox.disabled = true;
+
+        terminal.clear();
+
+        const selectedOption = fileSelect.selectedOptions[0];
+        const filename = selectedOption.value;
+        const isLinux = filename === 'linux/bbl';
+        const isXv6 = filename === 'xv6/kernel';
+
+        if (isLinux) {
+          terminal.writeln('login name: root');
+          terminal.writeln('Password: busybear');
+          terminal.writeln('It takes time to boot. Thank you for your patience.');
+          terminal.writeln('');
+        }
+
+        const elfResponse = await fetch(resourcePath + filename);
+        const elfBuffer = await elfResponse.arrayBuffer();
+
+        let fsBuffer;
+        let dtbBuffer;
+
+        if (isLinux) {
+          const fsResponse = await fetch(resourcePath + 'linux/busybear.bin');
+          fsBuffer = await fsResponse.arrayBuffer();
+          const dtbResponse = await fetch(resourcePath + 'linux/dtb.dtb');
+          dtbBuffer = await dtbResponse.arrayBuffer();
+        } else if (isXv6) {
+          const fsResponse = await fetch(resourcePath + 'xv6/fs.img');
+          fsBuffer = await fsResponse.arrayBuffer();
+          dtbBuffer = new ArrayBuffer(0); // dummy
+		} else {
+          runButton.disabled = false;
+          fileSelect.disabled = false;
+          debuggerCheckbox.disabled = false;
+          terminal.writeln('Unknown program.');
+          throw new Error('Unknown program.');
+        }
+
+        run(elfBuffer, fsBuffer, dtbBuffer);
+      };
+
       init()
         .then(_wasm => {
           wasm = _wasm;
-          runButton.addEventListener('click', run);
+          runButton.addEventListener('click', onClick);
           runButton.disabled = false;
           debuggerCheckbox.disabled = false;
         })
-        .catch(error => console.error(error));
+        .catch(error => terminal.writeln(error.message));
     </script>
     <select id="file-select">
       <option value="linux/bbl" selected>Linux</option>
