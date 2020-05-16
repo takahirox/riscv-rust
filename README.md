@@ -24,6 +24,7 @@ https://docs.rs/riscv_emu_rust/0.1.0/riscv_emu_rust/
 - Stable as [Linux](https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html) and [xv6-riscv](https://github.com/mit-pdos/xv6-riscv) run on it
 - Runnable locally
 - Also runnable in browser with WebAssembly
+- Debugger
 
 ## Instructions/Features support status
 
