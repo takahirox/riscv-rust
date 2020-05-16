@@ -53,7 +53,20 @@ if (!('BigUint64Array' in window)) {
         const array = args[0];
         obj = new Float64Array(array.length);
       } else {
-        obj = new Float64Array(args[0], args[1], args[2]);
+        switch (args.length) {
+          case 0:
+            obj = new Float64Array();
+            break;
+          case 1:
+            obj = new Float64Array(args[0]);
+            break;
+          case 2:
+            obj = new Float64Array(args[0], args[1]);
+            break;
+          default:
+            obj = new Float64Array(args[0], args[1], args[2]);
+            break;
+        }
       }
       const p = new Proxy(obj, {
         get(target, prop) {
