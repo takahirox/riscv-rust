@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use mmu::{AddressingMode, Mmu};
 use terminal::Terminal;
 
@@ -30,6 +32,7 @@ const CSR_MISA_ADDRESS: u16 = 0x301;
 const CSR_MEDELEG_ADDRESS: u16 = 0x302;
 const CSR_MIDELEG_ADDRESS: u16 = 0x303;
 const CSR_MIE_ADDRESS: u16 = 0x304;
+
 const CSR_MTVEC_ADDRESS: u16 = 0x305;
 const _CSR_MSCRATCH_ADDRESS: u16 = 0x340;
 const CSR_MEPC_ADDRESS: u16 = 0x341;
@@ -51,6 +54,7 @@ pub const MIP_SEIP: u64 = 0x200;
 const MIP_STIP: u64 = 0x020;
 const MIP_SSIP: u64 = 0x002;
 
+/// Emulates RISC-V CPU core
 pub struct Cpu {
 	clock: u64,
 	xlen: Xlen,
@@ -65,7 +69,8 @@ pub struct Cpu {
 	mmu: Mmu,
 	reservation: u64, // @TODO: Should support multiple address reservations
 	is_reservation_set: bool,
-	_dump_flag: bool
+	_dump_flag: bool,
+	decode_cache: DecodeCache
 }
 
 #[derive(Clone)]
@@ -209,7 +214,8 @@ impl Cpu {
 			mmu: Mmu::new(Xlen::Bit64, terminal),
 			reservation: 0,
 			is_reservation_set: false,
-			_dump_flag: false
+			_dump_flag: false,
+			decode_cache: DecodeCache::new()
 		};
 		cpu.x[0xb] = 0x1020; // I don't know why but Linux boot seems to require this initialization
 		cpu.write_csr_raw(CSR_MISA_ADDRESS, 0x800000008014312f);
@@ -307,11 +313,44 @@ impl Cpu {
 		};
 	}
 
-	fn decode(&self, word: u32) -> Result<&Instruction, ()> {
+	/// Decodes a word instruction data and returns a reference to
+	/// [`Instruction`](struct.Instruction.html). Using [`DecodeCache`](struct.DecodeCache.html)
+	/// so if cache hits this method returns the result very quickly.
+	/// The result will be stored to cache.
+	fn decode(&mut self, word: u32) -> Result<&Instruction, ()> {
+		match self.decode_cache.get(word) {
+			Some(index) => return Ok(&INSTRUCTIONS[index]),
+			None => match self.decode_and_get_instruction_index(word) {
+				Ok(index) => {
+					self.decode_cache.insert(word, index);
+					Ok(&INSTRUCTIONS[index])
+				},
+				Err(()) => Err(())
+			}
+		}
+	}
+
+	/// Decodes a word instruction data and returns a reference to
+	/// [`Instruction`](struct.Instruction.html). Not Using [`DecodeCache`](struct.DecodeCache.html)
+	/// so if you don't want to pollute the cache you should use this method
+	/// instead of `decode`.
+	fn decode_raw(&self, word: u32) -> Result<&Instruction, ()> {
+		match self.decode_and_get_instruction_index(word) {
+			Ok(index) => Ok(&INSTRUCTIONS[index]),
+			Err(()) => Err(())
+		}
+	}
+
+	/// Decodes a word instruction data and returns an index of
+	/// [`INSTRUCTIONS`](constant.INSTRUCTIONS.html)
+	///
+	/// # Arguments
+	/// * `word` word instruction data decoded
+	fn decode_and_get_instruction_index(&self, word: u32) -> Result<usize, ()> {
 		for i in 0..INSTRUCTION_NUM {
 			let inst = &INSTRUCTIONS[i];
 			if (word & inst.mask) == inst.data {
-				return Ok(inst);
+				return Ok(i);
 			}
 		}
 		return Err(())
@@ -1261,7 +1300,7 @@ impl Cpu {
 			}
 		};
 
-		let inst = {match self.decode(word) {
+		let inst = {match self.decode_raw(word) {
 			Ok(inst) => inst,
 			Err(()) => {
 				return format!("Unknown instruction PC:{:x} WORD:{:x}", self.pc, original_word);
@@ -3298,3 +3337,187 @@ const INSTRUCTIONS: [Instruction; INSTRUCTION_NUM] = [
 		disassemble: dump_format_i
 	},
 ];
+
+/// The number of results [`DecodeCache`](struct.DecodeCache.html) holds.
+/// You need to carefully choose the number. Too small number causes
+/// bad cache hit ratio. Too large number causes memory consumption
+/// and host hardware CPU cache memory miss.
+const DECODE_CACHE_ENTRY_NUM: usize = 0x1000;
+
+const INVALID_CACHE_ENTRY: usize = INSTRUCTION_NUM;
+const NULL_ENTRY: usize = DECODE_CACHE_ENTRY_NUM;
+
+/// `DecodeCache` provides a cache system for instruction decoding.
+/// It holds the recent [`DECODE_CACHE_ENTRY_NUM`](constant.DECODE_CACHE_ENTRY_NUM.html)
+/// instruction decode results. If it has a cache (called "hit") for passed
+/// word data, it returns decoding result very quickly. Decoding is one of the
+/// slowest parts in CPU. This cache system improves the CPU processing speed
+/// by skipping decoding. Especially it should work well for loop. It is said
+/// that some loops in a program consume the majority of time then this cache
+/// system is expected to reduce the decoding time very well.
+///
+/// This cache system is based on LRU algorithm, and consists of a hash map and
+/// a linked list. Linked list is for LRU, front means recently used and back
+/// means least recently used. A content in hash map points to an entry in the
+/// linked list. This is the key to achieve computing in O(1).
+///
+// @TODO: Write performance benchmark test to confirm this cache actually
+//        improves the speed.
+// @TODO: Write unit test.
+struct DecodeCache {
+	/// Holds mappings from word instruction data to an index of `entries`
+	/// pointing to the entry having the decoding result. Containing the word
+	/// means cache hit.
+	hash_map: HashMap::<u32, usize>,
+
+	/// Holds the entries [`DecodeCacheEntry`](struct.DecodeCacheEntry.html)
+	/// forming linked list.
+	entries: Vec<DecodeCacheEntry>,
+
+	/// An index of `entries` pointing to the head entry in the linked list
+	front_index: usize,
+
+	/// An index of `entries` pointing to the tail entry in the linked list
+	back_index: usize,
+
+	/// Cache hit count for debugging purpose
+	hit_count: u64,
+
+	/// Cache miss count for debugging purpose
+	miss_count: u64
+}
+
+impl DecodeCache {
+	/// Creates a new `DecodeCache`.
+	fn new() -> Self {
+		// Initialize linked list
+		let mut entries = Vec::new();
+		for i in 0..DECODE_CACHE_ENTRY_NUM {
+			let next_index = match i == DECODE_CACHE_ENTRY_NUM - 1 {
+				true => NULL_ENTRY,
+				false => i + 1
+			};
+			let prev_index = match i == 0 {
+				true => NULL_ENTRY,
+				false => i - 1
+			};
+			entries.push(DecodeCacheEntry::new(next_index, prev_index));
+		}
+
+		DecodeCache {
+			hash_map: HashMap::new(),
+			entries: entries,
+			front_index: 0,
+			back_index: DECODE_CACHE_ENTRY_NUM - 1,
+			hit_count: 0,
+			miss_count: 0
+		}
+	}
+
+	/// Gets the cached decoding result. If hits this method moves the
+	/// cache entry to front of the linked list and returns an index of
+	/// [`INSTRUCTIONS`](constant.INSTRUCTIONS.html).
+	/// Otherwise returns `None`. This operation should compute in O(1) time.
+	///
+	/// # Arguments
+	/// * `word` word instruction data
+	fn get(&mut self, word: u32) -> Option<usize> {
+		let result = match self.hash_map.get(&word) {
+			Some(index) => {
+				self.hit_count += 1;
+				// Move the entry to front of the list unless it is at front.
+				if self.front_index != *index {
+					let next_index = self.entries[*index].next_index;
+					let prev_index = self.entries[*index].prev_index;
+
+					// Remove the entry from the list
+					if self.back_index == *index {
+						self.back_index = prev_index;
+					} else {
+						self.entries[next_index].prev_index = prev_index;
+					}
+					self.entries[prev_index].next_index = next_index;
+
+					// Push the entry to front
+					self.entries[*index].prev_index = NULL_ENTRY;
+					self.entries[*index].next_index = self.front_index;
+					self.entries[self.front_index].prev_index = *index;
+					self.front_index = *index;
+				}
+				Some(self.entries[*index].instruction_index)
+			},
+			None => {
+				self.miss_count += 1;
+				None
+			}
+		};
+		//println!("Hit:{:X}, Miss:{:X}, Ratio:{}", self.hit_count, self.miss_count,
+		//	(self.hit_count as f64) / (self.hit_count + self.miss_count) as f64);
+		result
+	}
+
+	/// Inserts a new decode result to front of the linked list while removing
+	/// the least recently used result from the list. This operation should
+	/// compute in O(1) time.
+	///
+	/// # Arguments
+	/// * `word`
+	/// * `instruction_index`
+	fn insert(&mut self, word: u32, instruction_index: usize) {
+		let index = self.back_index;
+
+		// Remove the least recently used entry. The entry resource
+		// is reused as new entry.
+		if self.entries[index].instruction_index != INVALID_CACHE_ENTRY {
+			self.hash_map.remove(&self.entries[index].word);
+		}
+		self.back_index = self.entries[index].prev_index;
+		self.entries[self.back_index].next_index = NULL_ENTRY;
+
+		// Push the new entry to front of the linked list
+		self.hash_map.insert(word, index);
+		self.entries[index].prev_index = NULL_ENTRY;
+		self.entries[index].next_index = self.front_index;
+		self.entries[index].word = word;
+		self.entries[index].instruction_index = instruction_index;
+		self.entries[self.front_index].prev_index = index;
+		self.front_index = index;
+	}
+}
+
+/// An entry of linked list managed by [`DecodeCache`](struct.DecodeCache.html).
+/// An entry consists of a mapping from word instruction data to an index of
+/// [`INSTRUCTIONS`](constant.INSTRUCTIONS.html) and next/previous entry index
+/// in the linked list.
+struct DecodeCacheEntry {
+	/// Instruction word data
+	word: u32,
+
+	/// The result of decoding `word`. An index of [`INSTRUCTIONS`](constant.INSTRUCTIONS.html).
+	instruction_index: usize,
+
+	/// Next entry index in the linked list. [`NULL_ENTRY`](constant.NULL_ENTRY.html)
+	/// represents no next entry, meaning the entry is at tail.
+	next_index: usize,
+
+	/// Previous entry index in the linked list. [`NULL_ENTRY`](constant.NULL_ENTRY.html)
+	/// represents no previous entry, meaning the entry is at head.
+	prev_index: usize
+}
+
+impl DecodeCacheEntry {
+	/// Creates a new entry. Initial `instruction_index` is
+	/// `INVALID_CACHE_ENTRY` meaning the entry is invalid.
+	///
+	/// # Arguments
+	/// * `next_index`
+	/// * `prev_index`
+	fn new(next_index: usize, prev_index: usize) -> Self {
+		DecodeCacheEntry {
+			word: 0,
+			instruction_index: INVALID_CACHE_ENTRY,
+			next_index: next_index,
+			prev_index: prev_index
+		}
+	}
+}
