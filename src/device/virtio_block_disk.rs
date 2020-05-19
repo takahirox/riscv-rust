@@ -34,7 +34,7 @@ pub struct VirtioBlockDisk {
 	interrupt_status: u32, // read only
 	status: u32, // read and write
 	notify_clocks: Vec::<u64>,
-	contents: Vec<u8>
+	contents: Vec<u64>
 }
 
 impl VirtioBlockDisk {
@@ -64,8 +64,14 @@ impl VirtioBlockDisk {
 	}
 
 	pub fn init(&mut self, contents: Vec<u8>) {
+		// @TODO: Optimize
+		for _i in 0..((contents.len() + 7) / 8) {
+			self.contents.push(0);
+		}
 		for i in 0..contents.len() {
-			self.contents.push(contents[i]);
+			let index = (i >> 3) as usize;
+			let pos = (i % 8) * 8;
+			self.contents[index] = (self.contents[index] & !(0xff << pos)) | ((contents[i] as u64) << pos);
 		}
 	}
 
@@ -267,12 +273,30 @@ impl VirtioBlockDisk {
 		};
 	}
 
+	fn transfer_from_disk(&mut self, memory: &mut MemoryWrapper, mem_address: u64, disk_address: u64, length: u64) {
+		for i in 0..(length / 8) {
+			let disk_index = ((disk_address + i * 8) >> 3) as usize;
+			memory.write_doubleword(mem_address + i * 8, self.contents[disk_index]);
+		}
+	}
+
+	fn transfer_to_disk(&mut self, memory: &mut MemoryWrapper, mem_address: u64, disk_address: u64, length: u64) {
+		for i in 0..(length / 8) {
+			let disk_index = ((disk_address + i * 8) >> 3) as usize;
+			self.contents[disk_index] = memory.read_doubleword(mem_address + i * 8);
+		}
+	}
+
 	fn read_from_disk(&mut self, address: u64) -> u8 {
-		self.contents[address as usize]
+		let index = (address >> 3) as usize;
+		let pos = (address % 8) * 8;
+		(self.contents[index] >> pos) as u8
 	}
 
 	fn write_to_disk(&mut self, address: u64, value: u8) {
-		self.contents[address as usize] = value
+		let index = (address >> 3) as usize;
+		let pos = (address % 8) * 8;
+		self.contents[index] = (self.contents[index] & !(0xff << pos)) | ((value as u64) << pos);
 	}
 
 	fn get_page_address(&self) -> u64 {
@@ -391,15 +415,25 @@ impl VirtioBlockDisk {
 					// Second descriptor: Read/Write disk
 					match (desc_flags & VIRTQ_DESC_F_WRITE) == 0 {
 						true => { // write to disk
-							for i in 0..desc_len as u64 {
-								let data = memory.read_byte(desc_addr + i);
-								self.write_to_disk(blk_sector * SECTOR_SIZE + i, data);
+							if (desc_addr % 8) == 0 && ((blk_sector * SECTOR_SIZE) % 8) == 0 &&
+								(desc_len % 8) == 0 {
+								self.transfer_to_disk(memory, desc_addr, blk_sector * SECTOR_SIZE, desc_len as u64);
+							} else {
+								for i in 0..desc_len as u64 {
+									let data = memory.read_byte(desc_addr + i);
+									self.write_to_disk(blk_sector * SECTOR_SIZE + i, data);
+								}
 							}
 						},
 						false => { // read from disk
-							for i in 0..desc_len as u64 {
-								let data = self.read_from_disk(blk_sector * SECTOR_SIZE + i);
-								memory.write_byte(desc_addr + i, data);
+							if (desc_addr % 8) == 0 && ((blk_sector * SECTOR_SIZE) % 8) == 0 &&
+								(desc_len % 8) == 0 {
+								self.transfer_from_disk(memory, desc_addr, blk_sector * SECTOR_SIZE, desc_len as u64);
+							} else {
+								for i in 0..desc_len as u64 {
+									let data = self.read_from_disk(blk_sector * SECTOR_SIZE + i);
+									memory.write_byte(desc_addr + i, data);
+								}
 							}
 						}
 					};
