@@ -222,12 +222,6 @@ impl Cpu {
 		cpu
 	}
 
-	// Six public methods for setting up from outside
-
-	pub fn store_raw(&mut self, address: u64, value: u8) {
-		self.mmu.store_raw(address, value);
-	}
-
 	pub fn update_pc(&mut self, value: u64) {
 		self.pc = value;
 	}
@@ -236,26 +230,6 @@ impl Cpu {
 		self.xlen = xlen.clone();
 		self.mmu.update_xlen(xlen.clone());
 	}
-
-	pub fn setup_memory(&mut self, capacity: u64) {
-		self.mmu.init_memory(capacity);
-	}
-
-	pub fn setup_filesystem(&mut self, data: Vec<u8>) {
-		self.mmu.init_disk(data);
-	}
-
-	pub fn setup_dtb(&mut self, data: Vec<u8>) {
-		self.mmu.init_dtb(data);
-	}
-
-	// One public method for running riscv-tests
-
-	pub fn load_word_raw(&mut self, address: u64) -> u32 {
-		self.mmu.load_word_raw(address)
-	}
-
-	//
 
 	pub fn read_register(&self, reg: u8) -> i64 {
 		self.x[reg as usize]

@@ -1,4 +1,4 @@
-use memory::Memory;
+use mmu::MemoryWrapper;
 
 // Based on Virtual I/O Device (VIRTIO) Version 1.1
 // https://docs.oasis-open.org/virtio/virtio/v1.1/csprd01/virtio-v1.1-csprd01.html
@@ -10,11 +10,11 @@ const MAX_QUEUE_SIZE: u64 = 0x2000;
 // @TODO: Set more proper number. 500 core clocks may be too short.
 const DISK_ACCESS_DELAY: u64 = 500;
 
-const VIRTQ_DESC_F_NEXT: u64 = 1;
+const VIRTQ_DESC_F_NEXT: u16 = 1;
 
 // 0: buffer is write-only = read from disk operation
 // 1: buffer is read-only = write to disk operation
-const VIRTQ_DESC_F_WRITE: u64 = 2;
+const VIRTQ_DESC_F_WRITE: u16 = 2;
 
 const SECTOR_SIZE: u64 = 512;
 
@@ -69,7 +69,7 @@ impl VirtioBlockDisk {
 		}
 	}
 
-	pub fn tick(&mut self, memory: &mut Memory) {
+	pub fn tick(&mut self, memory: &mut MemoryWrapper) {
 		if self.notify_clocks.len() > 0 && (self.clock == self.notify_clocks[0] + DISK_ACCESS_DELAY) {
 			// bit 0 in interrupt_status register indicates
 			// the interrupt was asserted because the device has used a buffer
@@ -327,16 +327,16 @@ impl VirtioBlockDisk {
 	}
 
 	// @TODO: Follow the virtio block specification more propertly.
-	fn handle_disk_access(&mut self, memory: &mut Memory) {
+	fn handle_disk_access(&mut self, memory: &mut MemoryWrapper) {
 		let base_desc_address = self.get_base_desc_address();
 		let base_avail_address = self.get_base_avail_address();
 		let base_used_address = self.get_base_used_address();
 		let queue_size = self.queue_size as u64;
 
-		let _avail_flag = memory.read_bytes(base_avail_address, 2);
-		let _avail_index = memory.read_bytes(base_avail_address.wrapping_add(2), 2) % queue_size;
+		let _avail_flag = memory.read_halfword(base_avail_address) as u64;
+		let _avail_index = (memory.read_halfword(base_avail_address.wrapping_add(2)) as u64) % queue_size;
 		let desc_index_address = base_avail_address.wrapping_add(4).wrapping_add(self.used_ring_index as u64 * 2);
-		let desc_head_index = memory.read_bytes(desc_index_address, 2) % queue_size;
+		let desc_head_index = (memory.read_halfword(desc_index_address) as u64) % queue_size;
 
 		/*
 		println!("Desc AD:{:X}", base_desc_address);
@@ -355,10 +355,10 @@ impl VirtioBlockDisk {
 		let mut desc_next = desc_head_index;
 		loop {
 			let desc_element_address = base_desc_address + 16 * desc_next;
-			let desc_addr = memory.read_bytes(desc_element_address, 8);
-			let desc_len = memory.read_bytes(desc_element_address.wrapping_add(8), 4);
-			let desc_flags = memory.read_bytes(desc_element_address.wrapping_add(12), 2);
-			desc_next = memory.read_bytes(desc_element_address.wrapping_add(14), 2) % queue_size;
+			let desc_addr = memory.read_doubleword(desc_element_address);
+			let desc_len = memory.read_word(desc_element_address.wrapping_add(8));
+			let desc_flags = memory.read_halfword(desc_element_address.wrapping_add(12));
+			desc_next = (memory.read_halfword(desc_element_address.wrapping_add(14)) as u64) % queue_size;
 
 			/*
 			println!("Desc addr:{:X}", desc_addr);
@@ -378,9 +378,9 @@ impl VirtioBlockDisk {
 
 					// Read/Write operation can be distinguished with the second descriptor flags
 					// so we can ignore blk_type?
-					_blk_type = memory.read_bytes(desc_addr, 4);
-					_blk_reserved = memory.read_bytes(desc_addr.wrapping_add(4), 4);
-					blk_sector = memory.read_bytes(desc_addr.wrapping_add(8), 8);
+					_blk_type = memory.read_word(desc_addr);
+					_blk_reserved = memory.read_word(desc_addr.wrapping_add(4));
+					blk_sector = memory.read_doubleword(desc_addr.wrapping_add(8));
 					/*
 					println!("Blk type:{:X}", _blk_type);
 					println!("Blk reserved:{:X}", _blk_reserved);
@@ -428,9 +428,9 @@ impl VirtioBlockDisk {
 			panic!("Descript chain length should be three.");
 		}
 
-		memory.write_bytes(base_used_address.wrapping_add(4).wrapping_add(self.used_ring_index as u64 * 8), desc_head_index, 4);
+		memory.write_word(base_used_address.wrapping_add(4).wrapping_add(self.used_ring_index as u64 * 8), desc_head_index as u32);
 
 		self.used_ring_index = self.used_ring_index.wrapping_add(1) % self.queue_size as u16;
-		memory.write_bytes(base_used_address.wrapping_add(2), self.used_ring_index as u64, 2);
+		memory.write_halfword(base_used_address.wrapping_add(2), self.used_ring_index);
 	}
 }

@@ -72,7 +72,7 @@ impl Emulator {
 			// the data in the address and terminating the test
 			// if non-zero data is written.
 			// End code 1 seems to mean pass.
-			let endcode = self.cpu.load_word_raw(self.tohost_addr);
+			let endcode = self.cpu.get_mut_mmu().load_word_raw(self.tohost_addr);
 			if endcode != 0 {
 				match endcode {
 					1 => {
@@ -439,11 +439,11 @@ impl Emulator {
 		if tohost_addr != 0 {
 			self.is_test = true;
 			self.tohost_addr = tohost_addr;
-			self.cpu.setup_memory(TEST_MEMORY_CAPACITY);
+			self.cpu.get_mut_mmu().init_memory(TEST_MEMORY_CAPACITY);
 		} else {
 			self.is_test = false;
 			self.tohost_addr = 0;
-			self.cpu.setup_memory(PROGRAM_MEMORY_CAPACITY);
+			self.cpu.get_mut_mmu().init_memory(PROGRAM_MEMORY_CAPACITY);
 		}
 
 		for i in 0..program_data_section_headers.len() {
@@ -452,7 +452,7 @@ impl Emulator {
 			let sh_size = program_data_section_headers[i].sh_size;
 			if sh_addr >= 0x80000000 && sh_offset > 0 && sh_size > 0 {
 				for j in 0..sh_size as usize {
-					self.cpu.store_raw(sh_addr + j as u64, data[sh_offset as usize + j]);
+					self.cpu.get_mut_mmu().store_raw(sh_addr + j as u64, data[sh_offset as usize + j]);
 				}
 			}
 		}
@@ -461,11 +461,11 @@ impl Emulator {
 	}
 
 	pub fn setup_filesystem(&mut self, data: Vec<u8>) {
-		self.cpu.setup_filesystem(data);
+		self.cpu.get_mut_mmu().init_disk(data);
 	}
 
 	pub fn setup_dtb(&mut self, data: Vec<u8>) {
-		self.cpu.setup_dtb(data);
+		self.cpu.get_mut_mmu().init_dtb(data);
 	}
 
 	pub fn update_xlen(&mut self, xlen: Xlen) {
