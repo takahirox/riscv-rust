@@ -4,6 +4,8 @@ const DRAM_BASE: u64 = 0x80000000;
 
 const DTB_ADDRESS_RANGE: [usize; 2] = [0x1020, 0x1fff];
 
+use std::collections::HashMap;
+
 use memory::Memory;
 use cpu::{PrivilegeMode, Trap, TrapType, Xlen};
 use device::virtio_block_disk::VirtioBlockDisk;
@@ -23,7 +25,21 @@ pub struct Mmu {
 	disk: VirtioBlockDisk,
 	plic: Plic,
 	clint: Clint,
-	uart: Uart
+	uart: Uart,
+
+	/// Address translation page cache. Experimental feature.
+	/// The cache is cleared when translation can be changed;
+	/// xlen, ppn, privilege_mode, or addressing_mode is updated.
+	/// Precisely it isn't good enought because page table entries
+	/// can be updated anytime with store instructions, of course
+	/// very depending on how pages are mapped tho.
+	/// But observing page table entries is high cost so
+	/// ignoring so far. Then this cache can cause a bug
+	/// due to unexpected (meaning not in page fault handler)
+	/// page table entry update. So this is experimental feature.
+	fetch_page_cache: HashMap<u64, u64>,
+	load_page_cache: HashMap<u64, u64>,
+	store_page_cache: HashMap<u64, u64>
 }
 
 pub enum AddressingMode {
@@ -62,12 +78,18 @@ impl Mmu {
 			disk: VirtioBlockDisk::new(),
 			plic: Plic::new(),
 			clint: Clint::new(),
-			uart: Uart::new(terminal)
+			uart: Uart::new(terminal),
+			fetch_page_cache: HashMap::new(),
+			load_page_cache: HashMap::new(),
+			store_page_cache: HashMap::new()
 		}
 	}
 
 	pub fn update_xlen(&mut self, xlen: Xlen) {
 		self.xlen = xlen;
+		self.fetch_page_cache.clear();
+		self.load_page_cache.clear();
+		self.store_page_cache.clear();
 	}
 
 	pub fn init_memory(&mut self, capacity: u64) {
@@ -98,14 +120,23 @@ impl Mmu {
 
 	pub fn update_addressing_mode(&mut self, new_addressing_mode: AddressingMode) {
 		self.addressing_mode = new_addressing_mode;
+		self.fetch_page_cache.clear();
+		self.load_page_cache.clear();
+		self.store_page_cache.clear();
 	}
 
 	pub fn update_privilege_mode(&mut self, mode: PrivilegeMode) {
 		self.privilege_mode = mode;
+		self.fetch_page_cache.clear();
+		self.load_page_cache.clear();
+		self.store_page_cache.clear();
 	}
 
 	pub fn update_ppn(&mut self, ppn: u64) {
 		self.ppn = ppn;
+		self.fetch_page_cache.clear();
+		self.load_page_cache.clear();
+		self.store_page_cache.clear();
 	}
 
 	fn get_effective_address(&self, address: u64) -> u64 {
@@ -539,30 +570,55 @@ impl Mmu {
 
 	fn translate_address(&mut self, v_address: u64, access_type: MemoryAccessType) -> Result<u64, ()> {
 		let address = self.get_effective_address(v_address);
-		match self.addressing_mode {
-			AddressingMode::None => Ok(address),
-			AddressingMode::SV32 => match self.privilege_mode {
-				PrivilegeMode::User | PrivilegeMode::Supervisor => {
-					let vpns = [(address >> 12) & 0x3ff, (address >> 22) & 0x3ff];
-					self.traverse_page(address, 2 - 1, self.ppn, &vpns, access_type)
-				},
-				_ => Ok(address)
-			},
-			AddressingMode::SV39 => match self.privilege_mode {
-				PrivilegeMode::User | PrivilegeMode::Supervisor => {
-					let vpns = [(address >> 12) & 0x1ff, (address >> 21) & 0x1ff, (address >> 30) & 0x1ff];
-					self.traverse_page(address, 3 - 1, self.ppn, &vpns, access_type)
-				},
-				_ => Ok(address)
-			},
-			AddressingMode::SV48 => {
-				panic!("AddressingMode SV48 is not supported yet.");
+		let v_page = address & !0xfff;
+		let cache = match access_type {
+			MemoryAccessType::Execute => self.fetch_page_cache.get(&v_page),
+			MemoryAccessType::Read => self.load_page_cache.get(&v_page),
+			MemoryAccessType::Write => self.store_page_cache.get(&v_page),
+			MemoryAccessType::DontCare => None,
+		};
+		match cache {
+			Some(p_page) => Ok(p_page | (address & 0xfff)),
+			None => {
+				let p_address = match self.addressing_mode {
+					AddressingMode::None => Ok(address),
+					AddressingMode::SV32 => match self.privilege_mode {
+						PrivilegeMode::User | PrivilegeMode::Supervisor => {
+							let vpns = [(address >> 12) & 0x3ff, (address >> 22) & 0x3ff];
+							self.traverse_page(address, 2 - 1, self.ppn, &vpns, &access_type)
+						},
+						_ => Ok(address)
+					},
+					AddressingMode::SV39 => match self.privilege_mode {
+						PrivilegeMode::User | PrivilegeMode::Supervisor => {
+							let vpns = [(address >> 12) & 0x1ff, (address >> 21) & 0x1ff, (address >> 30) & 0x1ff];
+							self.traverse_page(address, 3 - 1, self.ppn, &vpns, &access_type)
+						},
+						_ => Ok(address)
+					},
+					AddressingMode::SV48 => {
+						panic!("AddressingMode SV48 is not supported yet.");
+					}
+				};
+				match p_address {
+					Ok(p_address) => {
+						let p_page = p_address & !0xfff;
+						match access_type {
+							MemoryAccessType::Execute => self.fetch_page_cache.insert(v_page, p_page),
+							MemoryAccessType::Read => self.load_page_cache.insert(v_page, p_page),
+							MemoryAccessType::Write => self.store_page_cache.insert(v_page, p_page),
+							MemoryAccessType::DontCare => None,
+						};
+						Ok(p_address)
+					},
+					Err(()) => Err(())
+				}
 			}
 		}
 	}
 
 	fn traverse_page(&mut self, v_address: u64, level: u8, parent_ppn: u64,
-		vpns: &[u64], access_type: MemoryAccessType) -> Result<u64, ()> {
+		vpns: &[u64], access_type: &MemoryAccessType) -> Result<u64, ()> {
 		let pagesize = 4096;
 		let ptesize = match self.addressing_mode {
 			AddressingMode::SV32 => 4,
