@@ -1,3 +1,7 @@
+/// DRAM base address. Offset from this base address
+/// is the address in main memory.
+const DRAM_BASE: u64 = 0x80000000;
+
 const DTB_ADDRESS_RANGE: [usize; 2] = [0x1020, 0x1fff];
 
 use memory::Memory;
@@ -14,7 +18,7 @@ pub struct Mmu {
 	ppn: u64,
 	addressing_mode: AddressingMode,
 	privilege_mode: PrivilegeMode,
-	memory: Memory,
+	memory: MemoryWrapper,
 	dtb: Vec<u8>,
 	disk: VirtioBlockDisk,
 	plic: Plic,
@@ -53,7 +57,7 @@ impl Mmu {
 			ppn: 0,
 			addressing_mode: AddressingMode::None,
 			privilege_mode: PrivilegeMode::Machine,
-			memory: Memory::new(),
+			memory: MemoryWrapper::new(),
 			dtb: vec![],
 			disk: VirtioBlockDisk::new(),
 			plic: Plic::new(),
@@ -75,7 +79,7 @@ impl Mmu {
 	}
 
 	pub fn init_dtb(&mut self, data: Vec<u8>) {
-		println!("DTB SIZE:{:X}", data.len());
+		//println!("DTB SIZE:{:X}", data.len());
 		for i in 0..data.len() {
 			self.dtb.push(data[i]);
 		}
@@ -111,84 +115,101 @@ impl Mmu {
 		}
 	}
 
-	pub fn fetch(&mut self, v_address: u64) -> Result<u8, Trap> {
-		let effective_address = self.get_effective_address(v_address);
-		let p_address = match self.translate_address(effective_address, MemoryAccessType::Execute) {
-			Ok(address) => address,
+	/// Fetches an instruction byte. This method takes virtual address
+	/// and translates into physical address inside.
+	///
+	/// # Arguments
+	/// * `v_address` Virtual address
+	fn fetch(&mut self, v_address: u64) -> Result<u8, Trap> {
+		match self.translate_address(v_address, MemoryAccessType::Execute) {
+			Ok(p_address) => Ok(self.load_raw(p_address)),
 			Err(()) => return Err(Trap {
 				trap_type: TrapType::InstructionPageFault,
 				value: v_address
 			})
-		};
-		Ok(self.load_raw(p_address))
+		}
 	}
 
-	fn fetch_bytes(&mut self, v_address: u64, width: u64) -> Result<u64, Trap> {
-		let mut data = 0 as u64;
+	/// Fetches instruction four bytes. This method takes virtual address
+	/// and translates into physical address inside.
+	///
+	/// # Arguments
+	/// * `v_address` Virtual address
+	pub fn fetch_word(&mut self, v_address: u64) -> Result<u32, Trap> {
+		let width = 4;
 		match (v_address & 0xfff) <= (0x1000 - width) {
 			true => {
+				// Fast path. All bytes fetched are in the same page so
+				// translating an address only once.
 				let effective_address = self.get_effective_address(v_address);
-				let p_address = match self.translate_address(effective_address, MemoryAccessType::Execute) {
-					Ok(address) => address,
-					Err(()) => return Err(Trap {
+				match self.translate_address(effective_address, MemoryAccessType::Execute) {
+					Ok(p_address) => Ok(self.load_word_raw(p_address)),
+					Err(()) => Err(Trap {
 						trap_type: TrapType::InstructionPageFault,
-						value: v_address
+						value: effective_address
 					})
-				};
-				for i in 0..width {
-					data |= (self.load_raw(p_address.wrapping_add(i) as u64) as u64) << (i * 8);
 				}
 			},
 			false => {
+				let mut data = 0 as u32;
 				for i in 0..width {
 					match self.fetch(v_address.wrapping_add(i)) {
 						Ok(byte) => {
-							data |= (byte as u64) << (i * 8)
+							data |= (byte as u32) << (i * 8)
 						},
 						Err(e) => return Err(e)
 					};
 				}
+				Ok(data)
 			}
 		}
-		Ok(data)
 	}
 
-	pub fn fetch_word(&mut self, v_address: u64) -> Result<u32, Trap> {
-		match self.fetch_bytes(v_address, 4) {
-			Ok(data) => Ok(data as u32),
-			Err(e) => Err(e)
-		}
-	}
-
+	/// Loads an byte. This method takes virtual address and translates
+	/// into physical address inside.
+	///
+	/// # Arguments
+	/// * `v_address` Virtual address
 	pub fn load(&mut self, v_address: u64) -> Result<u8, Trap> {
 		let effective_address = self.get_effective_address(v_address);
-		let p_address = match self.translate_address(effective_address, MemoryAccessType::Read) {
-			Ok(address) => address,
-			Err(()) => return Err(Trap {
+		match self.translate_address(effective_address, MemoryAccessType::Read) {
+			Ok(p_address) => Ok(self.load_raw(p_address)),
+			Err(()) => Err(Trap {
 				trap_type: TrapType::LoadPageFault,
 				value: v_address
 			})
-		};
-		Ok(self.load_raw(p_address))
+		}
 	}
 
+	/// Loads multiple bytes. This method takes virtual address and translates
+	/// into physical address inside.
+	///
+	/// # Arguments
+	/// * `v_address` Virtual address
+	/// * `width` Must be 1, 2, 4, or 8
 	fn load_bytes(&mut self, v_address: u64, width: u64) -> Result<u64, Trap> {
-		let mut data = 0 as u64;
+		assert!(width == 1 || width == 2 || width == 4 || width == 8,
+			"Width must be 1, 2, 4, or 8. {:X}", width);
 		match (v_address & 0xfff) <= (0x1000 - width) {
-			true => {
-				let effective_address = self.get_effective_address(v_address);
-				let p_address = match self.translate_address(effective_address, MemoryAccessType::Read) {
-					Ok(address) => address,
-					Err(()) => return Err(Trap {
-						trap_type: TrapType::LoadPageFault,
-						value: v_address
-					})
-				};
-				for i in 0..width {
-					data |= (self.load_raw(p_address.wrapping_add(i) as u64) as u64) << (i * 8);
-				}
+			true => match self.translate_address(v_address, MemoryAccessType::Read) {
+				Ok(p_address) => {
+					// Fast path. All bytes fetched are in the same page so
+					// translating an address only once.
+					match width {
+						1 => Ok(self.load_raw(p_address) as u64),
+						2 => Ok(self.load_halfword_raw(p_address) as u64),
+						4 => Ok(self.load_word_raw(p_address) as u64),
+						8 => Ok(self.load_doubleword_raw(p_address)),
+						_ => panic!("Width must be 1, 2, 4, or 8. {:X}", width)
+					}
+				},
+				Err(()) => Err(Trap {
+					trap_type: TrapType::LoadPageFault,
+					value: v_address
+				})
 			},
 			false => {
+				let mut data = 0 as u64;
 				for i in 0..width {
 					match self.load(v_address.wrapping_add(i)) {
 						Ok(byte) => {
@@ -197,11 +218,16 @@ impl Mmu {
 						Err(e) => return Err(e)
 					};
 				}
+				Ok(data)
 			}
 		}
-		Ok(data)
 	}
 
+	/// Loads two bytes. This method takes virtual address and translates
+	/// into physical address inside.
+	///
+	/// # Arguments
+	/// * `v_address` Virtual address
 	pub fn load_halfword(&mut self, v_address: u64) -> Result<u16, Trap> {
 		match self.load_bytes(v_address, 2) {
 			Ok(data) => Ok(data as u16),
@@ -209,6 +235,11 @@ impl Mmu {
 		}
 	}
 
+	/// Loads four bytes. This method takes virtual address and translates
+	/// into physical address inside.
+	///
+	/// # Arguments
+	/// * `v_address` Virtual address
 	pub fn load_word(&mut self, v_address: u64) -> Result<u32, Trap> {
 		match self.load_bytes(v_address, 4) {
 			Ok(data) => Ok(data as u32),
@@ -216,6 +247,11 @@ impl Mmu {
 		}
 	}
 
+	/// Loads eight bytes. This method takes virtual address and translates
+	/// into physical address inside.
+	///
+	/// # Arguments
+	/// * `v_address` Virtual address
 	pub fn load_doubleword(&mut self, v_address: u64) -> Result<u64, Trap> {
 		match self.load_bytes(v_address, 8) {
 			Ok(data) => Ok(data as u64),
@@ -223,33 +259,53 @@ impl Mmu {
 		}
 	}
 
+	/// Store an byte. This method takes virtual address and translates
+	/// into physical address inside.
+	///
+	/// # Arguments
+	/// * `v_address` Virtual address
+	/// * `value`
 	pub fn store(&mut self, v_address: u64, value: u8) -> Result<(), Trap> {
-		let effective_address = self.get_effective_address(v_address);
-		let p_address = match self.translate_address(effective_address, MemoryAccessType::Write) {
-			Ok(address) => address,
-			Err(()) => return Err(Trap {
+		match self.translate_address(v_address, MemoryAccessType::Write) {
+			Ok(p_address) => {
+				self.store_raw(p_address, value);
+				Ok(())
+			},
+			Err(()) => Err(Trap {
 				trap_type: TrapType::StorePageFault,
 				value: v_address
 			})
-		};
-		self.store_raw(p_address, value);
-		Ok(())
+		}
 	}
 
+	/// Stores multiple bytes. This method takes virtual address and translates
+	/// into physical address inside.
+	///
+	/// # Arguments
+	/// * `v_address` Virtual address
+	/// * `value` data written
+	/// * `width` Must be 1, 2, 4, or 8
 	fn store_bytes(&mut self, v_address: u64, value: u64, width: u64) -> Result<(), Trap> {
+		assert!(width == 1 || width == 2 || width == 4 || width == 8,
+			"Width must be 1, 2, 4, or 8. {:X}", width);
 		match (v_address & 0xfff) <= (0x1000 - width) {
-			true => {
-				let effective_address = self.get_effective_address(v_address);
-				let p_address = match self.translate_address(effective_address, MemoryAccessType::Write) {
-					Ok(address) => address,
-					Err(()) => return Err(Trap {
-						trap_type: TrapType::StorePageFault,
-						value: v_address
-					})
-				};
-				for i in 0..width {
-					self.store_raw(p_address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8);
-				}
+			true => match self.translate_address(v_address, MemoryAccessType::Write) {
+				Ok(p_address) => {
+					// Fast path. All bytes fetched are in the same page so
+					// translating an address only once.
+					match width {
+						1 => self.store_raw(p_address, value as u8),
+						2 => self.store_halfword_raw(p_address, value as u16),
+						4 => self.store_word_raw(p_address, value as u32),
+						8 => self.store_doubleword_raw(p_address, value),
+						_ => panic!("Width must be 1, 2, 4, or 8. {:X}", width)
+					}
+					Ok(())
+				},
+				Err(()) => Err(Trap {
+					trap_type: TrapType::StorePageFault,
+					value: v_address
+				})
 			},
 			false => {
 				for i in 0..width {
@@ -258,81 +314,208 @@ impl Mmu {
 						Err(e) => return Err(e)
 					}
 				}
+				Ok(())
 			}
 		}
-		Ok(())
 	}
 
+	/// Stores two bytes. This method takes virtual address and translates
+	/// into physical address inside.
+	///
+	/// # Arguments
+	/// * `v_address` Virtual address
+	/// * `value` data written
 	pub fn store_halfword(&mut self, v_address: u64, value: u16) -> Result<(), Trap> {
 		self.store_bytes(v_address, value as u64, 2)
 	}
 
+	/// Stores four bytes. This method takes virtual address and translates
+	/// into physical address inside.
+	///
+	/// # Arguments
+	/// * `v_address` Virtual address
+	/// * `value` data written
 	pub fn store_word(&mut self, v_address: u64, value: u32) -> Result<(), Trap> {
 		self.store_bytes(v_address, value as u64, 4)
 	}
 
+	/// Stores eight bytes. This method takes virtual address and translates
+	/// into physical address inside.
+	///
+	/// # Arguments
+	/// * `v_address` Virtual address
+	/// * `value` data written
 	pub fn store_doubleword(&mut self, v_address: u64, value: u64) -> Result<(), Trap> {
 		self.store_bytes(v_address, value as u64, 8)
 	}
 
-	pub fn load_raw(&mut self, address: u64) -> u8 {
-		let effective_address = self.get_effective_address(address);
+	/// Loads a byte from main memory or peripheral devices depending on
+	/// physical address.
+	///
+	/// # Arguments
+	/// * `p_address` Physical address
+	fn load_raw(&mut self, p_address: u64) -> u8 {
+		let effective_address = self.get_effective_address(p_address);
 		// @TODO: Mapping should be configurable with dtb
-		match address {
-			// I don't know why but dtb data seems to be stored from 0x1020 on Linux.
-			// It might be from self.x[0xb] initialization?
-			// And DTB size is arbitray.
-			0x00001020..=0x00001fff => self.dtb[address as usize - 0x1020],
-			0x02000000..=0x0200ffff => self.clint.load(effective_address),
-			0x0C000000..=0x0fffffff => self.plic.load(effective_address),
-			0x10000000..=0x100000ff => self.uart.load(effective_address),
-			0x10001000..=0x10001FFF => self.disk.load(effective_address),
-			_ => {
-				self.memory.read_byte(effective_address)
+		match effective_address >= DRAM_BASE {
+			true => self.memory.read_byte(effective_address),
+			false => match effective_address {
+				// I don't know why but dtb data seems to be stored from 0x1020 on Linux.
+				// It might be from self.x[0xb] initialization?
+				// And DTB size is arbitray.
+				0x00001020..=0x00001fff => self.dtb[effective_address as usize - 0x1020],
+				0x02000000..=0x0200ffff => self.clint.load(effective_address),
+				0x0C000000..=0x0fffffff => self.plic.load(effective_address),
+				0x10000000..=0x100000ff => self.uart.load(effective_address),
+				0x10001000..=0x10001FFF => self.disk.load(effective_address),
+				_ => panic!("Unknown memory mapping {:X}.", effective_address)
 			}
 		}
 	}
 
-	pub fn load_word_raw(&mut self, address: u64) -> u32 {
-		let mut data = 0 as u32;
-		for i in 0..4 {
-			data |= (self.load_raw(address.wrapping_add(i)) as u32) << (i * 8)
+	/// Loads two bytes from main memory or peripheral devices depending on
+	/// physical address.
+	///
+	/// # Arguments
+	/// * `p_address` Physical address
+	fn load_halfword_raw(&mut self, p_address: u64) -> u16 {
+		let effective_address = self.get_effective_address(p_address);
+		match effective_address >= DRAM_BASE && effective_address.wrapping_add(1) > effective_address {
+			// Fast path. Directly load main memory at a time.
+			true => self.memory.read_halfword(effective_address),
+			false => {
+				let mut data = 0 as u16;
+				for i in 0..2 {
+					data |= (self.load_raw(effective_address.wrapping_add(i)) as u16) << (i * 8)
+				}
+				data
+			}
 		}
-		data
 	}
 
-	pub fn load_doubleword_raw(&mut self, address: u64) -> u64 {
-		let mut data = 0 as u64;
-		for i in 0..8 {
-			data |= (self.load_raw(address.wrapping_add(i)) as u64) << (i * 8)
+	/// Loads four bytes from main memory or peripheral devices depending on
+	/// physical address.
+	///
+	/// # Arguments
+	/// * `p_address` Physical address
+	pub fn load_word_raw(&mut self, p_address: u64) -> u32 {
+		let effective_address = self.get_effective_address(p_address);
+		match effective_address >= DRAM_BASE && effective_address.wrapping_add(3) > effective_address {
+			// Fast path. Directly load main memory at a time.
+			true => self.memory.read_word(effective_address),
+			false => {
+				let mut data = 0 as u32;
+				for i in 0..4 {
+					data |= (self.load_raw(effective_address.wrapping_add(i)) as u32) << (i * 8)
+				}
+				data
+			}
 		}
-		data
 	}
 
-	pub fn store_raw(&mut self, address: u64, value: u8) {
-		let effective_address = self.get_effective_address(address);
+	/// Loads eight bytes from main memory or peripheral devices depending on
+	/// physical address.
+	///
+	/// # Arguments
+	/// * `p_address` Physical address
+	fn load_doubleword_raw(&mut self, p_address: u64) -> u64 {
+		let effective_address = self.get_effective_address(p_address);
+		match effective_address >= DRAM_BASE && effective_address.wrapping_add(7) > effective_address {
+			// Fast path. Directly load main memory at a time.
+			true => self.memory.read_doubleword(effective_address),
+			false => {
+				let mut data = 0 as u64;
+				for i in 0..8 {
+					data |= (self.load_raw(effective_address.wrapping_add(i)) as u64) << (i * 8)
+				}
+				data
+			}
+		}
+	}
+
+	/// Stores a byte to main memory or peripheral devices depending on
+	/// physical address.
+	///
+	/// # Arguments
+	/// * `p_address` Physical address
+	/// * `value` data written
+	pub fn store_raw(&mut self, p_address: u64, value: u8) {
+		let effective_address = self.get_effective_address(p_address);
 		// @TODO: Mapping should be configurable with dtb
-		match address {
-			0x02000000..=0x0200ffff => self.clint.store(effective_address, value),
-			0x0c000000..=0x0fffffff => self.plic.store(effective_address, value),
-			0x10000000..=0x100000ff => self.uart.store(effective_address, value),
-			0x10001000..=0x10001FFF => self.disk.store(effective_address, value),
-			_ => self.memory.write_byte(effective_address, value)
+		match effective_address >= DRAM_BASE {
+			true => self.memory.write_byte(effective_address, value),
+			false => match effective_address {
+				0x02000000..=0x0200ffff => self.clint.store(effective_address, value),
+				0x0c000000..=0x0fffffff => self.plic.store(effective_address, value),
+				0x10000000..=0x100000ff => self.uart.store(effective_address, value),
+				0x10001000..=0x10001FFF => self.disk.store(effective_address, value),
+				_ => panic!("Unknown memory mapping {:X}.", effective_address)
+			}
 		};
 	}
 
-	pub fn store_word_raw(&mut self, address: u64, value: u32) {
-		for i in 0..4 {
-			self.store_raw(address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8);
+	/// Stores two bytes to main memory or peripheral devices depending on
+	/// physical address.
+	///
+	/// # Arguments
+	/// * `p_address` Physical address
+	/// * `value` data written
+	fn store_halfword_raw(&mut self, p_address: u64, value: u16) {
+		let effective_address = self.get_effective_address(p_address);
+		match effective_address >= DRAM_BASE && effective_address.wrapping_add(1) > effective_address {
+			// Fast path. Directly store to main memory at a time.
+			true => self.memory.write_halfword(effective_address, value),
+			false => {
+				for i in 0..2 {
+					self.store_raw(effective_address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8);
+				}
+			}
 		}
 	}
 
-	pub fn store_doubleword_raw(&mut self, address: u64, value: u64) {
-		for i in 0..8 {
-			self.store_raw(address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8);
+	/// Stores four bytes to main memory or peripheral devices depending on
+	/// physical address.
+	///
+	/// # Arguments
+	/// * `p_address` Physical address
+	/// * `value` data written
+	fn store_word_raw(&mut self, p_address: u64, value: u32) {
+		let effective_address = self.get_effective_address(p_address);
+		match effective_address >= DRAM_BASE && effective_address.wrapping_add(3) > effective_address {
+			// Fast path. Directly store to main memory at a time.
+			true => self.memory.write_word(effective_address, value),
+			false => {
+				for i in 0..4 {
+					self.store_raw(effective_address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8);
+				}
+			}
 		}
 	}
 
+	/// Stores eight bytes to main memory or peripheral devices depending on
+	/// physical address.
+	///
+	/// # Arguments
+	/// * `p_address` Physical address
+	/// * `value` data written
+	fn store_doubleword_raw(&mut self, p_address: u64, value: u64) {
+		let effective_address = self.get_effective_address(p_address);
+		match effective_address >= DRAM_BASE && effective_address.wrapping_add(7) > effective_address {
+			// Fast path. Directly store to main memory at a time.
+			true => self.memory.write_doubleword(effective_address, value),
+			false => {
+				for i in 0..8 {
+					self.store_raw(effective_address.wrapping_add(i), ((value >> (i * 8)) & 0xff) as u8);
+				}
+			}
+		}
+	}
+
+	/// Checks if passed virtual address is valid (pointing a certain device) or not.
+	/// This method can return page fault trap.
+	///
+	/// # Arguments
+	/// * `v_address` Virtual address
 	pub fn validate_address(&mut self, v_address: u64) -> Result<bool, ()> {
 		// @TODO: Support other access types?
 		let p_address = match self.translate_address(v_address, MemoryAccessType::DontCare) {
@@ -340,18 +523,22 @@ impl Mmu {
 			Err(()) => return Err(())
 		};
 		let effective_address = self.get_effective_address(p_address);
-		let valid = match effective_address {
-			0x00001020..=0x00001fff => true,
-			0x02000000..=0x0200ffff => true,
-			0x0C000000..=0x0fffffff => true,
-			0x10000000..=0x100000ff => true,
-			0x10001000..=0x10001FFF => true,
-			_ => self.memory.validate_address(effective_address)
+		let valid = match effective_address >= DRAM_BASE {
+			true => self.memory.validate_address(effective_address),
+			false => match effective_address {
+				0x00001020..=0x00001fff => true,
+				0x02000000..=0x0200ffff => true,
+				0x0C000000..=0x0fffffff => true,
+				0x10000000..=0x100000ff => true,
+				0x10001000..=0x10001FFF => true,
+				_ => false
+			}
 		};
 		Ok(valid)
 	}
 
-	fn translate_address(&mut self, address: u64, access_type: MemoryAccessType) -> Result<u64, ()> {
+	fn translate_address(&mut self, v_address: u64, access_type: MemoryAccessType) -> Result<u64, ()> {
+		let address = self.get_effective_address(v_address);
 		match self.addressing_mode {
 			AddressingMode::None => Ok(address),
 			AddressingMode::SV32 => match self.privilege_mode {
@@ -494,5 +681,73 @@ impl Mmu {
 
 	pub fn get_mut_uart(&mut self) -> &mut Uart {
 		&mut self.uart
+	}
+}
+
+/// [`Memory`](../memory/struct.Memory.html) wrapper. Converts physical address to the one in memory
+/// using [`DRAM_BASE`](constant.DRAM_BASE.html) and accesses [`Memory`](../memory/struct.Memory.html).
+pub struct MemoryWrapper {
+	memory: Memory
+}
+
+impl MemoryWrapper {
+	fn new() -> Self {
+		MemoryWrapper {
+			memory: Memory::new()
+		}
+	}
+
+	fn init(&mut self, capacity: u64) {
+		self.memory.init(capacity);
+	}
+
+	pub fn read_byte(&mut self, p_address: u64) -> u8 {
+		assert!(p_address >= DRAM_BASE, "Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
+		self.memory.read_byte(p_address - DRAM_BASE)
+	}
+
+	pub fn read_halfword(&mut self, p_address: u64) -> u16 {
+		assert!(p_address >= DRAM_BASE && p_address.wrapping_add(1) >= DRAM_BASE,
+			"Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
+		self.memory.read_halfword(p_address - DRAM_BASE)
+	}
+
+	pub fn read_word(&mut self, p_address: u64) -> u32 {
+		assert!(p_address >= DRAM_BASE && p_address.wrapping_add(3) >= DRAM_BASE,
+			"Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
+		self.memory.read_word(p_address - DRAM_BASE)
+	}
+
+	pub fn read_doubleword(&mut self, p_address: u64) -> u64 {
+		assert!(p_address >= DRAM_BASE && p_address.wrapping_add(7) >= DRAM_BASE,
+			"Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
+		self.memory.read_doubleword(p_address - DRAM_BASE)
+	}
+
+	pub fn write_byte(&mut self, p_address: u64, value: u8) {
+		assert!(p_address >= DRAM_BASE, "Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
+		self.memory.write_byte(p_address - DRAM_BASE, value)
+	}
+
+	pub fn write_halfword(&mut self, p_address: u64, value: u16) {
+		assert!(p_address >= DRAM_BASE && p_address.wrapping_add(1) >= DRAM_BASE,
+			"Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
+		self.memory.write_halfword(p_address - DRAM_BASE, value)
+	}
+
+	pub fn write_word(&mut self, p_address: u64, value: u32) {
+		assert!(p_address >= DRAM_BASE && p_address.wrapping_add(3) >= DRAM_BASE,
+			"Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
+		self.memory.write_word(p_address - DRAM_BASE, value)
+	}
+
+	pub fn write_doubleword(&mut self, p_address: u64, value: u64) {
+		assert!(p_address >= DRAM_BASE && p_address.wrapping_add(7) >= DRAM_BASE,
+			"Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
+		self.memory.write_doubleword(p_address - DRAM_BASE, value)
+	}
+
+	pub fn validate_address(&self, address: u64) -> bool {
+		self.memory.validate_address(address)
 	}
 }
