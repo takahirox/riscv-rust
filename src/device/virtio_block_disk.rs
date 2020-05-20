@@ -273,26 +273,55 @@ impl VirtioBlockDisk {
 		};
 	}
 
+	/// Fast path of transferring the data from disk to memory.
+	///
+	/// # Arguments
+	/// * `memory`
+	/// * `mem_addresss` Physical address. Must be eight-byte aligned.
+	/// * `disk_address` Must be eight-byte aligned.
+	/// * `length` Must be eight-byte aligned.
 	fn transfer_from_disk(&mut self, memory: &mut MemoryWrapper, mem_address: u64, disk_address: u64, length: u64) {
+		assert!((mem_address % 8) == 0, "Memory address should be eight-byte aligned. {:X}", mem_address);
+		assert!((disk_address % 8) == 0, "Disk address should be eight-byte aligned. {:X}", disk_address);
+		assert!((length % 8) == 0, "Length should be eight-byte aligned. {:X}", length);
 		for i in 0..(length / 8) {
 			let disk_index = ((disk_address + i * 8) >> 3) as usize;
 			memory.write_doubleword(mem_address + i * 8, self.contents[disk_index]);
 		}
 	}
 
+	/// Fast path of transferring the data from memory to disk.
+	///
+	/// # Arguments
+	/// * `memory`
+	/// * `mem_addresss` Physical address. Must be eight-byte aligned.
+	/// * `disk_address` Must be eight-byte aligned.
+	/// * `length` Must be eight-byte aligned.
 	fn transfer_to_disk(&mut self, memory: &mut MemoryWrapper, mem_address: u64, disk_address: u64, length: u64) {
+		assert!((mem_address % 8) == 0, "Memory address should be eight-byte aligned. {:X}", mem_address);
+		assert!((disk_address % 8) == 0, "Disk address should be eight-byte aligned. {:X}", disk_address);
+		assert!((length % 8) == 0, "Length should be eight-byte aligned. {:X}", length);
 		for i in 0..(length / 8) {
 			let disk_index = ((disk_address + i * 8) >> 3) as usize;
 			self.contents[disk_index] = memory.read_doubleword(mem_address + i * 8);
 		}
 	}
 
+	/// Reads a byte from disk.
+	///
+	/// # Arguments
+	/// * `addresss` Address in disk
 	fn read_from_disk(&mut self, address: u64) -> u8 {
 		let index = (address >> 3) as usize;
 		let pos = (address % 8) * 8;
 		(self.contents[index] >> pos) as u8
 	}
 
+	/// Writes a byte to disk.
+	///
+	/// # Arguments
+	/// * `addresss` Address in disk
+	/// * `value` Data written to disk
 	fn write_to_disk(&mut self, address: u64, value: u8) {
 		let index = (address >> 3) as usize;
 		let pos = (address % 8) * 8;
@@ -391,6 +420,7 @@ impl VirtioBlockDisk {
 			println!("Desc next:{:X}", desc_next);
 			*/
 
+			// Assuming address in memory equals to or greater than DRAM_BASE.
 			match desc_num {
 				0 => {
 					// First descriptor: Block description
@@ -417,6 +447,7 @@ impl VirtioBlockDisk {
 						true => { // write to disk
 							if (desc_addr % 8) == 0 && ((blk_sector * SECTOR_SIZE) % 8) == 0 &&
 								(desc_len % 8) == 0 {
+								// Enter fast path if possible
 								self.transfer_to_disk(memory, desc_addr, blk_sector * SECTOR_SIZE, desc_len as u64);
 							} else {
 								for i in 0..desc_len as u64 {
@@ -428,6 +459,7 @@ impl VirtioBlockDisk {
 						false => { // read from disk
 							if (desc_addr % 8) == 0 && ((blk_sector * SECTOR_SIZE) % 8) == 0 &&
 								(desc_len % 8) == 0 {
+								// Enter fast path if possible
 								self.transfer_from_disk(memory, desc_addr, blk_sector * SECTOR_SIZE, desc_len as u64);
 							} else {
 								for i in 0..desc_len as u64 {
