@@ -14,9 +14,10 @@ You can run Linux or xv6 on the emulator in your browser. [Online demo is here](
 
 ![animation](./screenshots/animation.gif)
 
-## Document
+## Documents
 
-https://docs.rs/riscv_emu_rust/0.1.0/riscv_emu_rust/
+* [Document](https://docs.rs/riscv_emu_rust/0.1.0/riscv_emu_rust/)
+* [Slides](https://docs.google.com/presentation/d/1qeR6KMSaJTR0ZSa2kLxgcBuc_zBo3l-kYbOpq1Wqmi0/edit?usp=sharing)
 
 ## Features
 
