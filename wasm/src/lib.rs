@@ -22,10 +22,16 @@ impl WasmRiscv {
 		}
 	}
 
-	pub fn init(&mut self, kernel_contents: Vec<u8>, fs_contents: Vec<u8>, dtb_contents: Vec<u8>) {
-		self.emulator.setup_from_elf(kernel_contents);
-		self.emulator.setup_filesystem(fs_contents);
-		self.emulator.setup_dtb(dtb_contents);
+	pub fn setup_program(&mut self, contents: Vec<u8>) {
+		self.emulator.setup_from_elf(contents);
+	}
+
+	pub fn setup_filesystem(&mut self, contents: Vec<u8>) {
+		self.emulator.setup_filesystem(contents);
+	}
+
+	pub fn setup_dtb(&mut self, contents: Vec<u8>) {
+		self.emulator.setup_dtb(contents);
 	}
 
 	pub fn run(&mut self) {

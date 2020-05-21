@@ -9,11 +9,17 @@ export class WasmRiscv {
 */
   static new(): WasmRiscv;
 /**
-* @param {Uint8Array} kernel_contents 
-* @param {Uint8Array} fs_contents 
-* @param {Uint8Array} dtb_contents 
+* @param {Uint8Array} contents 
 */
-  init(kernel_contents: Uint8Array, fs_contents: Uint8Array, dtb_contents: Uint8Array): void;
+  setup_program(contents: Uint8Array): void;
+/**
+* @param {Uint8Array} contents 
+*/
+  setup_filesystem(contents: Uint8Array): void;
+/**
+* @param {Uint8Array} contents 
+*/
+  setup_dtb(contents: Uint8Array): void;
 /**
 */
   run(): void;

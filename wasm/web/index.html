@@ -43,11 +43,12 @@
       terminal.writeln('Enjoy RISC-V and Operating System on browser!');
       terminal.writeln('');
 
-      const run = async (elfBuffer, fsBuffer, dtbBuffer) => {
+      const run = async (elfBuffer, fsBuffer) => {
         const debugMode = debuggerCheckbox.checked;
 
         const riscv = WasmRiscv.new();
-        riscv.init(new Uint8Array(elfBuffer), new Uint8Array(fsBuffer), new Uint8Array(dtbBuffer));
+        riscv.setup_program(new Uint8Array(elfBuffer));
+        riscv.setup_filesystem(new Uint8Array(fsBuffer));
 
         const app = new App(riscv, terminal, {
           debugModeEnabled: debugMode
@@ -138,18 +139,14 @@
         const elfBuffer = await elfResponse.arrayBuffer();
 
         let fsBuffer;
-        let dtbBuffer;
 
         if (isLinux) {
           const fsResponse = await fetch(resourcePath + 'linux/busybear.bin');
           fsBuffer = await fsResponse.arrayBuffer();
-          const dtbResponse = await fetch(resourcePath + 'linux/dtb.dtb');
-          dtbBuffer = await dtbResponse.arrayBuffer();
         } else if (isXv6) {
           const fsResponse = await fetch(resourcePath + 'xv6/fs.img');
           fsBuffer = await fsResponse.arrayBuffer();
-          dtbBuffer = new ArrayBuffer(0); // dummy
-		} else {
+        } else {
           runButton.disabled = false;
           fileSelect.disabled = false;
           debuggerCheckbox.disabled = false;
@@ -157,7 +154,7 @@
           throw new Error('Unknown program.');
         }
 
-        run(elfBuffer, fsBuffer, dtbBuffer);
+        run(elfBuffer, fsBuffer);
       };
 
       init()

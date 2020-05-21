@@ -79,18 +79,28 @@ class WasmRiscv {
         return WasmRiscv.__wrap(ret);
     }
     /**
-    * @param {Uint8Array} kernel_contents
-    * @param {Uint8Array} fs_contents
-    * @param {Uint8Array} dtb_contents
+    * @param {Uint8Array} contents
     */
-    init(kernel_contents, fs_contents, dtb_contents) {
-        var ptr0 = passArray8ToWasm0(kernel_contents, wasm.__wbindgen_malloc);
+    setup_program(contents) {
+        var ptr0 = passArray8ToWasm0(contents, wasm.__wbindgen_malloc);
         var len0 = WASM_VECTOR_LEN;
-        var ptr1 = passArray8ToWasm0(fs_contents, wasm.__wbindgen_malloc);
-        var len1 = WASM_VECTOR_LEN;
-        var ptr2 = passArray8ToWasm0(dtb_contents, wasm.__wbindgen_malloc);
-        var len2 = WASM_VECTOR_LEN;
-        wasm.wasmriscv_init(this.ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        wasm.wasmriscv_setup_program(this.ptr, ptr0, len0);
+    }
+    /**
+    * @param {Uint8Array} contents
+    */
+    setup_filesystem(contents) {
+        var ptr0 = passArray8ToWasm0(contents, wasm.__wbindgen_malloc);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.wasmriscv_setup_filesystem(this.ptr, ptr0, len0);
+    }
+    /**
+    * @param {Uint8Array} contents
+    */
+    setup_dtb(contents) {
+        var ptr0 = passArray8ToWasm0(contents, wasm.__wbindgen_malloc);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.wasmriscv_setup_dtb(this.ptr, ptr0, len0);
     }
     /**
     */
