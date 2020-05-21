@@ -3,7 +3,9 @@
 export const memory: WebAssembly.Memory;
 export function __wbg_wasmriscv_free(a: number): void;
 export function wasmriscv_new(): number;
-export function wasmriscv_init(a: number, b: number, c: number, d: number, e: number, f: number, g: number): void;
+export function wasmriscv_setup_program(a: number, b: number, c: number): void;
+export function wasmriscv_setup_filesystem(a: number, b: number, c: number): void;
+export function wasmriscv_setup_dtb(a: number, b: number, c: number): void;
 export function wasmriscv_run(a: number): void;
 export function wasmriscv_run_cycles(a: number, b: number): void;
 export function wasmriscv_run_until_breakpoints(a: number, b: number, c: number, d: number): number;
