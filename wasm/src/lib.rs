@@ -70,7 +70,7 @@ impl WasmRiscv {
 	/// # Arguments
 	/// * `content` Program binary
 	pub fn setup_program(&mut self, content: Vec<u8>) {
-		self.emulator.setup_from_elf(content);
+		self.emulator.setup_program(content);
 	}
 
 	/// Sets up filesystem. Use this method if program (e.g. Linux) uses

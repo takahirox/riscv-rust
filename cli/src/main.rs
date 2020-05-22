@@ -101,7 +101,7 @@ fn main () -> std::io::Result<()> {
 	};
 
 	let mut emulator = Emulator::new(get_terminal(terminal_type));
-	emulator.setup_from_elf(elf_contents);
+	emulator.setup_program(elf_contents);
 	
 	match matches.opt_str("x") {
 		Some(x) => match x.as_str() {
