@@ -2,7 +2,7 @@
   "name": "riscv_emu_rust_wasm",
   "description": "RISC-V emulator written in Rust and compiled to WebAssembly",
   "author": "Takahiro <hogehoge@gachapin.jp>",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "repository:": "https://github.com/takahirox/riscv-rust.git",
   "homepage": "https://github.com/takahirox/riscv-rust/tree/master/wasm/nodejs",
   "bugs": "https://github.com/takahirox/riscv-rust/issues",
