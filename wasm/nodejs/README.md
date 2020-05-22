@@ -22,7 +22,7 @@ riscv.setup_filesystem(new Uint8Array(fsBuffer));
 
 // Emulator needs to break program regularly to handle input/output
 // because the emulator is currenlty designed to run in a single thread.
-// Once `SharedArrayBuffer` lands by default in major browsers
+// Once `SharedArrayBuffer` lands and becomes stable
 // we would run input/output handler in another thread.
 const runCycles = () => {
   // Run 0x100000 (or certain) cycles, handle input/out,
