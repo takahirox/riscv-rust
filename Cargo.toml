@@ -1,6 +1,6 @@
 [package]
 name = "riscv_emu_rust"
-version = "0.1.0"
+version = "0.2.0"
 description = "RISC-V emulator written in Rust"
 authors = ["Takahiro <hogehoge@gachapin.jp>"]
 license = "MIT"
