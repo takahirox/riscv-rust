@@ -12,6 +12,11 @@ use device::clint::Clint;
 use device::uart::Uart;
 use terminal::Terminal;
 
+/// Emulates Memory Management Unit. It holds the Main memory and peripheral
+/// devices, maps address to them, and accesses them depending on address.
+/// It also manages virtual-physical address translation and memoty protection.
+/// It may also be said Bus.
+/// @TODO: Memory protection is not implemented yet. We should support.
 pub struct Mmu {
 	clock: u64,
 	xlen: Xlen,
@@ -50,6 +55,11 @@ fn _get_addressing_mode_name(mode: &AddressingMode) -> &'static str {
 }
 
 impl Mmu {
+	/// Creates a new `Mmu`.
+	///
+	/// # Arguments
+	/// * `xlen`
+	/// * `terminal`
 	pub fn new(xlen: Xlen, terminal: Box<dyn Terminal>) -> Self {
 		let mut dtb = vec![0; DTB_SIZE];
 		load_default_dtb_content(&mut dtb);
@@ -68,18 +78,34 @@ impl Mmu {
 		}
 	}
 
+	/// Updates XLEN, 32-bit or 64-bit
+	///
+	/// # Arguments
+	/// * `xlen`
 	pub fn update_xlen(&mut self, xlen: Xlen) {
 		self.xlen = xlen;
 	}
 
+	/// Initializes Main memory. This method is expected to be called only once.
+	///
+	/// # Arguments
+	/// * `capacity`
 	pub fn init_memory(&mut self, capacity: u64) {
 		self.memory.init(capacity);
 	}
 	
+	/// Initializes Virtio block disk. This method is expected to be called only once.
+	///
+	/// # Arguments
+	/// * `data` Filesystem binary content
 	pub fn init_disk(&mut self, data: Vec<u8>) {
 		self.disk.init(data);
 	}
 
+	/// Overrides defalut Device tree configuration.
+	///
+	/// # Arguments
+	/// * `data` DTB binary content
 	pub fn init_dtb(&mut self, data: Vec<u8>) {
 		for i in 0..data.len() {
 			self.dtb[i] = data[i];
@@ -89,6 +115,7 @@ impl Mmu {
 		}
 	}
 
+	/// Runs one cycle of MMU and peripheral devices.
 	pub fn tick(&mut self, mip: &mut u64) {
 		self.clint.tick(mip);
 		self.disk.tick(&mut self.memory);
@@ -97,14 +124,26 @@ impl Mmu {
 		self.clock = self.clock.wrapping_add(1);
 	}
 
+	/// Updates addressing mode
+	///
+	/// # Arguments
+	/// * `new_addressing_mode`
 	pub fn update_addressing_mode(&mut self, new_addressing_mode: AddressingMode) {
 		self.addressing_mode = new_addressing_mode;
 	}
 
+	/// Updates privilege mode
+	///
+	/// # Arguments
+	/// * `mode`
 	pub fn update_privilege_mode(&mut self, mode: PrivilegeMode) {
 		self.privilege_mode = mode;
 	}
 
+	/// Updates PPN used for address translation
+	///
+	/// # Arguments
+	/// * `ppn`
 	pub fn update_ppn(&mut self, ppn: u64) {
 		self.ppn = ppn;
 	}
@@ -672,14 +711,17 @@ impl Mmu {
 		Ok(p_address)
 	}
 
+	/// Returns immutable reference to `Clint`.
 	pub fn get_clint(&self) -> &Clint {
 		&self.clint
 	}
 
+	/// Returns mutable reference to `Clint`.
 	pub fn get_mut_clint(&mut self) -> &mut Clint {
 		&mut self.clint
 	}
 
+	/// Returns mutable reference to `Uart`.
 	pub fn get_mut_uart(&mut self) -> &mut Uart {
 		&mut self.uart
 	}
