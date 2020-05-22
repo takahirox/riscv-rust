@@ -3,6 +3,9 @@ use cpu::MIP_SEIP;
 // Based on SiFive Interrupt Cookbook
 // https://sifive.cdn.prismic.io/sifive/0d163928-2128-42be-a75a-464df65e04e0_sifive-interrupt-cookbook.pdf
 
+/// Emulates PLIC known as Interrupt Controller.
+/// Refer to the [specification](https://sifive.cdn.prismic.io/sifive%2Fc89f6e5a-cf9e-44c3-a3db-04420702dcc1_sifive+e31+manual+v19.08.pdf)
+/// for the detail.
 pub struct Plic {
 	clock: u64,
 	irq: u32,
@@ -12,6 +15,7 @@ pub struct Plic {
 }
 
 impl Plic {
+	/// Creates a new `Plic`.
 	pub fn new() -> Self {
 		Plic {
 			clock: 0,
@@ -22,6 +26,15 @@ impl Plic {
 		}
 	}
 
+	/// Runs one cycle. Takes interrupting signals from devices and
+	/// raises an interrupt to CPU depending on configuration.
+	/// It interrupt occurs CPU a certain bit of `mip` regiser is risen
+	/// depending on interrupt type.
+	///
+	/// # Arguments
+	/// * `virtio_is_interrupting`
+	/// * `uart_is_interrupting`
+	/// * `mip`
 	pub fn tick(&mut self, virtio_is_interrupting: bool,
 		uart_is_interrupting: bool, mip: &mut u64) {
 		self.clock = self.clock.wrapping_add(1);
@@ -61,6 +74,10 @@ impl Plic {
 		}
 	}
 
+	/// Loads register content
+	///
+	/// # Arguments
+	/// * `address`
 	pub fn load(&self, address: u64) -> u8 {
 		//println!("PLIC Load AD:{:X}", address);
 		match address {
@@ -90,6 +107,11 @@ impl Plic {
 		}
 	}
 
+	/// Stores register content
+	///
+	/// # Arguments
+	/// * `address`
+	/// * `value`
 	pub fn store(&mut self, address: u64, value: u8) {
 		//println!("PLIC Store AD:{:X} VAL:{:X}", address, value);
 		match address {
