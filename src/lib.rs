@@ -4,6 +4,7 @@ const PROGRAM_MEMORY_CAPACITY: u64 = 1024 * 1024 * 128; // big enough to run Lin
 
 pub mod cpu;
 pub mod terminal;
+pub mod default_terminal;
 pub mod memory;
 pub mod mmu;
 pub mod device;

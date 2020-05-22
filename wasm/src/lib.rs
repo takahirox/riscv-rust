@@ -1,13 +1,12 @@
 extern crate wasm_bindgen;
 extern crate riscv_emu_rust;
 
-mod wasm_terminal;
 
 use wasm_bindgen::prelude::*;
 use std::collections::HashMap;
 
 use riscv_emu_rust::Emulator;
-use wasm_terminal::WasmTerminal;
+use riscv_emu_rust::default_terminal::DefaultTerminal;
 
 /// `WasmRiscv` is an interface between user JavaScript code and
 /// WebAssembly RISC-V emulator. The following code is example
@@ -60,7 +59,7 @@ impl WasmRiscv {
 	/// Creates a new `WasmRiscv`.
 	pub fn new() -> Self {
 		WasmRiscv {
-			emulator: Emulator::new(Box::new(WasmTerminal::new()))
+			emulator: Emulator::new(Box::new(DefaultTerminal::new()))
 		}
 	}
 
