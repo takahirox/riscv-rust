@@ -54,12 +54,12 @@ This module is released at [crates.io](https://crates.io/crates/riscv_emu_rust
 
 ```
 [dependencies]
-riscv_emu_rust = "0.1.0"
+riscv_emu_rust = "0.2.0"
 ```
 
-Refer to [cli/src/main.rs](https://github.com/takahirox/riscv-rust/blob/master/cli/src/main.rs) as sample code.
+Refer to [Document](https://docs.rs/riscv_emu_rust/0.2.0/riscv_emu_rust/struct.Emulator.html) or [cli/src/main.rs](https://github.com/takahirox/riscv-rust/blob/master/cli/src/main.rs) as sample code.
 
-## How to build core library
+## How to build core library locally
 
 ```sh
 $ git clone https://github.com/takahirox/riscv-rust.git
@@ -67,12 +67,12 @@ $ cd riscv-rust
 $ cargo build --release
 ```
 
-## How to run Linux or xv6 as CLI application
+## How to run Linux or xv6 as desktop application
 
 ```sh
 $ cd riscv-rust/cli
 # Run Linux
-$ cargo run --release ../resources/linux/bbl -f ../resources/linux/busybear.bin -d ../resources/linux/dtb.dtb
+$ cargo run --release ../resources/linux/bbl -f ../resources/linux/busybear.bin
 # Run xv6
 $ cargo run --release ../resources/xv6/kernel -f ../resources/xv6/fs.img
 ```
