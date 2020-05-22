@@ -4,9 +4,9 @@
 [![Crate](https://img.shields.io/crates/v/riscv_emu_rust.svg)](https://crates.io/crates/riscv_emu_rust)
 [![npm version](https://badge.fury.io/js/riscv_emu_rust_wasm.svg)](https://badge.fury.io/js/riscv_emu_rust_wasm)
 
-riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written in Rust.
+riscv-rust is a [RISC-V](https://riscv.org/) processor and peripheral devices emulator project written in Rust and compiled to WebAssembly. You can import RISC-V emulator into your Rust or JavaScript project.
 
-## Demo
+## Online Demo
 
 You can run Linux or xv6 on the emulator in your browser. [Online demo is here](https://takahirox.github.io/riscv-rust/wasm/web/index.html)
 
@@ -26,6 +26,7 @@ You can run Linux or xv6 on the emulator in your browser. [Online demo is here](
 - Runnable locally
 - Also runnable in browser with WebAssembly
 - Debugger
+- You can import RISC-V emulator into your Rust or JavaScript project
 
 ## Instructions/Features support status
 
@@ -57,7 +58,7 @@ This module is released at [crates.io](https://crates.io/crates/riscv_emu_rust
 riscv_emu_rust = "0.2.0"
 ```
 
-Refer to [Document](https://docs.rs/riscv_emu_rust/0.2.0/riscv_emu_rust/struct.Emulator.html) or [cli/src/main.rs](https://github.com/takahirox/riscv-rust/blob/master/cli/src/main.rs) as sample code.
+Refer to [Document](https://docs.rs/riscv_emu_rust/0.2.0/riscv_emu_rust/struct.Emulator.html) for the API.
 
 ## How to build core library locally
 
@@ -88,11 +89,9 @@ $ bash build.sh
 # boot local server and access riscv-rust/wasm/web/index.html
 ```
 
-## How to install WebAssembly npm package
+## How to install and use WebAssembly npm package
 
-```sh
-$ npm install riscv_emu_rust_wasm
-```
+See [wasm/nodejs](https://github.com/takahirox/riscv-rust/tree/master/wasm/nodejs)
 
 ## How to run riscv-tests
 
