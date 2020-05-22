@@ -1,5 +1,7 @@
 use cpu::{MIP_MSIP, MIP_MTIP};
 
+/// Emulates CLINT known as Timer. Refer to the [specification](https://sifive.cdn.prismic.io/sifive%2Fc89f6e5a-cf9e-44c3-a3db-04420702dcc1_sifive+e31+manual+v19.08.pdf)
+/// for the detail.
 pub struct Clint {
 	clock: u64,
 	msip: u32,
@@ -8,6 +10,7 @@ pub struct Clint {
 }
 
 impl Clint {
+	/// Creates a new `Clint`
 	pub fn new() -> Self {
 		Clint {
 			clock: 0,
@@ -17,6 +20,11 @@ impl Clint {
 		}
 	}
 
+	/// Runs one cycle. `Clint` can raise interrupt. If it does it rises a certain bit
+	/// depending on interrupt type of CPU `mip` register.
+	///
+	/// # Arguments
+	/// * `mip` CPU `mip` register. It can be updated if interrupt occurs.
 	pub fn tick(&mut self, mip: &mut u64) {
 		self.clock = self.clock.wrapping_add(1);
 
@@ -35,6 +43,10 @@ impl Clint {
 		}
 	}
 
+	/// Loads register content.
+	///
+	/// # Arguments
+	/// * `address`
 	pub fn load(&self, address: u64) -> u8 {
 		//println!("CLINT Load AD:{:X}", address);
 		match address {
@@ -104,6 +116,11 @@ impl Clint {
 		}
 	}
 
+	/// Stores register content.
+	///
+	/// # Arguments
+	/// * `address`
+	/// * `value`
 	pub fn store(&mut self, address: u64, value: u8) {
 		//println!("CLINT Store AD:{:X} VAL:{:X}", address, value);
 		match address {
@@ -165,10 +182,12 @@ impl Clint {
 		};
 	}
 
+	/// Reads `mtime` register content
 	pub fn read_mtime(&self) -> u64 {
 		self.mtime
 	}
 
+	/// Writes to `mtime` register content
 	pub fn write_mtime(&mut self, value: u64) {
 		self.mtime = value;
 	}
