@@ -1,5 +1,7 @@
 use riscv_emu_rust::terminal::Terminal;
 
+/// `Terminal` for `WasmRiscv`. It is the bridge for input/output data
+/// between JavaScript and `WasmRiscv`.
 pub struct WasmTerminal {
 	input_data: Vec<u8>,
 	output_data: Vec<u8>
