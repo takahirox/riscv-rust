@@ -15,9 +15,9 @@ use terminal::Terminal;
 /// RISC-V emulator. It emulates RISC-V CPU and peripheral devices.
 ///
 /// Sample code to run the emulator.
-/// ```
+/// ```ignore
 /// // Creates an emulator with arbitary terminal
-/// let mut emulator = Emulator::new(Box::new(FooTerminal::new()));
+/// let mut emulator = Emulator::new(Box::new(DefaultTerminal::new()));
 /// // Set up program content binary
 /// emulator.setup_program(program_content);
 /// // Set up Filesystem content binary

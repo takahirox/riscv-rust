@@ -12,7 +12,7 @@ use riscv_emu_rust::default_terminal::DefaultTerminal;
 /// WebAssembly RISC-V emulator. The following code is example
 /// JavaScript user code.
 ///
-/// ```
+/// ```ignore
 /// // JavaScript code
 /// const riscv = WasmRiscv.new();
 /// // Setup program content binary
@@ -116,7 +116,7 @@ impl WasmRiscv {
 	/// as the following code. But JS-WASM bridge cost isn't ignorable now. So
 	/// this method has been introduced.
 	///
-	/// ```
+	/// ```ignore
 	/// const runUntilBreakpoints = (riscv, breakpoints, maxCycles) => {
 	///   for (let i = 0; i < maxCycles; i++) {
 	///     riscv.run_cycles(1);
@@ -216,7 +216,7 @@ impl WasmRiscv {
 	/// if the output buffer is empty. So if you want to read all buffered
 	/// output content, repeatedly call this method until zero is returned.
 	///
-	/// ```
+	/// ```ignore
 	/// // JavaScript code
 	/// while (true) {
 	///   const data = riscv.get_output();
