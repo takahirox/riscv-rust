@@ -54,7 +54,7 @@ Below is the example code to import and use them.
 
 Refer to the comments in [`WasmRiscv`](https://github.com/takahirox/riscv-rust/blob/master/wasm/src/lib.rs)
 
-## How to build WebAssembly RISC-V emulator and run in web browser
+## How to build WebAssembly RISC-V emulator and run demo in web browser locally
 
 Prerequirements
 - Install [wasm-bindgen client](https://rustwasm.github.io/docs/wasm-bindgen/)
