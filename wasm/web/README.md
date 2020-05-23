@@ -1,4 +1,4 @@
-riscv-rust/wasm/web is a directory for WebAssembly RISC-V emulator compiled from [riscv-rust](https://github.com/takahirox/riscv-rust) and its online demo. You can import the emulator into your web page.
+[riscv-rust/wasm/web](https://github.com/takahirox/riscv-rust/tree/master/wasm/web) is a directory for WebAssembly RISC-V emulator compiled from [riscv-rust](https://github.com/takahirox/riscv-rust) and its online demo. You can import the emulator into your web page.
 
 ## Online Demo
 
