@@ -78,21 +78,6 @@ $ cargo run --release ../resources/linux/bbl -f ../resources/linux/busybear.bin
 $ cargo run --release ../resources/xv6/kernel -f ../resources/xv6/fs.img
 ```
 
-## How to build WebAssembly and run in the browser
-
-Prerequirements
-- Install [wasm-bindgen client](https://rustwasm.github.io/docs/wasm-bindgen/)
-
-```sh
-$ cd riscv-rust/wasm
-$ bash build.sh
-# boot local server and access riscv-rust/wasm/web/index.html
-```
-
-## How to install and use WebAssembly npm package
-
-See [wasm/nodejs](https://github.com/takahirox/riscv-rust/tree/master/wasm/nodejs)
-
 ## How to run riscv-tests
 
 Prerequirements
@@ -103,6 +88,14 @@ Prerequirements
 $ cd riscv-rust/cli
 $ cargo run $path_to_riscv_tets/isa/rv32ui-p-add -n
 ```
+
+## How to import and use WebAssembly RISC-V emulator in a web browser
+
+See [wasm/web](https://github.com/takahirox/riscv-rust/tree/master/wasm/web)
+
+## How to install and use WebAssembly RISC-V emulator npm package
+
+See [wasm/nodejs](https://github.com/takahirox/riscv-rust/tree/master/wasm/nodejs)
 
 ## Links
 
