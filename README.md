@@ -32,21 +32,22 @@ You can run Linux or xv6 on the emulator in your browser. [Online demo is here](
 
 - [x] RV32/64I
 - [x] RV32/64M
-- [x] RV32/64F (partially)
-- [x] RV32/64D (partially)
+- [x] RV32/64F (almost)
+- [x] RV32/64D (almost)
 - [ ] RV32/64Q
-- [x] RV32/64A (partially)
-- [x] RV64C/32C (partially)
-- [x] RV32/64Zifencei (partially)
-- [x] RV32/64Zicsr (partially)
-- [x] CSR (partially)
+- [x] RV32/64A (almost)
+- [x] RV64C/32C (almost)
+- [x] RV32/64Zifencei (almost)
+- [x] RV32/64Zicsr (almost)
+- [x] CSR (almost)
 - [x] SV32/39
 - [ ] SV48
-- [x] Privileged instructions (partially)
+- [x] Privileged instructions (almost)
 - [ ] PMP
 
 etc...
 
+The emulator supports almost all instructions listed above but some instructions which are not used in Linux or xv6 are not implemented yet. Contribution is very welcome.
 
 ## How to import into your Rust project
 
