@@ -51,7 +51,7 @@ The emulator supports almost all instructions listed above but some instructions
 
 ## How to import into your Rust project
 
-This module is released at [crates.io](https://crates.io/crates/riscv_emu_rust
+The emulator module is released at [crates.io](https://crates.io/crates/riscv_emu_rust
 ). Add the following line into Cargo.toml of your Rust project.
 
 ```
