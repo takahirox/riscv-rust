@@ -135,6 +135,8 @@
           terminal.writeln('');
         }
 
+        terminal.writeln('Downloading files...');
+
         const elfResponse = await fetch(resourcePath + filename);
         const elfBuffer = await elfResponse.arrayBuffer();
 
@@ -153,6 +155,8 @@
           terminal.writeln('Unknown program.');
           throw new Error('Unknown program.');
         }
+
+        terminal.writeln('Done downloading.');
 
         run(elfBuffer, fsBuffer);
       };
