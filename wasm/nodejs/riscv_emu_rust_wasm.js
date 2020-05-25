@@ -320,6 +320,18 @@ class WasmRiscv {
     put_input(data) {
         wasm.wasmriscv_put_input(this.ptr, data);
     }
+    /**
+    * Enables or disables page cache optimization.
+    * Page cache optimization is an experimental feature.
+    * Refer to [`Mmu`](../riscv_emu_rust/mmu/struct.Mmu.html) for the detail.
+    *
+    * # Arguments
+    * * `enabled`
+    * @param {boolean} enabled
+    */
+    enable_page_cache(enabled) {
+        wasm.wasmriscv_enable_page_cache(this.ptr, enabled);
+    }
 }
 module.exports.WasmRiscv = WasmRiscv;
 
