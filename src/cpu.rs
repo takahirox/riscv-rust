@@ -72,7 +72,8 @@ pub struct Cpu {
 	reservation: u64, // @TODO: Should support multiple address reservations
 	is_reservation_set: bool,
 	_dump_flag: bool,
-	decode_cache: DecodeCache
+	decode_cache: DecodeCache,
+	unsigned_data_mask: u64
 }
 
 #[derive(Clone)]
@@ -221,7 +222,8 @@ impl Cpu {
 			reservation: 0,
 			is_reservation_set: false,
 			_dump_flag: false,
-			decode_cache: DecodeCache::new()
+			decode_cache: DecodeCache::new(),
+			unsigned_data_mask: 0xffffffffffffffff
 		};
 		cpu.x[0xb] = 0x1020; // I don't know why but Linux boot seems to require this initialization
 		cpu.write_csr_raw(CSR_MISA_ADDRESS, 0x800000008014312f);
@@ -242,6 +244,10 @@ impl Cpu {
 	/// * `xlen`
 	pub fn update_xlen(&mut self, xlen: Xlen) {
 		self.xlen = xlen.clone();
+		self.unsigned_data_mask = match xlen {
+			Xlen::Bit32 => 0xffffffff,
+			Xlen::Bit64 => 0xffffffffffffffff
+		};
 		self.mmu.update_xlen(xlen.clone());
 	}
 
@@ -767,20 +773,14 @@ impl Cpu {
 	// @TODO: Rename to better name?
 	fn sign_extend(&self, value: i64) -> i64 {
 		match self.xlen {
-			Xlen::Bit32 => (match value & 0x80000000 {
-				0x80000000 => (value as u64) | 0xffffffff00000000,
-				_ => (value as u64) & 0xffffffff
-			}) as i64,
+			Xlen::Bit32 => value as i32 as i64,
 			Xlen::Bit64 => value
 		}
 	}
 
 	// @TODO: Rename to better name?
 	fn unsigned_data(&self, value: i64) -> u64 {
-		match self.xlen {
-			Xlen::Bit32 => (value as u64) & 0xffffffff,
-			Xlen::Bit64 => value as u64
-		}
+		(value as u64) & self.unsigned_data_mask
 	}
 
 	// @TODO: Rename to better name?
