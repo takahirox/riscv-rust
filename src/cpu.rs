@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+extern crate fnv;
+
+use self::fnv::FnvHashMap;
 
 use mmu::{AddressingMode, Mmu};
 use terminal::Terminal;
@@ -3362,7 +3364,7 @@ struct DecodeCache {
 	/// Holds mappings from word instruction data to an index of `entries`
 	/// pointing to the entry having the decoding result. Containing the word
 	/// means cache hit.
-	hash_map: HashMap::<u32, usize>,
+	hash_map: FnvHashMap::<u32, usize>,
 
 	/// Holds the entries [`DecodeCacheEntry`](struct.DecodeCacheEntry.html)
 	/// forming linked list.
@@ -3399,7 +3401,7 @@ impl DecodeCache {
 		}
 
 		DecodeCache {
-			hash_map: HashMap::new(),
+			hash_map: FnvHashMap::default(),
 			entries: entries,
 			front_index: 0,
 			back_index: DECODE_CACHE_ENTRY_NUM - 1,
