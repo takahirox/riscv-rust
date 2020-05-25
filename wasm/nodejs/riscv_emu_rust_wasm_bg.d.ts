@@ -15,5 +15,6 @@ export function wasmriscv_read_register(a: number, b: number, c: number): void;
 export function wasmriscv_read_pc(a: number, b: number): void;
 export function wasmriscv_get_output(a: number): number;
 export function wasmriscv_put_input(a: number, b: number): void;
+export function wasmriscv_enable_page_cache(a: number, b: number): void;
 export function __wbindgen_malloc(a: number): number;
 export function __wbindgen_free(a: number, b: number): void;

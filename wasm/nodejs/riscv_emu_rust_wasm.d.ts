@@ -188,4 +188,14 @@ export class WasmRiscv {
 * @param {number} data 
 */
   put_input(data: number): void;
+/**
+* Enables or disables page cache optimization.
+* Page cache optimization is an experimental feature.
+* Refer to [`Mmu`](../riscv_emu_rust/mmu/struct.Mmu.html) for the detail.
+*
+* # Arguments
+* * `enabled`
+* @param {boolean} enabled 
+*/
+  enable_page_cache(enabled: boolean): void;
 }
