@@ -43,6 +43,7 @@ fn main () -> std::io::Result<()> {
 	opts.optopt("d", "dtb", "Device tree file", "linux/dtb");
 	opts.optflag("n", "no_terminal", "No popup terminal");
 	opts.optflag("h", "help", "Show this help menu");
+	opts.optflag("p", "page_cache", "Enable experimental page cache optimization");
 
 	let matches = match opts.parse(&args[1..]) {
 		Ok(m) => m,
@@ -125,6 +126,9 @@ fn main () -> std::io::Result<()> {
 	emulator.setup_filesystem(fs_contents);
 	if has_dtb {
 		emulator.setup_dtb(dtb_contents);
+	}
+	if matches.opt_present("h") {
+		emulator.enable_page_cache(true);
 	}
 	emulator.run();
 	Ok(())

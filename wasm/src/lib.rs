@@ -1,7 +1,6 @@
 extern crate wasm_bindgen;
 extern crate riscv_emu_rust;
 
-
 use wasm_bindgen::prelude::*;
 use std::collections::HashMap;
 
@@ -237,5 +236,15 @@ impl WasmRiscv {
 	/// * `data` Ascii code byte
 	pub fn put_input(&mut self, data: u8) {
 		self.emulator.get_mut_terminal().put_input(data);
+	}
+
+	/// Enables or disables page cache optimization.
+	/// Page cache optimization is an experimental feature.
+	/// Refer to [`Mmu`](../riscv_emu_rust/mmu/struct.Mmu.html) for the detail.
+	///
+	/// # Arguments
+	/// * `enabled`
+	pub fn enable_page_cache(&mut self, enabled: bool) {
+		self.emulator.enable_page_cache(enabled);
 	}
 }

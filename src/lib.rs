@@ -532,6 +532,16 @@ impl Emulator {
 		self.cpu.update_xlen(xlen);
 	}
 
+	/// Enables or disables page cache optimization.
+	/// Page cache optimization is experimental feature.
+	/// See [`Mmu`](./mmu/struct.Mmu.html) for the detail.
+	///
+	/// # Arguments
+	/// * `enabled`
+	pub fn enable_page_cache(&mut self, enabled: bool) {
+		self.cpu.get_mut_mmu().enable_page_cache(enabled);
+	}
+
 	/// Returns mutable reference to `Terminal`.
 	pub fn get_mut_terminal(&mut self) -> &mut Box<dyn Terminal> {
 		self.cpu.get_mut_terminal()
