@@ -4,7 +4,9 @@ const DRAM_BASE: u64 = 0x80000000;
 
 const DTB_SIZE: usize = 0xfe0;
 
-use std::collections::HashMap;
+extern crate fnv;
+
+use self::fnv::FnvHashMap;
 
 use memory::Memory;
 use cpu::{PrivilegeMode, Trap, TrapType, Xlen};
@@ -42,9 +44,9 @@ pub struct Mmu {
 	/// ignoring so far. Then this cache can cause a bug
 	/// due to unexpected (meaning not in page fault handler)
 	/// page table entry update. So this is experimental feature.
-	fetch_page_cache: HashMap<u64, u64>,
-	load_page_cache: HashMap<u64, u64>,
-	store_page_cache: HashMap<u64, u64>
+	fetch_page_cache: FnvHashMap<u64, u64>,
+	load_page_cache: FnvHashMap<u64, u64>,
+	store_page_cache: FnvHashMap<u64, u64>
 }
 
 pub enum AddressingMode {
@@ -91,9 +93,9 @@ impl Mmu {
 			plic: Plic::new(),
 			clint: Clint::new(),
 			uart: Uart::new(terminal),
-			fetch_page_cache: HashMap::new(),
-			load_page_cache: HashMap::new(),
-			store_page_cache: HashMap::new()
+			fetch_page_cache: FnvHashMap::default(),
+			load_page_cache: FnvHashMap::default(),
+			store_page_cache: FnvHashMap::default()
 		}
 	}
 
