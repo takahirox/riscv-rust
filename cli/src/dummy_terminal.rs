@@ -3,6 +3,8 @@ use std::io::{stdout, Write};
 
 use riscv_emu_rust::terminal::Terminal;
 
+/// Dummy `Terminal`. Output will be displayed in command line
+/// and input will not be handled.
 pub struct DummyTerminal {
 }
 

@@ -18,6 +18,8 @@ const VIRTQ_DESC_F_WRITE: u16 = 2;
 
 const SECTOR_SIZE: u64 = 512;
 
+/// Emulates Virtio Block device. Refer to the [specification](https://docs.oasis-open.org/virtio/virtio/v1.1/csprd01/virtio-v1.1-csprd01.html)
+/// for the detail. It follows legacy API.
 pub struct VirtioBlockDisk {
 	used_ring_index: u16,
 	clock: u64,
@@ -38,6 +40,7 @@ pub struct VirtioBlockDisk {
 }
 
 impl VirtioBlockDisk {
+	/// Creates a new `VirtioBlockDisk`.
 	pub fn new() -> Self {
 		VirtioBlockDisk {
 			used_ring_index: 0,
@@ -59,10 +62,16 @@ impl VirtioBlockDisk {
 		}
 	}
 
+	/// Indicates whether `VirtioBlockDisk` raises an interrupt signal
 	pub fn is_interrupting(&mut self) -> bool {
 		(self.interrupt_status & 0x1) == 1
 	}
 
+	/// Initializes filesystem content. The method is expected to be called
+	/// only up to once.
+	///
+	/// # Arguments
+	/// * `contents` filesystem content binary
 	pub fn init(&mut self, contents: Vec<u8>) {
 		// @TODO: Optimize
 		for _i in 0..((contents.len() + 7) / 8) {
@@ -75,6 +84,11 @@ impl VirtioBlockDisk {
 		}
 	}
 
+	/// Runs one cycle. Data transfer between main memory and block device
+	/// can happen depending on condition.
+	///
+	/// # Arguments
+	/// * `memory`
 	pub fn tick(&mut self, memory: &mut MemoryWrapper) {
 		if self.notify_clocks.len() > 0 && (self.clock == self.notify_clocks[0] + DISK_ACCESS_DELAY) {
 			// bit 0 in interrupt_status register indicates
@@ -87,9 +101,10 @@ impl VirtioBlockDisk {
 		self.clock = self.clock.wrapping_add(1);
 	}
 
-	// Load/Store registers.
-	// From 4.2.4 Legacy interface in the specification
-
+	/// Loads register content
+	///
+	/// # Arguments
+	/// * `address`
 	pub fn load(&mut self, address: u64) -> u8 {
 		//println!("Disk Load AD:{:X}", address);
 		match address {
@@ -145,6 +160,11 @@ impl VirtioBlockDisk {
 		}
 	}
 
+	/// Stores register content
+	///
+	/// # Arguments
+	/// * `address`
+	/// * `value`
 	pub fn store(&mut self, address: u64, value: u8) {
 		//println!("Disk Store AD:{:X} VAL:{:X}", address, value);
 		match address {

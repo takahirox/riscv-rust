@@ -4,6 +4,7 @@ use riscv_emu_rust::terminal::Terminal;
 use std::str;
 use self::pancurses::*;
 
+/// Popup `Terminal` used for desktop program.
 pub struct PopupTerminal {
 	window: Window,
 	in_escape_sequence: bool

@@ -1,5 +1,7 @@
 use terminal::Terminal;
 
+/// Emulates UART. Refer to the [specification](http://www.ti.com/lit/ug/sprugp1/sprugp1.pdf)
+/// for the detail.
 pub struct Uart {
 	clock: u64,
 	rbr: u8, // receiver buffer register
@@ -14,6 +16,7 @@ pub struct Uart {
 }
 
 impl Uart {
+	/// Creates a new `Uart`. Input/Output data is transferred via `Terminal`.
 	pub fn new(terminal: Box<dyn Terminal>) -> Self {
 		Uart {
 			clock: 0,
@@ -29,6 +32,8 @@ impl Uart {
 		}
 	}
 
+	/// Runs one cycle. `Uart` gets/puts input/output data via `Terminal`
+	/// at certain timing.
 	pub fn tick(&mut self) {
 		self.clock = self.clock.wrapping_add(1);
 		// 0x38400 is just an arbitary number @TODO: Fix me
@@ -47,6 +52,7 @@ impl Uart {
 		}
 	}
 
+	/// Indicates whether `Uart` raises an interrupt signal
 	pub fn is_interrupting(&mut self) -> bool {
 		if (self.ier & 0x1) != 0 {
 			if self.rbr != 0 {
@@ -64,6 +70,10 @@ impl Uart {
 		return false;
 	}
 
+	/// Loads register content
+	///
+	/// # Arguments
+	/// * `address`
 	pub fn load(&mut self, address: u64) -> u8 {
 		//println!("UART Load AD:{:X}", address);
 		match address {
@@ -89,6 +99,11 @@ impl Uart {
 		}
 	}
 
+	/// Stores register content
+	///
+	/// # Arguments
+	/// * `address`
+	/// * `value`
 	pub fn store(&mut self, address: u64, value: u8) {
 		//println!("UART Store AD:{:X} VAL:{:X}", address, value);
 		match address {
@@ -119,6 +134,7 @@ impl Uart {
 		};
 	}
 
+	/// Returns mutable reference to `Terminal`.
 	pub fn get_mut_terminal(&mut self) -> &mut Box<dyn Terminal> {
 		&mut self.terminal
 	}

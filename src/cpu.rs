@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+extern crate fnv;
+
+use self::fnv::FnvHashMap;
 
 use mmu::{AddressingMode, Mmu};
 use terminal::Terminal;
@@ -54,7 +56,7 @@ pub const MIP_SEIP: u64 = 0x200;
 const MIP_STIP: u64 = 0x020;
 const MIP_SSIP: u64 = 0x002;
 
-/// Emulates RISC-V CPU core
+/// Emulates a RISC-V CPU core
 pub struct Cpu {
 	clock: u64,
 	xlen: Xlen,
@@ -201,6 +203,10 @@ fn get_trap_cause(trap: &Trap, xlen: &Xlen) -> u64 {
 }
 
 impl Cpu {
+	/// Creates a new `Cpu`.
+	///
+	/// # Arguments
+	/// * `Terminal`
 	pub fn new(terminal: Box<dyn Terminal>) -> Self {
 		let mut cpu = Cpu {
 			clock: 0,
@@ -222,25 +228,38 @@ impl Cpu {
 		cpu
 	}
 
+	/// Updates Program Counter content
+	///
+	/// # Arguments
+	/// * `value`
 	pub fn update_pc(&mut self, value: u64) {
 		self.pc = value;
 	}
 
+	/// Updates XLEN, 32-bit or 64-bit
+	///
+	/// # Arguments
+	/// * `xlen`
 	pub fn update_xlen(&mut self, xlen: Xlen) {
 		self.xlen = xlen.clone();
 		self.mmu.update_xlen(xlen.clone());
 	}
 
+	/// Reads integer register content
+	///
+	/// # Arguments
+	/// * `reg` Register number. Must be 0-31
 	pub fn read_register(&self, reg: u8) -> i64 {
+		assert!(reg <= 31, "reg must be 0-31. {}", reg);
 		self.x[reg as usize]
 	}
 
+	/// Reads Program counter content
 	pub fn read_pc(&self) -> u64 {
 		self.pc
 	}
 
-	//
-
+	/// Runs program one cycle. Fetch, decode, and execution are completed in a cycle.
 	pub fn tick(&mut self) {
 		let instruction_address = self.pc;
 		match self.tick_operate() {
@@ -253,7 +272,7 @@ impl Cpu {
 		self.write_csr_raw(CSR_CYCLE_ADDRESS, self.clock);
 	}
 
-	// @TODO: Rename
+	// @TODO: Rename?
 	fn tick_operate(&mut self) -> Result<(), Trap> {
 		if self.wfi {
 			return Ok(());
@@ -1254,6 +1273,7 @@ impl Cpu {
 		0xffffffff // Return invalid value
 	}
 
+	/// Disassembles an instruction pointed by Program Counter.
 	pub fn disassemble_next_instruction(&mut self) -> String {
 		// @TODO: Fetching can make a side effect,
 		// for example updating page table entry or update peripheral hardware registers.
@@ -1288,10 +1308,12 @@ impl Cpu {
 		s
 	}
 
+	/// Returns mutable `Mmu`
 	pub fn get_mut_mmu(&mut self) -> &mut Mmu {
 		&mut self.mmu
 	}
 
+	/// Returns mutable `Terminal`
 	pub fn get_mut_terminal(&mut self) -> &mut Box<dyn Terminal> {
 		self.mmu.get_mut_uart().get_mut_terminal()
 	}
@@ -3342,7 +3364,7 @@ struct DecodeCache {
 	/// Holds mappings from word instruction data to an index of `entries`
 	/// pointing to the entry having the decoding result. Containing the word
 	/// means cache hit.
-	hash_map: HashMap::<u32, usize>,
+	hash_map: FnvHashMap::<u32, usize>,
 
 	/// Holds the entries [`DecodeCacheEntry`](struct.DecodeCacheEntry.html)
 	/// forming linked list.
@@ -3379,7 +3401,7 @@ impl DecodeCache {
 		}
 
 		DecodeCache {
-			hash_map: HashMap::new(),
+			hash_map: FnvHashMap::default(),
 			entries: entries,
 			front_index: 0,
 			back_index: DECODE_CACHE_ENTRY_NUM - 1,

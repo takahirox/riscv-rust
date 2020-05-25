@@ -4,6 +4,7 @@ const PROGRAM_MEMORY_CAPACITY: u64 = 1024 * 1024 * 128; // big enough to run Lin
 
 pub mod cpu;
 pub mod terminal;
+pub mod default_terminal;
 pub mod memory;
 pub mod mmu;
 pub mod device;
@@ -11,14 +12,33 @@ pub mod device;
 use cpu::{Cpu, Xlen};
 use terminal::Terminal;
 
+/// RISC-V emulator. It emulates RISC-V CPU and peripheral devices.
+///
+/// Sample code to run the emulator.
+/// ```ignore
+/// // Creates an emulator with arbitary terminal
+/// let mut emulator = Emulator::new(Box::new(DefaultTerminal::new()));
+/// // Set up program content binary
+/// emulator.setup_program(program_content);
+/// // Set up Filesystem content binary
+/// emulator.setup_filesystem(fs_content);
+/// // Go!
+/// emulator.run();
+/// ```
 pub struct Emulator {
 	cpu: Cpu,
 
-	// riscv-tests specific properties
+	/// [`riscv-tests`](https://github.com/riscv/riscv-tests) program specific
+	/// properties. Whether the program set by `setup_program()` is
+	/// [`riscv-tests`](https://github.com/riscv/riscv-tests) program.
 	is_test: bool,
+
+	/// [`riscv-tests`](https://github.com/riscv/riscv-tests) specific properties.
+	/// The address where data will be sent to terminal
 	tohost_addr: u64
 }
 
+/// ELF section header
 struct SectionHeader {
 	sh_name: u64,
 	_sh_type: u64,
@@ -33,16 +53,24 @@ struct SectionHeader {
 }
 
 impl Emulator {
+	/// Creates a new `Emulator`. [`Terminal`](terminal/trait.Terminal.html)
+	/// is internally used for transferring input/output data to/from `Emulator`.
+	/// 
+	/// # Arguments
+	/// * `terminal`
 	pub fn new(terminal: Box<dyn Terminal>) -> Self {
 		Emulator {
 			cpu: Cpu::new(terminal),
 
-			// These can be updated in setup_from_elf
+			// These can be updated in setup_program()
 			is_test: false,
 			tohost_addr: 0
 		}
 	}
 
+	/// Runs program set by `setup_program()`. Calls `run_test()` if the program
+	/// is [`riscv-tests`](https://github.com/riscv/riscv-tests).
+	/// Otherwise calls `run_program()`.
 	pub fn run(&mut self) {
 		match self.is_test {
 			true => self.run_test(),
@@ -50,14 +78,20 @@ impl Emulator {
 		};
 	}
 
+	/// Runs program set by `setup_program()`. The emulator won't stop forever.
 	pub fn run_program(&mut self) {
 		loop {
 			self.tick();
 		}
 	}
 
-	// Method for running riscv-tests
+	/// Method for running [`riscv-tests`](https://github.com/riscv/riscv-tests) program.
+	/// The differences from `run_program()` are
+	/// * Disassembles every instruction and dumps to terminal
+	/// * The emulator stops when the test finishes
+	/// * Displays the result message (pass/fail) to terminal
 	pub fn run_test(&mut self) {
+		// @TODO: Send this message to terminal?
 		println!("This elf file seems riscv-tests elf file. Running in test mode.");
 		loop {
 			let disas = self.cpu.disassemble_next_instruction();
@@ -87,19 +121,30 @@ impl Emulator {
 		}
 	}
 
+	/// Helper method. Sends ascii code bytes to terminal.
+	///
+	/// # Arguments
+	/// * `bytes`
 	fn put_bytes_to_terminal(&mut self, bytes: &[u8]) {
 		for i in 0..bytes.len() {
 			self.cpu.get_mut_terminal().put_byte(bytes[i]);
 		}
 	}
 
+	/// Runs CPU one cycle
 	pub fn tick(&mut self) {
 		self.cpu.tick();
 	}
 
-	// Expecting this method is called only once
-	// @TODO: Make ElfAnalyzer and move this method there.
-	pub fn setup_from_elf(&mut self, data: Vec<u8>) {
+	/// Sets up program run by the program. This method analyzes the passed content
+	/// and configure CPU properly. If the passed contend doesn't seem ELF file,
+	/// it panics. This method is expected to be called only once.
+	///
+	/// # Arguments
+	/// * `data` Program binary
+	// @TODO: Make ElfAnalyzer and move the core logic there.
+	// @TODO: Returns `Err` if the passed contend doesn't seem ELF file
+	pub fn setup_program(&mut self, data: Vec<u8>) {
 		// analyze elf header
 
 		// check ELF magic number
@@ -460,26 +505,44 @@ impl Emulator {
 		self.cpu.update_pc(e_entry);
 	}
 
-	pub fn setup_filesystem(&mut self, data: Vec<u8>) {
-		self.cpu.get_mut_mmu().init_disk(data);
+	/// Sets up filesystem. Use this method if program (e.g. Linux) uses
+	/// filesystem. This method is expected to be called up to only once.
+	///
+	/// # Arguments
+	/// * `content` File system content binary
+	pub fn setup_filesystem(&mut self, content: Vec<u8>) {
+		self.cpu.get_mut_mmu().init_disk(content);
 	}
 
-	pub fn setup_dtb(&mut self, data: Vec<u8>) {
-		self.cpu.get_mut_mmu().init_dtb(data);
+	/// Sets up device tree. The emulator has default device tree configuration.
+	/// If you want to override it, use this method. This method is expected to
+	/// to be called up to only once.
+	///
+	/// # Arguments
+	/// * `content` DTB content binary
+	pub fn setup_dtb(&mut self, content: Vec<u8>) {
+		self.cpu.get_mut_mmu().init_dtb(content);
 	}
 
+	/// Updates XLEN (the width of an integer register in bits) in CPU.
+	///
+	/// # Arguments
+	/// * `xlen`
 	pub fn update_xlen(&mut self, xlen: Xlen) {
 		self.cpu.update_xlen(xlen);
 	}
 
+	/// Returns mutable reference to `Terminal`.
 	pub fn get_mut_terminal(&mut self) -> &mut Box<dyn Terminal> {
 		self.cpu.get_mut_terminal()
 	}
 
+	/// Returns immutable reference to `Cpu`.
 	pub fn get_cpu(&self) -> &Cpu {
 		&self.cpu
 	}
 
+	/// Returns mutable reference to `Cpu`.
 	pub fn get_mut_cpu(&mut self) -> &mut Cpu {
 		&mut self.cpu
 	}

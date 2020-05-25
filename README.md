@@ -4,9 +4,9 @@
 [![Crate](https://img.shields.io/crates/v/riscv_emu_rust.svg)](https://crates.io/crates/riscv_emu_rust)
 [![npm version](https://badge.fury.io/js/riscv_emu_rust_wasm.svg)](https://badge.fury.io/js/riscv_emu_rust_wasm)
 
-riscv-rust is a [RISC-V](https://riscv.org/) processor emulator project written in Rust.
+riscv-rust is a [RISC-V](https://riscv.org/) processor and peripheral devices emulator project written in Rust and compiled to WebAssembly. You can import RISC-V emulator into your Rust or JavaScript project.
 
-## Demo
+## Online Demo
 
 You can run Linux or xv6 on the emulator in your browser. [Online demo is here](https://takahirox.github.io/riscv-rust/wasm/web/index.html)
 
@@ -14,9 +14,10 @@ You can run Linux or xv6 on the emulator in your browser. [Online demo is here](
 
 ![animation](./screenshots/animation.gif)
 
-## Document
+## Documents
 
-https://docs.rs/riscv_emu_rust/0.1.0/riscv_emu_rust/
+* [Document](https://docs.rs/riscv_emu_rust/0.2.0/riscv_emu_rust/)
+* [Slides](https://docs.google.com/presentation/d/1qeR6KMSaJTR0ZSa2kLxgcBuc_zBo3l-kYbOpq1Wqmi0/edit?usp=sharing)
 
 ## Features
 
@@ -25,40 +26,42 @@ https://docs.rs/riscv_emu_rust/0.1.0/riscv_emu_rust/
 - Runnable locally
 - Also runnable in browser with WebAssembly
 - Debugger
+- You can import RISC-V emulator into your Rust or JavaScript project
 
 ## Instructions/Features support status
 
 - [x] RV32/64I
 - [x] RV32/64M
-- [x] RV32/64F (partially)
-- [x] RV32/64D (partially)
+- [x] RV32/64F (almost)
+- [x] RV32/64D (almost)
 - [ ] RV32/64Q
-- [x] RV32/64A (partially)
-- [x] RV64C/32C (partially)
-- [x] RV32/64Zifencei (partially)
-- [x] RV32/64Zicsr (partially)
-- [x] CSR (partially)
+- [x] RV32/64A (almost)
+- [x] RV64C/32C (almost)
+- [x] RV32/64Zifencei (almost)
+- [x] RV32/64Zicsr (almost)
+- [x] CSR (almost)
 - [x] SV32/39
 - [ ] SV48
-- [x] Privileged instructions (partially)
+- [x] Privileged instructions (almost)
 - [ ] PMP
 
 etc...
 
+The emulator supports almost all instructions listed above but some instructions which are not used in Linux or xv6 are not implemented yet. Contribution is very welcome.
 
 ## How to import into your Rust project
 
-This module is released at [crates.io](https://crates.io/crates/riscv_emu_rust
+The emulator module is released at [crates.io](https://crates.io/crates/riscv_emu_rust
 ). Add the following line into Cargo.toml of your Rust project.
 
 ```
 [dependencies]
-riscv_emu_rust = "0.1.0"
+riscv_emu_rust = "0.2.0"
 ```
 
-Refer to [cli/src/main.rs](https://github.com/takahirox/riscv-rust/blob/master/cli/src/main.rs) as sample code.
+Refer to [Document](https://docs.rs/riscv_emu_rust/0.2.0/riscv_emu_rust/struct.Emulator.html) for the API.
 
-## How to build core library
+## How to build core library locally
 
 ```sh
 $ git clone https://github.com/takahirox/riscv-rust.git
@@ -66,31 +69,14 @@ $ cd riscv-rust
 $ cargo build --release
 ```
 
-## How to run Linux or xv6 as CLI application
+## How to run Linux or xv6 as desktop application
 
 ```sh
 $ cd riscv-rust/cli
 # Run Linux
-$ cargo run --release ../resources/linux/bbl -f ../resources/linux/busybear.bin -d ../resources/linux/dtb.dtb
+$ cargo run --release ../resources/linux/bbl -f ../resources/linux/busybear.bin
 # Run xv6
 $ cargo run --release ../resources/xv6/kernel -f ../resources/xv6/fs.img
-```
-
-## How to build WebAssembly and run in the browser
-
-Prerequirements
-- Install [wasm-bindgen client](https://rustwasm.github.io/docs/wasm-bindgen/)
-
-```sh
-$ cd riscv-rust/wasm
-$ bash build.sh
-# boot local server and access riscv-rust/wasm/web/index.html
-```
-
-## How to install WebAssembly npm package
-
-```sh
-$ npm install riscv_emu_rust_wasm
 ```
 
 ## How to run riscv-tests
@@ -103,6 +89,14 @@ Prerequirements
 $ cd riscv-rust/cli
 $ cargo run $path_to_riscv_tets/isa/rv32ui-p-add -n
 ```
+
+## How to import and use WebAssembly RISC-V emulator in a web browser
+
+See [wasm/web](https://github.com/takahirox/riscv-rust/tree/master/wasm/web)
+
+## How to install and use WebAssembly RISC-V emulator npm package
+
+See [wasm/nodejs](https://github.com/takahirox/riscv-rust/tree/master/wasm/nodejs)
 
 ## Links
 

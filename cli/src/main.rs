@@ -75,8 +75,10 @@ fn main () -> std::io::Result<()> {
 		None => vec![]
 	};
 
+	let mut has_dtb = false;
 	let dtb_contents = match matches.opt_str("d") {
 		Some(path) => {
+			has_dtb = true;
 			let mut file = File::open(path)?;
 			let mut contents = vec![];
 			file.read_to_end(&mut contents)?;
@@ -99,7 +101,7 @@ fn main () -> std::io::Result<()> {
 	};
 
 	let mut emulator = Emulator::new(get_terminal(terminal_type));
-	emulator.setup_from_elf(elf_contents);
+	emulator.setup_program(elf_contents);
 	
 	match matches.opt_str("x") {
 		Some(x) => match x.as_str() {
@@ -121,7 +123,9 @@ fn main () -> std::io::Result<()> {
 	};
 
 	emulator.setup_filesystem(fs_contents);
-	emulator.setup_dtb(dtb_contents);
+	if has_dtb {
+		emulator.setup_dtb(dtb_contents);
+	}
 	emulator.run();
 	Ok(())
 }

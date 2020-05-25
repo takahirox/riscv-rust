@@ -1,20 +1,21 @@
-use riscv_emu_rust::terminal::Terminal;
+use terminal::Terminal;
 
-pub struct WasmTerminal {
+/// Standard `Terminal`.
+pub struct DefaultTerminal {
 	input_data: Vec<u8>,
 	output_data: Vec<u8>
 }
 
-impl WasmTerminal {
+impl DefaultTerminal {
 	pub fn new() -> Self {
-		WasmTerminal {
+		DefaultTerminal {
 			input_data: vec![],
 			output_data: vec![]
 		}
 	}
 }
 
-impl Terminal for WasmTerminal {
+impl Terminal for DefaultTerminal {
 	fn put_byte(&mut self, value: u8) {
 		self.output_data.push(value);
 	}
