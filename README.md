@@ -4,7 +4,7 @@
 [![Crate](https://img.shields.io/crates/v/riscv_emu_rust.svg)](https://crates.io/crates/riscv_emu_rust)
 [![npm version](https://badge.fury.io/js/riscv_emu_rust_wasm.svg)](https://badge.fury.io/js/riscv_emu_rust_wasm)
 
-riscv-rust is a [RISC-V](https://riscv.org/) processor and peripheral devices emulator project written in Rust and compiled to WebAssembly. You can import RISC-V emulator into your Rust or JavaScript project.
+riscv-rust is a [RISC-V](https://riscv.org/) processor and peripheral devices emulator project written in Rust and compiled to WebAssembly. You can import RISC-V emulator into your Rust or JavaScript project. Refer to the [Slides](https://docs.google.com/presentation/d/1qeR6KMSaJTR0ZSa2kLxgcBuc_zBo3l-kYbOpq1Wqmi0/edit?usp=sharing) for more detail.
 
 ## Online Demo
 
@@ -17,7 +17,6 @@ You can run Linux or xv6 on the emulator in your browser. [Online demo is here](
 ## Documents
 
 * [Document](https://docs.rs/riscv_emu_rust/0.2.0/riscv_emu_rust/)
-* [Slides](https://docs.google.com/presentation/d/1qeR6KMSaJTR0ZSa2kLxgcBuc_zBo3l-kYbOpq1Wqmi0/edit?usp=sharing)
 
 ## Features
 
