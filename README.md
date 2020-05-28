@@ -13,6 +13,7 @@ You can run Linux or xv6 on the emulator in your browser. [Online demo is here](
 ## Screenshots
 
 ![animation](./screenshots/animation.gif)
+![debugger](./screenshots/debugger.gif)
 
 ## Documents
 
