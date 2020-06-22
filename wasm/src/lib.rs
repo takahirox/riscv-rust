@@ -247,4 +247,23 @@ impl WasmRiscv {
 	pub fn enable_page_cache(&mut self, enabled: bool) {
 		self.emulator.enable_page_cache(enabled);
 	}
+
+	/// Gets virtual address corresponding to symbol strings.
+	///
+	/// # Arguments
+	/// * `s` Symbol strings
+	/// * `error` If symbol is not found error[0] holds non-zero.
+	///    Otherwize zero.
+	pub fn get_address_of_symbol(&mut self, s: String, error: &mut [u8]) -> u64 {
+		match self.emulator.get_addredd_of_symbol(&s) {
+			Some(address) => {
+				error[0] = 0;
+				address
+			},
+			None => {
+				error[0] = 1;
+				0
+			}
+		}
+	}
 }
