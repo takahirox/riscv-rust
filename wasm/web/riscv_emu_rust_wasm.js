@@ -52,6 +52,59 @@ function getInt32Memory0() {
     }
     return cachegetInt32Memory0;
 }
+
+let cachedTextEncoder = new TextEncoder('utf-8');
+
+const encodeString = (typeof cachedTextEncoder.encodeInto === 'function'
+    ? function (arg, view) {
+    return cachedTextEncoder.encodeInto(arg, view);
+}
+    : function (arg, view) {
+    const buf = cachedTextEncoder.encode(arg);
+    view.set(buf);
+    return {
+        read: arg.length,
+        written: buf.length
+    };
+});
+
+function passStringToWasm0(arg, malloc, realloc) {
+
+    if (realloc === undefined) {
+        const buf = cachedTextEncoder.encode(arg);
+        const ptr = malloc(buf.length);
+        getUint8Memory0().subarray(ptr, ptr + buf.length).set(buf);
+        WASM_VECTOR_LEN = buf.length;
+        return ptr;
+    }
+
+    let len = arg.length;
+    let ptr = malloc(len);
+
+    const mem = getUint8Memory0();
+
+    let offset = 0;
+
+    for (; offset < len; offset++) {
+        const code = arg.charCodeAt(offset);
+        if (code > 0x7F) break;
+        mem[ptr + offset] = code;
+    }
+
+    if (offset !== len) {
+        if (offset !== 0) {
+            arg = arg.slice(offset);
+        }
+        ptr = realloc(ptr, len, len = offset + arg.length * 3);
+        const view = getUint8Memory0().subarray(ptr + offset, ptr + len);
+        const ret = encodeString(arg, view);
+
+        offset += ret.written;
+    }
+
+    WASM_VECTOR_LEN = offset;
+    return ptr;
+}
 /**
 * `WasmRiscv` is an interface between user JavaScript code and
 * WebAssembly RISC-V emulator. The following code is example
@@ -329,6 +382,35 @@ export class WasmRiscv {
     */
     enable_page_cache(enabled) {
         wasm.wasmriscv_enable_page_cache(this.ptr, enabled);
+    }
+    /**
+    * Gets virtual address corresponding to symbol strings.
+    *
+    * # Arguments
+    * * `s` Symbol strings
+    * * `error` If symbol is not found error[0] holds non-zero.
+    *    Otherwize zero.
+    * @param {string} s
+    * @param {Uint8Array} error
+    * @returns {BigInt}
+    */
+    get_address_of_symbol(s, error) {
+        try {
+            var ptr0 = passStringToWasm0(s, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            var len0 = WASM_VECTOR_LEN;
+            var ptr1 = passArray8ToWasm0(error, wasm.__wbindgen_malloc);
+            var len1 = WASM_VECTOR_LEN;
+            wasm.wasmriscv_get_address_of_symbol(8, this.ptr, ptr0, len0, ptr1, len1);
+            var r0 = getInt32Memory0()[8 / 4 + 0];
+            var r1 = getInt32Memory0()[8 / 4 + 1];
+            u32CvtShim[0] = r0;
+            u32CvtShim[1] = r1;
+            const n2 = uint64CvtShim[0];
+            return n2;
+        } finally {
+            error.set(getUint8Memory0().subarray(ptr1 / 1, ptr1 / 1 + len1));
+            wasm.__wbindgen_free(ptr1, len1 * 1);
+        }
     }
 }
 

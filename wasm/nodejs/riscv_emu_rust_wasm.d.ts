@@ -198,4 +198,16 @@ export class WasmRiscv {
 * @param {boolean} enabled 
 */
   enable_page_cache(enabled: boolean): void;
+/**
+* Gets virtual address corresponding to symbol strings.
+*
+* # Arguments
+* * `s` Symbol strings
+* * `error` If symbol is not found error[0] holds non-zero.
+*    Otherwize zero.
+* @param {string} s 
+* @param {Uint8Array} error 
+* @returns {BigInt} 
+*/
+  get_address_of_symbol(s: string, error: Uint8Array): BigInt;
 }
