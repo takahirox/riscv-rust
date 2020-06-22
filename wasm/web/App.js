@@ -416,7 +416,7 @@ export default class App {
   displayHelp() {
     this.terminal.writeln('Commands:');
     this.terminal.writeln('  breakpoint: Show breakpoint set list.');
-    this.terminal.writeln('  breakpoint <virtual_address>: Set breakpoint.');
+    this.terminal.writeln('  breakpoint <virtual_address|symbol>: Set breakpoint.');
     this.terminal.writeln('  delete <virtual_address>: Delete breakpoint.');
     this.terminal.writeln('  continue: Continue the main program. Ctrl-A enters debug mode again.');
     this.terminal.writeln('  help: Show this message');
@@ -527,19 +527,29 @@ export default class App {
     this.terminal.writeln('0x' + this.riscv.read_pc().toString(16));
   }
 
-  setBreakpoint(vAddressStr) {
+  setBreakpoint(arg) {
     let vAddress;
-    try {
-      vAddress = BigInt(vAddressStr);
-    } catch (e) {
-      this.terminal.writeln('Invalid virtual address.');
-      return;
+    if (!isNaN(parseInt(arg))) {
+      try {
+        vAddress = BigInt(arg);
+      } catch (e) {
+        this.terminal.writeln('Invalid virtual address.');
+        return;
+      }
+    } else {
+      const error = new Uint8Array([0]);
+      vAddress = this.riscv.get_address_of_symbol(arg, error);
+      if (error[0]) {
+        this.terminal.writeln('Symbol is not found.');
+        return;
+      }
     }
     if (this.breakpoints.includes(vAddress)) {
       this.terminal.writeln('Already set.');
       return;
     }
     this.breakpoints.push(vAddress);
+    this.terminal.writeln('Breakpoint is set at 0x' + vAddress.toString(16));
   }
 
   deleteBreakpoint(vAddressStr) {

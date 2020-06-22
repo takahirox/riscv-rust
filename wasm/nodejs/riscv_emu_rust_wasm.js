@@ -54,6 +54,23 @@ function getInt32Memory0() {
     }
     return cachegetInt32Memory0;
 }
+
+let cachegetNodeBufferMemory0 = null;
+function getNodeBufferMemory0() {
+    if (cachegetNodeBufferMemory0 === null || cachegetNodeBufferMemory0.buffer !== wasm.memory.buffer) {
+        cachegetNodeBufferMemory0 = Buffer.from(wasm.memory.buffer);
+    }
+    return cachegetNodeBufferMemory0;
+}
+
+function passStringToWasm0(arg, malloc) {
+
+    const len = Buffer.byteLength(arg);
+    const ptr = malloc(len);
+    getNodeBufferMemory0().write(arg, ptr, len);
+    WASM_VECTOR_LEN = len;
+    return ptr;
+}
 /**
 * `WasmRiscv` is an interface between user JavaScript code and
 * WebAssembly RISC-V emulator. The following code is example
@@ -331,6 +348,35 @@ class WasmRiscv {
     */
     enable_page_cache(enabled) {
         wasm.wasmriscv_enable_page_cache(this.ptr, enabled);
+    }
+    /**
+    * Gets virtual address corresponding to symbol strings.
+    *
+    * # Arguments
+    * * `s` Symbol strings
+    * * `error` If symbol is not found error[0] holds non-zero.
+    *    Otherwize zero.
+    * @param {string} s
+    * @param {Uint8Array} error
+    * @returns {BigInt}
+    */
+    get_address_of_symbol(s, error) {
+        try {
+            var ptr0 = passStringToWasm0(s, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            var len0 = WASM_VECTOR_LEN;
+            var ptr1 = passArray8ToWasm0(error, wasm.__wbindgen_malloc);
+            var len1 = WASM_VECTOR_LEN;
+            wasm.wasmriscv_get_address_of_symbol(8, this.ptr, ptr0, len0, ptr1, len1);
+            var r0 = getInt32Memory0()[8 / 4 + 0];
+            var r1 = getInt32Memory0()[8 / 4 + 1];
+            u32CvtShim[0] = r0;
+            u32CvtShim[1] = r1;
+            const n2 = uint64CvtShim[0];
+            return n2;
+        } finally {
+            error.set(getUint8Memory0().subarray(ptr1 / 1, ptr1 / 1 + len1));
+            wasm.__wbindgen_free(ptr1, len1 * 1);
+        }
     }
 }
 module.exports.WasmRiscv = WasmRiscv;

@@ -2,6 +2,10 @@
 const TEST_MEMORY_CAPACITY: u64 = 1024 * 512;
 const PROGRAM_MEMORY_CAPACITY: u64 = 1024 * 1024 * 128; // big enough to run Linux and xv6
 
+extern crate fnv;
+
+use self::fnv::FnvHashMap;
+
 pub mod cpu;
 pub mod terminal;
 pub mod default_terminal;
@@ -27,6 +31,9 @@ use terminal::Terminal;
 /// ```
 pub struct Emulator {
 	cpu: Cpu,
+
+	/// Stores mapping from symbol to virtual address
+	symbol_map: FnvHashMap::<String, u64>,
 
 	/// [`riscv-tests`](https://github.com/riscv/riscv-tests) program specific
 	/// properties. Whether the program set by `setup_program()` is
@@ -61,6 +68,8 @@ impl Emulator {
 	pub fn new(terminal: Box<dyn Terminal>) -> Self {
 		Emulator {
 			cpu: Cpu::new(terminal),
+
+			symbol_map: FnvHashMap::default(),
 
 			// These can be updated in setup_program()
 			is_test: false,
@@ -345,6 +354,7 @@ impl Emulator {
 		// analyze section headers
 
 		let mut program_data_section_headers = vec![];
+		let mut symbol_table_section_headers = vec![];
 		let mut string_table_section_headers = vec![];
 
 		offset = e_shoff as usize;
@@ -439,6 +449,8 @@ impl Emulator {
 
 			if sh_type == 1 {
 				program_data_section_headers.push(section_header);
+			} else if sh_type == 2 {
+				symbol_table_section_headers.push(section_header);
 			} else if sh_type == 3 {
 				string_table_section_headers.push(section_header);
 			}
@@ -469,6 +481,129 @@ impl Emulator {
 			}
 			if tohost_addr != 0 {
 				break;
+			}
+		}
+
+		// Creates symbol - virtual address mapping
+		if string_table_section_headers.len() > 0 {
+			for i in 0..symbol_table_section_headers.len() {
+				let sh_offset = symbol_table_section_headers[i].sh_offset;
+				let sh_size = symbol_table_section_headers[i].sh_size;
+
+				let mut offset = sh_offset as usize;
+
+				let entry_size = match e_width {
+					64 => 24,
+					32 => 16,
+					_ => panic!("Not happen")
+				};
+
+				for _j in 0..(sh_size / entry_size) {
+					let mut st_name = 0 as u32;
+					let st_info: u8;
+					let _st_other: u8;
+					let mut _st_shndx = 0 as u16;
+					let mut st_value = 0 as u64;
+					let mut _st_size = 0 as u64;
+
+					match e_width {
+						64 => {
+							for k in 0..4 {
+								st_name |= (data[offset] as u32) << (8 * k);
+								offset += 1;
+							}
+
+							st_info = data[offset];
+							offset += 1;
+
+							_st_other = data[offset];
+							offset += 1;
+
+							for k in 0..2 {
+								_st_shndx |= (data[offset] as u16) << (8 * k);
+								offset += 1;
+							}
+
+							for k in 0..8 {
+								st_value |= (data[offset] as u64) << (8 * k);
+								offset += 1;
+							}
+
+							for k in 0..8 {
+								_st_size |= (data[offset] as u64) << (8 * k);
+								offset += 1;
+							}
+						},
+						32 => {
+							for k in 0..4 {
+								st_name |= (data[offset] as u32) << (8 * k);
+								offset += 1;
+							}
+
+							for k in 0..4 {
+								st_value |= (data[offset] as u64) << (8 * k);
+								offset += 1;
+							}
+
+							for k in 0..4 {
+								_st_size |= (data[offset] as u64) << (8 * k);
+								offset += 1;
+							}
+
+							st_info = data[offset];
+							offset += 1;
+
+							_st_other = data[offset];
+							offset += 1;
+
+							for k in 0..2 {
+								_st_shndx |= (data[offset] as u16) << (8 * k);
+								offset += 1;
+							}
+						},
+						_ => panic!("No happen")
+					};
+
+					/*
+					println!("Symbol: {}", _j);
+					println!("st_name: {:X}", st_name);
+					println!("st_info: {:X}", st_info);
+					println!("st_other: {:X}", _st_other);
+					println!("st_shndx: {:X}", _st_shndx);
+					println!("st_value: {:X}", st_value);
+					println!("st_size: {:X}", _st_size);
+					println!("");
+					*/
+
+					// Stores only function and notype symbol
+					if (st_info & 0x2) != 0x2 && (st_info & 0xf) != 0 {
+						continue;
+					}
+
+					// Assuming symbol names are in the first string_table so far.
+					// @TODO: What if they are in the second or later tables?
+					let sh_offset = string_table_section_headers[0].sh_offset;
+					let sh_size = string_table_section_headers[0].sh_size;
+					let mut pos = 0;
+					let mut symbol = String::new();
+					loop {
+						let addr = sh_offset + st_name as u64 + pos;
+						if addr >= sh_offset + sh_size {
+							break;
+						}
+						let value = data[addr as usize];
+						if value == 0 {
+							break;
+						}
+						symbol.push(value as char);
+						pos += 1;
+					}
+
+					if !symbol.is_empty() {
+						//println!("{} {:0x}", symbol, st_value);
+						self.symbol_map.insert(symbol, st_value);
+					}
+				}
 			}
 		}
 
@@ -555,5 +690,16 @@ impl Emulator {
 	/// Returns mutable reference to `Cpu`.
 	pub fn get_mut_cpu(&mut self) -> &mut Cpu {
 		&mut self.cpu
+	}
+
+	/// Returns a virtual address corresponding to symbol strings
+	///
+	/// # Arguments
+	/// * `s` Symbol strings
+	pub fn get_addredd_of_symbol(&self, s: &String) -> Option<u64> {
+		match self.symbol_map.get(s) {
+			Some(address) => Some(*address),
+			None => None
+		}
 	}
 }
