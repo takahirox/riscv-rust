@@ -168,7 +168,7 @@ export default class App {
 
   _handleKeyInput(key, keyCode) {
     if (this.debugModeEnabled && key.charCodeAt(0) === 1) { // Ctrl-A
-      this.enterDebugMode();
+      this.inDebugMode = true;
       return;
     }
 
@@ -252,7 +252,7 @@ export default class App {
     }
   }
 
-  _handleKeyInputInDebugMode(key, keyCode) {
+  async _handleKeyInputInDebugMode(key, keyCode) {
     switch(keyCode) {
       case 8: // backspace
         // Do not delete the prompt
@@ -278,7 +278,7 @@ export default class App {
         const command = this._parseCommand(commandStrings);
         this.lastCommandStrings = commandStrings;
         this.terminal.writeln('');
-        if (!this._runCommand(command)) {
+        if (!await this._runCommand(command)) {
           this.terminal.writeln('Unknown command.');
         }
         if (this.inDebugMode) {
@@ -295,7 +295,7 @@ export default class App {
     return s.trim().split(/\s+/);
   }
 
-  _runCommand(command) {
+  async _runCommand(command) {
     if (command.length === 0) {
       return false;
     }
@@ -334,7 +334,7 @@ export default class App {
       case 'continu':
       case 'continue':
         if (command.length === 1) {
-          this.continue();
+          await this.continue();
           return true;
         } else {
           return false;
@@ -358,7 +358,7 @@ export default class App {
       case 'hel':
       case 'help':
         if (command.length === 1) {
-          this.displayHelp();
+          this.displayDebugCommands();
           return true;
         } else {
           return false;
@@ -413,7 +413,7 @@ export default class App {
     }
   }
 
-  displayHelp() {
+  displayDebugCommands() {
     this.terminal.writeln('Commands:');
     this.terminal.writeln('  breakpoint: Show breakpoint set list.');
     this.terminal.writeln('  breakpoint <virtual_address|symbol>: Set breakpoint.');
@@ -424,6 +424,7 @@ export default class App {
     this.terminal.writeln('  pc: Show PC content');
     this.terminal.writeln('  reg <register_num>: Show register content');
     this.terminal.writeln('  step [num]: Run [num](one if omitted) step(s) execution');
+    this.terminal.writeln('');
   }
 
   step(numOrNumStr) {
@@ -454,34 +455,33 @@ export default class App {
     runCycles();
   }
 
-  continue() {
-    const runCycles = () => {
-      if (this.inDebugMode) {
-        return;
-      }
-      setTimeout(runCycles, 0);
-      let broken = false;
-      if (this.breakpoints.length === 0) {
-        // If no breakpoint set, we don't need to take care breakpoints
-        // so calling run_cycles() which should be faster than
-        // run_until_breakpoints()
-        this.riscv.run_cycles(this.runCyclesNum);
-      } else {
-        if (this.riscv.run_until_breakpoints(new BigUint64Array(this.breakpoints), this.runCyclesNum)) {
-          this.inDebugMode = true;
-        }
-      }
-      this.flush();
-      while (this.inputs.length > 0) {
-        this.riscv.put_input(this.inputs.shift());
-      }
-      if (this.inDebugMode) {
-        this.step(0);
-      }
-    };
-
+  async continue() {
     this.inDebugMode = false;
-    runCycles();
+
+    return new Promise(resolve => {
+      const runCycles = async () => {
+        if (this.inDebugMode) {
+          this.step(0);
+          return resolve();
+        }
+        setTimeout(runCycles, 0);
+        if (this.breakpoints.length === 0) {
+          // If no breakpoint set, we don't need to take care breakpoints
+          // so calling run_cycles() which should be faster than
+          // run_until_breakpoints()
+          this.riscv.run_cycles(this.runCyclesNum);
+        } else {
+          if (this.riscv.run_until_breakpoints(new BigUint64Array(this.breakpoints), this.runCyclesNum)) {
+            this.inDebugMode = true;
+          }
+        }
+        this.flush();
+        while (this.inputs.length > 0) {
+          this.riscv.put_input(this.inputs.shift());
+        }
+      };
+      runCycles();
+    });
   }
 
   displayMemoryContent(vAddressStr) {
@@ -588,13 +588,10 @@ export default class App {
     }
   }
 
-  enterDebugMode() {
+  startDebugMode() {
     this.inDebugMode = true;
-    this.flush();
-    this.terminal.writeln('');
-    this.riscv.disassemble_next_instruction();
-    this.flush();
-    this.terminal.writeln('');
+    this.displayDebugCommands()
+    this.step(0);
     this.prompt();
   }
 
