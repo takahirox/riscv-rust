@@ -272,7 +272,7 @@ impl Mmu {
 	/// * `v_address` Virtual address
 	/// * `width` Must be 1, 2, 4, or 8
 	fn load_bytes(&mut self, v_address: u64, width: u64) -> Result<u64, Trap> {
-		assert!(width == 1 || width == 2 || width == 4 || width == 8,
+		debug_assert!(width == 1 || width == 2 || width == 4 || width == 8,
 			"Width must be 1, 2, 4, or 8. {:X}", width);
 		match (v_address & 0xfff) <= (0x1000 - width) {
 			true => match self.translate_address(v_address, MemoryAccessType::Read) {
@@ -370,7 +370,7 @@ impl Mmu {
 	/// * `value` data written
 	/// * `width` Must be 1, 2, 4, or 8
 	fn store_bytes(&mut self, v_address: u64, value: u64, width: u64) -> Result<(), Trap> {
-		assert!(width == 1 || width == 2 || width == 4 || width == 8,
+		debug_assert!(width == 1 || width == 2 || width == 4 || width == 8,
 			"Width must be 1, 2, 4, or 8. {:X}", width);
 		match (v_address & 0xfff) <= (0x1000 - width) {
 			true => match self.translate_address(v_address, MemoryAccessType::Write) {
@@ -820,47 +820,47 @@ impl MemoryWrapper {
 	}
 
 	pub fn read_byte(&mut self, p_address: u64) -> u8 {
-		assert!(p_address >= DRAM_BASE, "Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
+		debug_assert!(p_address >= DRAM_BASE, "Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
 		self.memory.read_byte(p_address - DRAM_BASE)
 	}
 
 	pub fn read_halfword(&mut self, p_address: u64) -> u16 {
-		assert!(p_address >= DRAM_BASE && p_address.wrapping_add(1) >= DRAM_BASE,
+		debug_assert!(p_address >= DRAM_BASE && p_address.wrapping_add(1) >= DRAM_BASE,
 			"Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
 		self.memory.read_halfword(p_address - DRAM_BASE)
 	}
 
 	pub fn read_word(&mut self, p_address: u64) -> u32 {
-		assert!(p_address >= DRAM_BASE && p_address.wrapping_add(3) >= DRAM_BASE,
+		debug_assert!(p_address >= DRAM_BASE && p_address.wrapping_add(3) >= DRAM_BASE,
 			"Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
 		self.memory.read_word(p_address - DRAM_BASE)
 	}
 
 	pub fn read_doubleword(&mut self, p_address: u64) -> u64 {
-		assert!(p_address >= DRAM_BASE && p_address.wrapping_add(7) >= DRAM_BASE,
+		debug_assert!(p_address >= DRAM_BASE && p_address.wrapping_add(7) >= DRAM_BASE,
 			"Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
 		self.memory.read_doubleword(p_address - DRAM_BASE)
 	}
 
 	pub fn write_byte(&mut self, p_address: u64, value: u8) {
-		assert!(p_address >= DRAM_BASE, "Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
+		debug_assert!(p_address >= DRAM_BASE, "Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
 		self.memory.write_byte(p_address - DRAM_BASE, value)
 	}
 
 	pub fn write_halfword(&mut self, p_address: u64, value: u16) {
-		assert!(p_address >= DRAM_BASE && p_address.wrapping_add(1) >= DRAM_BASE,
+		debug_assert!(p_address >= DRAM_BASE && p_address.wrapping_add(1) >= DRAM_BASE,
 			"Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
 		self.memory.write_halfword(p_address - DRAM_BASE, value)
 	}
 
 	pub fn write_word(&mut self, p_address: u64, value: u32) {
-		assert!(p_address >= DRAM_BASE && p_address.wrapping_add(3) >= DRAM_BASE,
+		debug_assert!(p_address >= DRAM_BASE && p_address.wrapping_add(3) >= DRAM_BASE,
 			"Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
 		self.memory.write_word(p_address - DRAM_BASE, value)
 	}
 
 	pub fn write_doubleword(&mut self, p_address: u64, value: u64) {
-		assert!(p_address >= DRAM_BASE && p_address.wrapping_add(7) >= DRAM_BASE,
+		debug_assert!(p_address >= DRAM_BASE && p_address.wrapping_add(7) >= DRAM_BASE,
 			"Memory address must equals to or bigger than DRAM_BASE. {:X}", p_address);
 		self.memory.write_doubleword(p_address - DRAM_BASE, value)
 	}

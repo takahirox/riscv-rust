@@ -256,7 +256,7 @@ impl Cpu {
 	/// # Arguments
 	/// * `reg` Register number. Must be 0-31
 	pub fn read_register(&self, reg: u8) -> i64 {
-		assert!(reg <= 31, "reg must be 0-31. {}", reg);
+		debug_assert!(reg <= 31, "reg must be 0-31. {}", reg);
 		self.x[reg as usize]
 	}
 
