@@ -215,6 +215,45 @@ impl Emulator {
 		self.cpu.update_pc(header.e_entry);
 	}
 
+	/// Loads symbols of program and adds them to `symbol_map`.
+	///
+	/// # Arguments
+	/// * `content` Program binary
+	pub fn load_program_for_symbols(&mut self, content: Vec<u8>) {
+		let analyzer = ElfAnalyzer::new(content);
+
+		if !analyzer.validate() {
+			panic!("This file does not seem ELF file");
+		}
+
+		let header = analyzer.read_header();
+		let section_headers = analyzer.read_section_headers(&header);
+
+		let mut program_data_section_headers = vec![];
+		let mut symbol_table_section_headers = vec![];
+		let mut string_table_section_headers = vec![];
+
+		for i in 0..section_headers.len() {
+			match section_headers[i].sh_type {
+				1 => program_data_section_headers.push(&section_headers[i]),
+				2 => symbol_table_section_headers.push(&section_headers[i]),
+				3 => string_table_section_headers.push(&section_headers[i]),
+				_ => {}
+			};
+		}
+
+		// Creates symbol - virtual address mapping
+		if string_table_section_headers.len() > 0 {
+			let entries = analyzer.read_symbol_entries(&header, &symbol_table_section_headers);
+			// Assuming symbols are in the first string table section.
+			// @TODO: What if symbol can be in the second or later string table sections?
+			let map = analyzer.create_symbol_map(&entries, &string_table_section_headers[0]);
+			for key in map.keys() {
+				self.symbol_map.insert(key.to_string(), *map.get(key).unwrap());
+			}
+		}
+	}
+
 	/// Sets up filesystem. Use this method if program (e.g. Linux) uses
 	/// filesystem. This method is expected to be called up to only once.
 	///

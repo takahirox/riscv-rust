@@ -43,12 +43,19 @@
       terminal.writeln('Enjoy RISC-V and Operating System on browser!');
       terminal.writeln('');
 
-      const run = async (elfBuffer, fsBuffer, isPresetBinaries) => {
+      const run = async (elfBuffer, fsBuffer, symbolBuffer, isPresetBinaries) => {
         const debugMode = debuggerCheckbox.checked;
 
         const riscv = WasmRiscv.new();
         riscv.setup_program(new Uint8Array(elfBuffer));
-        riscv.setup_filesystem(new Uint8Array(fsBuffer));
+
+        if (fsBuffer.byteLength > 0) {
+          riscv.setup_filesystem(new Uint8Array(fsBuffer));
+        }
+
+        if (symbolBuffer.byteLength > 0) {
+          riscv.load_program_for_symbols(new Uint8Array(symbolBuffer));
+        }
 
         // Enable experimental address translation page cache optimization
         // if booting Linux or xv6. Disable this feature if you face
@@ -111,7 +118,7 @@
         const reader = new FileReader();
         reader.addEventListener('load', event => {
           terminal.writeln('Running program.');
-          run(event.target.result, new ArrayBuffer(0), false);
+          run(event.target.result, new ArrayBuffer(0), new ArrayBuffer(0), false);
         });
         reader.addEventListener('error', error => {
           terminal.writeln(error.message);
@@ -130,6 +137,7 @@
 
         terminal.clear();
 
+        const debugMode = debuggerCheckbox.checked;
         const selectedOption = fileSelect.selectedOptions[0];
         const filename = selectedOption.value;
         const isLinux = filename === 'linux/bbl';
@@ -148,13 +156,21 @@
         const elfBuffer = await elfResponse.arrayBuffer();
 
         let fsBuffer;
+        let symbolBuffer;
 
         if (isLinux) {
           const fsResponse = await fetch(resourcePath + 'linux/busybear.bin');
           fsBuffer = await fsResponse.arrayBuffer();
+          if (debugMode) {
+            const symbolResponse = await fetch(resourcePath + 'linux/vmlinux');
+            symbolBuffer = await symbolResponse.arrayBuffer();
+          } else {
+            symbolBuffer = new ArrayBuffer(0);
+          }
         } else if (isXv6) {
           const fsResponse = await fetch(resourcePath + 'xv6/fs.img');
           fsBuffer = await fsResponse.arrayBuffer();
+          symbolBuffer = new ArrayBuffer(0);
         } else {
           runButton.disabled = false;
           fileSelect.disabled = false;
@@ -165,7 +181,7 @@
 
         terminal.writeln('Done downloading.');
 
-        run(elfBuffer, fsBuffer, true);
+        run(elfBuffer, fsBuffer, symbolBuffer, true);
       };
 
       init()
