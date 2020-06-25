@@ -151,6 +151,19 @@ class WasmRiscv {
         wasm.wasmriscv_setup_program(this.ptr, ptr0, len0);
     }
     /**
+    * Loads symbols of program and adds them to symbol - virtual address
+    * mapping in `Emulator`.
+    *
+    * # Arguments
+    * * `content` Program binary
+    * @param {Uint8Array} content
+    */
+    load_program_for_symbols(content) {
+        var ptr0 = passArray8ToWasm0(content, wasm.__wbindgen_malloc);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.wasmriscv_load_program_for_symbols(this.ptr, ptr0, len0);
+    }
+    /**
     * Sets up filesystem. Use this method if program (e.g. Linux) uses
     * filesystem. This method is expected to be called up to only once.
     *

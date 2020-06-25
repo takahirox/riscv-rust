@@ -4,6 +4,7 @@ export const memory: WebAssembly.Memory;
 export function __wbg_wasmriscv_free(a: number): void;
 export function wasmriscv_new(): number;
 export function wasmriscv_setup_program(a: number, b: number, c: number): void;
+export function wasmriscv_load_program_for_symbols(a: number, b: number, c: number): void;
 export function wasmriscv_setup_filesystem(a: number, b: number, c: number): void;
 export function wasmriscv_setup_dtb(a: number, b: number, c: number): void;
 export function wasmriscv_run(a: number): void;

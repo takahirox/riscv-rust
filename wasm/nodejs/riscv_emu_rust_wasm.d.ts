@@ -60,6 +60,15 @@ export class WasmRiscv {
 */
   setup_program(content: Uint8Array): void;
 /**
+* Loads symbols of program and adds them to symbol - virtual address
+* mapping in `Emulator`.
+*
+* # Arguments
+* * `content` Program binary
+* @param {Uint8Array} content 
+*/
+  load_program_for_symbols(content: Uint8Array): void;
+/**
 * Sets up filesystem. Use this method if program (e.g. Linux) uses
 * filesystem. This method is expected to be called up to only once.
 *
