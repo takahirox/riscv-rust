@@ -301,9 +301,9 @@ impl VirtioBlockDisk {
 	/// * `disk_address` Must be eight-byte aligned.
 	/// * `length` Must be eight-byte aligned.
 	fn transfer_from_disk(&mut self, memory: &mut MemoryWrapper, mem_address: u64, disk_address: u64, length: u64) {
-		assert!((mem_address % 8) == 0, "Memory address should be eight-byte aligned. {:X}", mem_address);
-		assert!((disk_address % 8) == 0, "Disk address should be eight-byte aligned. {:X}", disk_address);
-		assert!((length % 8) == 0, "Length should be eight-byte aligned. {:X}", length);
+		debug_assert!((mem_address % 8) == 0, "Memory address should be eight-byte aligned. {:X}", mem_address);
+		debug_assert!((disk_address % 8) == 0, "Disk address should be eight-byte aligned. {:X}", disk_address);
+		debug_assert!((length % 8) == 0, "Length should be eight-byte aligned. {:X}", length);
 		for i in 0..(length / 8) {
 			let disk_index = ((disk_address + i * 8) >> 3) as usize;
 			memory.write_doubleword(mem_address + i * 8, self.contents[disk_index]);
@@ -318,9 +318,9 @@ impl VirtioBlockDisk {
 	/// * `disk_address` Must be eight-byte aligned.
 	/// * `length` Must be eight-byte aligned.
 	fn transfer_to_disk(&mut self, memory: &mut MemoryWrapper, mem_address: u64, disk_address: u64, length: u64) {
-		assert!((mem_address % 8) == 0, "Memory address should be eight-byte aligned. {:X}", mem_address);
-		assert!((disk_address % 8) == 0, "Disk address should be eight-byte aligned. {:X}", disk_address);
-		assert!((length % 8) == 0, "Length should be eight-byte aligned. {:X}", length);
+		debug_assert!((mem_address % 8) == 0, "Memory address should be eight-byte aligned. {:X}", mem_address);
+		debug_assert!((disk_address % 8) == 0, "Disk address should be eight-byte aligned. {:X}", disk_address);
+		debug_assert!((length % 8) == 0, "Length should be eight-byte aligned. {:X}", length);
 		for i in 0..(length / 8) {
 			let disk_index = ((disk_address + i * 8) >> 3) as usize;
 			self.contents[disk_index] = memory.read_doubleword(mem_address + i * 8);
