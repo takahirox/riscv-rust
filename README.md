@@ -96,7 +96,7 @@ See [wasm/web](https://github.com/takahirox/riscv-rust/tree/master/wasm/web)
 
 ## How to install and use WebAssembly RISC-V emulator npm package
 
-See [wasm/nodejs](https://github.com/takahirox/riscv-rust/tree/master/wasm/nodejs)
+See [wasm/npm](https://github.com/takahirox/riscv-rust/tree/master/wasm/npm)
 
 ## Links
 
