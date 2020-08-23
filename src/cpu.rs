@@ -405,7 +405,7 @@ impl Cpu {
 				trap_type: TrapType::SupervisorSoftwareInterrupt,
 				value: self.pc // dummy
 			}, instruction_address, true) {
-				self.write_csr_raw(CSR_MIP_ADDRESS, self.read_csr_raw(CSR_MIP_ADDRESS) & !MIP_SEIP);
+				self.write_csr_raw(CSR_MIP_ADDRESS, self.read_csr_raw(CSR_MIP_ADDRESS) & !MIP_SSIP);
 				self.wfi = false;
 				return;
 			}
