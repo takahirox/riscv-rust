@@ -9,7 +9,7 @@ extern crate fnv;
 use self::fnv::FnvHashMap;
 
 use memory::Memory;
-use cpu::{PrivilegeMode, Trap, TrapType, Xlen};
+use cpu::{PrivilegeMode, Trap, TrapType, Xlen, get_privilege_mode};
 use device::virtio_block_disk::VirtioBlockDisk;
 use device::plic::Plic;
 use device::clint::Clint;
@@ -33,6 +33,10 @@ pub struct Mmu {
 	plic: Plic,
 	clint: Clint,
 	uart: Uart,
+
+	/// Address translation can be affected `mstatus` (MPRV, MPP in machine mode)
+	/// then `Mmu` has copy of it.
+	mstatus: u64,
 
 	/// Address translation page cache. Experimental feature.
 	/// The cache is cleared when translation mapping can be changed;
@@ -95,6 +99,7 @@ impl Mmu {
 			plic: Plic::new(),
 			clint: Clint::new(),
 			uart: Uart::new(terminal),
+			mstatus: 0,
 			page_cache_enabled: false,
 			fetch_page_cache: FnvHashMap::default(),
 			load_page_cache: FnvHashMap::default(),
@@ -183,6 +188,15 @@ impl Mmu {
 		self.clear_page_cache();
 	}
 
+	/// Updates mstatus copy. `CPU` needs to call this method whenever
+	/// `mstatus` is updated.
+	///
+	/// # Arguments
+	/// * `mstatus`
+	pub fn update_mstatus(&mut self, mstatus: u64) {
+		self.mstatus = mstatus;
+	}
+
 	/// Updates PPN used for address translation
 	///
 	/// # Arguments
@@ -205,7 +219,7 @@ impl Mmu {
 	/// # Arguments
 	/// * `v_address` Virtual address
 	fn fetch(&mut self, v_address: u64) -> Result<u8, Trap> {
-		match self.translate_address(v_address, MemoryAccessType::Execute) {
+		match self.translate_address(v_address, &MemoryAccessType::Execute) {
 			Ok(p_address) => Ok(self.load_raw(p_address)),
 			Err(()) => return Err(Trap {
 				trap_type: TrapType::InstructionPageFault,
@@ -226,7 +240,7 @@ impl Mmu {
 				// Fast path. All bytes fetched are in the same page so
 				// translating an address only once.
 				let effective_address = self.get_effective_address(v_address);
-				match self.translate_address(effective_address, MemoryAccessType::Execute) {
+				match self.translate_address(effective_address, &MemoryAccessType::Execute) {
 					Ok(p_address) => Ok(self.load_word_raw(p_address)),
 					Err(()) => Err(Trap {
 						trap_type: TrapType::InstructionPageFault,
@@ -256,7 +270,7 @@ impl Mmu {
 	/// * `v_address` Virtual address
 	pub fn load(&mut self, v_address: u64) -> Result<u8, Trap> {
 		let effective_address = self.get_effective_address(v_address);
-		match self.translate_address(effective_address, MemoryAccessType::Read) {
+		match self.translate_address(effective_address, &MemoryAccessType::Read) {
 			Ok(p_address) => Ok(self.load_raw(p_address)),
 			Err(()) => Err(Trap {
 				trap_type: TrapType::LoadPageFault,
@@ -275,7 +289,7 @@ impl Mmu {
 		debug_assert!(width == 1 || width == 2 || width == 4 || width == 8,
 			"Width must be 1, 2, 4, or 8. {:X}", width);
 		match (v_address & 0xfff) <= (0x1000 - width) {
-			true => match self.translate_address(v_address, MemoryAccessType::Read) {
+			true => match self.translate_address(v_address, &MemoryAccessType::Read) {
 				Ok(p_address) => {
 					// Fast path. All bytes fetched are in the same page so
 					// translating an address only once.
@@ -350,7 +364,7 @@ impl Mmu {
 	/// * `v_address` Virtual address
 	/// * `value`
 	pub fn store(&mut self, v_address: u64, value: u8) -> Result<(), Trap> {
-		match self.translate_address(v_address, MemoryAccessType::Write) {
+		match self.translate_address(v_address, &MemoryAccessType::Write) {
 			Ok(p_address) => {
 				self.store_raw(p_address, value);
 				Ok(())
@@ -373,7 +387,7 @@ impl Mmu {
 		debug_assert!(width == 1 || width == 2 || width == 4 || width == 8,
 			"Width must be 1, 2, 4, or 8. {:X}", width);
 		match (v_address & 0xfff) <= (0x1000 - width) {
-			true => match self.translate_address(v_address, MemoryAccessType::Write) {
+			true => match self.translate_address(v_address, &MemoryAccessType::Write) {
 				Ok(p_address) => {
 					// Fast path. All bytes fetched are in the same page so
 					// translating an address only once.
@@ -602,7 +616,7 @@ impl Mmu {
 	/// * `v_address` Virtual address
 	pub fn validate_address(&mut self, v_address: u64) -> Result<bool, ()> {
 		// @TODO: Support other access types?
-		let p_address = match self.translate_address(v_address, MemoryAccessType::DontCare) {
+		let p_address = match self.translate_address(v_address, &MemoryAccessType::DontCare) {
 			Ok(address) => address,
 			Err(()) => return Err(())
 		};
@@ -621,7 +635,7 @@ impl Mmu {
 		Ok(valid)
 	}
 
-	fn translate_address(&mut self, v_address: u64, access_type: MemoryAccessType) -> Result<u64, ()> {
+	fn translate_address(&mut self, v_address: u64, access_type: &MemoryAccessType) -> Result<u64, ()> {
 		let address = self.get_effective_address(v_address);
 		let v_page = address & !0xfff;
 		let cache = match self.page_cache_enabled {
@@ -639,6 +653,27 @@ impl Mmu {
 				let p_address = match self.addressing_mode {
 					AddressingMode::None => Ok(address),
 					AddressingMode::SV32 => match self.privilege_mode {
+						// @TODO: Optimize
+						PrivilegeMode::Machine => match access_type {
+							MemoryAccessType::Execute => Ok(address),
+							// @TODO: Remove magic number
+							_ => match (self.mstatus >> 17) & 1 {
+								0 => Ok(address),
+								_ => {
+									let privilege_mode = get_privilege_mode((self.mstatus >> 9) & 3);
+									match privilege_mode {
+										PrivilegeMode::Machine => Ok(address),
+										_ => {
+											let current_privilege_mode = self.privilege_mode.clone();
+											self.update_privilege_mode(privilege_mode);
+											let result = self.translate_address(v_address, access_type);
+											self.update_privilege_mode(current_privilege_mode);
+											result
+										}
+									}
+								}
+							}
+						},
 						PrivilegeMode::User | PrivilegeMode::Supervisor => {
 							let vpns = [(address >> 12) & 0x3ff, (address >> 22) & 0x3ff];
 							self.traverse_page(address, 2 - 1, self.ppn, &vpns, &access_type)
@@ -646,6 +681,28 @@ impl Mmu {
 						_ => Ok(address)
 					},
 					AddressingMode::SV39 => match self.privilege_mode {
+						// @TODO: Optimize
+						// @TODO: Remove duplicated code with SV32
+						PrivilegeMode::Machine => match access_type {
+							MemoryAccessType::Execute => Ok(address),
+							// @TODO: Remove magic number
+							_ => match (self.mstatus >> 17) & 1 {
+								0 => Ok(address),
+								_ => {
+									let privilege_mode = get_privilege_mode((self.mstatus >> 9) & 3);
+									match privilege_mode {
+										PrivilegeMode::Machine => Ok(address),
+										_ => {
+											let current_privilege_mode = self.privilege_mode.clone();
+											self.update_privilege_mode(privilege_mode);
+											let result = self.translate_address(v_address, access_type);
+											self.update_privilege_mode(current_privilege_mode);
+											result
+										}
+									}
+								}
+							}
+						},
 						PrivilegeMode::User | PrivilegeMode::Supervisor => {
 							let vpns = [(address >> 12) & 0x1ff, (address >> 21) & 0x1ff, (address >> 30) & 0x1ff];
 							self.traverse_page(address, 3 - 1, self.ppn, &vpns, &access_type)
@@ -782,6 +839,7 @@ impl Mmu {
 				_ => panic!() // Shouldn't happen
 			},
 		};
+
 		// println!("PA:{:X}", p_address);
 		Ok(p_address)
 	}

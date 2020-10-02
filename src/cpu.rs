@@ -143,6 +143,16 @@ fn get_privilege_encoding(mode: &PrivilegeMode) -> u8 {
 	}
 }
 
+/// Returns `PrivilegeMode` from encoded privilege mode bits
+pub fn get_privilege_mode(encoding: u64) -> PrivilegeMode {
+	match encoding {
+		0 => PrivilegeMode::User,
+		1 => PrivilegeMode::Supervisor,
+		3 => PrivilegeMode::Machine,
+		_ => panic!("Unknown privilege uncoding")
+	}
+}
+
 fn _get_trap_type_name(trap_type: &TrapType) -> &'static str {
 	match trap_type {
 		TrapType::InstructionAddressMisaligned => "InstructionAddressMisaligned",
@@ -364,7 +374,7 @@ impl Cpu {
 				trap_type: TrapType::MachineExternalInterrupt,
 				value: self.pc // dummy
 			}, instruction_address, true) {
-				// Who should fall mip bit?
+				// Who should clear mip bit?
 				self.write_csr_raw(CSR_MIP_ADDRESS, self.read_csr_raw(CSR_MIP_ADDRESS) & !MIP_MEIP);
 				self.wfi = false;
 				return;
@@ -441,6 +451,7 @@ impl Cpu {
 			false => self.read_csr_raw(CSR_SEDELEG_ADDRESS)
 		};
 		let pos = cause & 0xffff;
+
 		let new_privilege_mode = match ((mdeleg >> pos) & 1) == 0 {
 			true => PrivilegeMode::Machine,
 			false => match ((sdeleg >> pos) & 1) == 0 {
@@ -705,6 +716,7 @@ impl Cpu {
 			CSR_SSTATUS_ADDRESS => {
 				self.csr[CSR_MSTATUS_ADDRESS as usize] &= !0x80000003000de162;
 				self.csr[CSR_MSTATUS_ADDRESS as usize] |= value & 0x80000003000de162;
+				self.mmu.update_mstatus(self.read_csr_raw(CSR_MSTATUS_ADDRESS));
 			},
 			CSR_SIE_ADDRESS => {
 				self.csr[CSR_MIE_ADDRESS as usize] &= !0x222;
@@ -716,6 +728,10 @@ impl Cpu {
 			},
 			CSR_MIDELEG_ADDRESS => {
 				self.csr[address as usize] = value & 0x666; // from qemu
+			},
+			CSR_MSTATUS_ADDRESS => {
+				self.csr[address as usize] = value;
+				self.mmu.update_mstatus(self.read_csr_raw(CSR_MSTATUS_ADDRESS));
 			},
 			CSR_TIME_ADDRESS => {
 				self.mmu.get_mut_clint().write_mtime(value);
@@ -2834,8 +2850,13 @@ const INSTRUCTIONS: [Instruction; INSTRUCTION_NUM] = [
 			let status = cpu.read_csr_raw(CSR_MSTATUS_ADDRESS);
 			let mpie = (status >> 7) & 1;
 			let mpp = (status >> 11) & 0x3;
+			let mprv = match get_privilege_mode(mpp) {
+				PrivilegeMode::Machine => (status >> 17) & 1,
+				_ => 0
+			};
 			// Override MIE[3] with MPIE[7], set MPIE[7] to 1, set MPP[12:11] to 0
-			let new_status = (status & !0x1888) | (mpie << 3) | (1 << 7);
+			// and override MPRV[17]
+			let new_status = (status & !0x21888) | (mprv << 17) | (mpie << 3) | (1 << 7);
 			cpu.write_csr_raw(CSR_MSTATUS_ADDRESS, new_status);
 			cpu.privilege_mode = match mpp {
 				0 => PrivilegeMode::User,
@@ -3191,8 +3212,13 @@ const INSTRUCTIONS: [Instruction; INSTRUCTION_NUM] = [
 			let status = cpu.read_csr_raw(CSR_SSTATUS_ADDRESS);
 			let spie = (status >> 5) & 1;
 			let spp = (status >> 8) & 1;
-			// Override SIE[1] with SPIE[5], set SPIE[5] to 1, set SPP[8] to 0
-			let new_status = (status & !0x122) | (spie << 1) | (1 << 5);
+			let mprv = match get_privilege_mode(spp) {
+				PrivilegeMode::Machine => (status >> 17) & 1,
+				_ => 0
+			};
+			// Override SIE[1] with SPIE[5], set SPIE[5] to 1, set SPP[8] to 0,
+			// and override MPRV[17]
+			let new_status = (status & !0x20122) | (mprv << 17) | (spie << 1) | (1 << 5);
 			cpu.write_csr_raw(CSR_SSTATUS_ADDRESS, new_status);
 			cpu.privilege_mode = match spp {
 				0 => PrivilegeMode::User,
