@@ -127,7 +127,7 @@ fn main () -> std::io::Result<()> {
 	if has_dtb {
 		emulator.setup_dtb(dtb_contents);
 	}
-	if matches.opt_present("h") {
+	if matches.opt_present("p") {
 		emulator.enable_page_cache(true);
 	}
 	emulator.run();
