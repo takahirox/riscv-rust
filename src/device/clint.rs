@@ -27,12 +27,7 @@ impl Clint {
 	/// * `mip` CPU `mip` register. It can be updated if interrupt occurs.
 	pub fn tick(&mut self, mip: &mut u64) {
 		self.clock = self.clock.wrapping_add(1);
-
-		// core clock : mtime clock = 8 : 1 is just an arbiraty ratio.
-		// @TODO: Implement more properly
-		if (self.clock % 8) == 0 {
-			self.mtime = self.mtime.wrapping_add(1);
-		}
+		self.mtime = self.mtime.wrapping_add(1);
 
 		if (self.msip & 1) != 0 {
 			*mip |= MIP_MSIP;
