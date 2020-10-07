@@ -275,7 +275,7 @@ impl Cpu {
 		self.pc
 	}
 
-	/// Runs program one cycle. Fetch, decode, and execution are completed in a cycle.
+	/// Runs program one cycle. Fetch, decode, and execution are completed in a cycle so far.
 	pub fn tick(&mut self) {
 		let instruction_address = self.pc;
 		match self.tick_operate() {
