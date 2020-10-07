@@ -285,13 +285,21 @@ impl Cpu {
 		self.mmu.tick(&mut self.csr[CSR_MIP_ADDRESS as usize]);
 		self.handle_interrupt(self.pc);
 		self.clock = self.clock.wrapping_add(1);
-		self.write_csr_raw(CSR_CYCLE_ADDRESS, self.clock);
+
+		// cpu core clock : mtime clock in clint = 8 : 1 is
+		// just an arbiraty ratio.
+		// @TODO: Implement more properly
+		self.write_csr_raw(CSR_CYCLE_ADDRESS, self.clock * 8);
 	}
 
 	// @TODO: Rename?
 	fn tick_operate(&mut self) -> Result<(), Trap> {
 		if self.wfi {
-			return Ok(());
+			if (self.read_csr_raw(CSR_MIE_ADDRESS) &
+				self.read_csr_raw(CSR_MIP_ADDRESS)) == 0{
+				return Ok(());
+			}
+			self.wfi = false;
 		}
 
 		let original_word = match self.fetch() {
