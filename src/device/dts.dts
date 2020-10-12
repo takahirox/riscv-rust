@@ -7,7 +7,7 @@
 	model = "riscv-virtio,qemu";
 
 	chosen {
-		bootargs = "root=/dev/vda ro ttyS0";
+		bootargs = "root=/dev/vda rw ttyS0";
 		stdout-path = "/uart@10000000";
 	};
 
@@ -32,9 +32,7 @@
 		timebase-frequency = <0x989680>;
 
 		cpu-map {
-
 			cluster0 {
-
 				core0 {
 					cpu = <0x1>;
 				};
