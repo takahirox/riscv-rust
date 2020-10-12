@@ -74,7 +74,7 @@ $ cargo build --release
 ```sh
 $ cd riscv-rust/cli
 # Run Linux
-$ cargo run --release ../resources/linux/bbl -f ../resources/linux/busybear.bin
+$ cargo run --release ../resources/linux/opensbi/fw_payloag.elf -f ../resources/linux/rootfs.img
 # Run xv6
 $ cargo run --release ../resources/xv6/kernel -f ../resources/xv6/fs.img
 ```
@@ -102,7 +102,7 @@ See [wasm/npm](https://github.com/takahirox/riscv-rust/tree/master/wasm/npm)
 
 ### Linux RISC-V port
 
-[Linux RISC-V port](https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html)
+[Running 64- and 32-bit RISC-V Linux on QEMU](https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html)
 
 ### xv6-riscv
 
