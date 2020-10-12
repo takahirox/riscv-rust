@@ -307,19 +307,22 @@ export class WasmRiscv {
     */
     load_doubleword(address, error) {
         try {
+            const retptr = wasm.__wbindgen_export_1.value - 16;
+            wasm.__wbindgen_export_1.value = retptr;
             uint64CvtShim[0] = address;
             const low0 = u32CvtShim[0];
             const high0 = u32CvtShim[1];
             var ptr1 = passArray8ToWasm0(error, wasm.__wbindgen_malloc);
             var len1 = WASM_VECTOR_LEN;
-            wasm.wasmriscv_load_doubleword(8, this.ptr, low0, high0, ptr1, len1);
-            var r0 = getInt32Memory0()[8 / 4 + 0];
-            var r1 = getInt32Memory0()[8 / 4 + 1];
+            wasm.wasmriscv_load_doubleword(retptr, this.ptr, low0, high0, ptr1, len1);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
             u32CvtShim[0] = r0;
             u32CvtShim[1] = r1;
             const n2 = uint64CvtShim[0];
             return n2;
         } finally {
+            wasm.__wbindgen_export_1.value += 16;
             error.set(getUint8Memory0().subarray(ptr1 / 1, ptr1 / 1 + len1));
             wasm.__wbindgen_free(ptr1, len1 * 1);
         }
@@ -333,26 +336,38 @@ export class WasmRiscv {
     * @returns {BigInt}
     */
     read_register(reg) {
-        wasm.wasmriscv_read_register(8, this.ptr, reg);
-        var r0 = getInt32Memory0()[8 / 4 + 0];
-        var r1 = getInt32Memory0()[8 / 4 + 1];
-        u32CvtShim[0] = r0;
-        u32CvtShim[1] = r1;
-        const n0 = uint64CvtShim[0];
-        return n0;
+        try {
+            const retptr = wasm.__wbindgen_export_1.value - 16;
+            wasm.__wbindgen_export_1.value = retptr;
+            wasm.wasmriscv_read_register(retptr, this.ptr, reg);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            u32CvtShim[0] = r0;
+            u32CvtShim[1] = r1;
+            const n0 = uint64CvtShim[0];
+            return n0;
+        } finally {
+            wasm.__wbindgen_export_1.value += 16;
+        }
     }
     /**
     * Reads Program Counter content.
     * @returns {BigInt}
     */
     read_pc() {
-        wasm.wasmriscv_read_pc(8, this.ptr);
-        var r0 = getInt32Memory0()[8 / 4 + 0];
-        var r1 = getInt32Memory0()[8 / 4 + 1];
-        u32CvtShim[0] = r0;
-        u32CvtShim[1] = r1;
-        const n0 = uint64CvtShim[0];
-        return n0;
+        try {
+            const retptr = wasm.__wbindgen_export_1.value - 16;
+            wasm.__wbindgen_export_1.value = retptr;
+            wasm.wasmriscv_read_pc(retptr, this.ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            u32CvtShim[0] = r0;
+            u32CvtShim[1] = r1;
+            const n0 = uint64CvtShim[0];
+            return n0;
+        } finally {
+            wasm.__wbindgen_export_1.value += 16;
+        }
     }
     /**
     * Gets ascii code byte sent from the emulator to terminal.
@@ -412,18 +427,21 @@ export class WasmRiscv {
     */
     get_address_of_symbol(s, error) {
         try {
+            const retptr = wasm.__wbindgen_export_1.value - 16;
+            wasm.__wbindgen_export_1.value = retptr;
             var ptr0 = passStringToWasm0(s, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
             var len0 = WASM_VECTOR_LEN;
             var ptr1 = passArray8ToWasm0(error, wasm.__wbindgen_malloc);
             var len1 = WASM_VECTOR_LEN;
-            wasm.wasmriscv_get_address_of_symbol(8, this.ptr, ptr0, len0, ptr1, len1);
-            var r0 = getInt32Memory0()[8 / 4 + 0];
-            var r1 = getInt32Memory0()[8 / 4 + 1];
+            wasm.wasmriscv_get_address_of_symbol(retptr, this.ptr, ptr0, len0, ptr1, len1);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
             u32CvtShim[0] = r0;
             u32CvtShim[1] = r1;
             const n2 = uint64CvtShim[0];
             return n2;
         } finally {
+            wasm.__wbindgen_export_1.value += 16;
             error.set(getUint8Memory0().subarray(ptr1 / 1, ptr1 / 1 + len1));
             wasm.__wbindgen_free(ptr1, len1 * 1);
         }

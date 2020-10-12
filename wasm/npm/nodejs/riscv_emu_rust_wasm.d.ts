@@ -47,7 +47,7 @@ export class WasmRiscv {
   free(): void;
 /**
 * Creates a new `WasmRiscv`.
-* @returns {WasmRiscv} 
+* @returns {WasmRiscv}
 */
   static new(): WasmRiscv;
 /**
@@ -56,7 +56,7 @@ export class WasmRiscv {
 *
 * # Arguments
 * * `content` Program binary
-* @param {Uint8Array} content 
+* @param {Uint8Array} content
 */
   setup_program(content: Uint8Array): void;
 /**
@@ -65,7 +65,7 @@ export class WasmRiscv {
 *
 * # Arguments
 * * `content` Program binary
-* @param {Uint8Array} content 
+* @param {Uint8Array} content
 */
   load_program_for_symbols(content: Uint8Array): void;
 /**
@@ -74,7 +74,7 @@ export class WasmRiscv {
 *
 * # Arguments
 * * `content` File system content binary
-* @param {Uint8Array} content 
+* @param {Uint8Array} content
 */
   setup_filesystem(content: Uint8Array): void;
 /**
@@ -84,7 +84,7 @@ export class WasmRiscv {
 *
 * # Arguments
 * * `content` DTB content binary
-* @param {Uint8Array} content 
+* @param {Uint8Array} content
 */
   setup_dtb(content: Uint8Array): void;
 /**
@@ -98,7 +98,7 @@ export class WasmRiscv {
 *
 * # Arguments
 * * `cycles`
-* @param {number} cycles 
+* @param {number} cycles
 */
   run_cycles(cycles: number): void;
 /**
@@ -126,9 +126,9 @@ export class WasmRiscv {
 * # Arguments
 * * `breakpoints` An array including breakpoint virtual addresses
 * * `max_cycles` See the above description
-* @param {BigUint64Array} breakpoints 
-* @param {number} max_cycles 
-* @returns {boolean} 
+* @param {BigUint64Array} breakpoints
+* @param {number} max_cycles
+* @returns {boolean}
 */
   run_until_breakpoints(breakpoints: BigUint64Array, max_cycles: number): boolean;
 /**
@@ -150,9 +150,9 @@ export class WasmRiscv {
 *   * 1: Page fault
 *   * 2: Invalid address (e.g. translated physical address points to out
 *        of valid memory address range)
-* @param {BigInt} address 
-* @param {Uint8Array} error 
-* @returns {BigInt} 
+* @param {BigInt} address
+* @param {Uint8Array} error
+* @returns {BigInt}
 */
   load_doubleword(address: BigInt, error: Uint8Array): BigInt;
 /**
@@ -160,13 +160,13 @@ export class WasmRiscv {
 *
 * # Arguments
 * * `reg` register number. Must be 0-31.
-* @param {number} reg 
-* @returns {BigInt} 
+* @param {number} reg
+* @returns {BigInt}
 */
   read_register(reg: number): BigInt;
 /**
 * Reads Program Counter content.
-* @returns {BigInt} 
+* @returns {BigInt}
 */
   read_pc(): BigInt;
 /**
@@ -186,7 +186,7 @@ export class WasmRiscv {
 *   }
 * }
 * ```
-* @returns {number} 
+* @returns {number}
 */
   get_output(): number;
 /**
@@ -194,7 +194,7 @@ export class WasmRiscv {
 *
 * # Arguments
 * * `data` Ascii code byte
-* @param {number} data 
+* @param {number} data
 */
   put_input(data: number): void;
 /**
@@ -204,7 +204,7 @@ export class WasmRiscv {
 *
 * # Arguments
 * * `enabled`
-* @param {boolean} enabled 
+* @param {boolean} enabled
 */
   enable_page_cache(enabled: boolean): void;
 /**
@@ -214,9 +214,9 @@ export class WasmRiscv {
 * * `s` Symbol strings
 * * `error` If symbol is not found error[0] holds non-zero.
 *    Otherwize zero.
-* @param {string} s 
-* @param {Uint8Array} error 
-* @returns {BigInt} 
+* @param {string} s
+* @param {Uint8Array} error
+* @returns {BigInt}
 */
   get_address_of_symbol(s: string, error: Uint8Array): BigInt;
 }
