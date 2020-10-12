@@ -78,10 +78,10 @@ $ sudo rmdir /mnt/rootfs
 ```sh
 $ cd riscv64-linux
 $ cp opensbi/build/platform/generic/firmware/fw_payload.elf path_to_riscv-rust/resources/linux/opensbi/
-$ cp rootfs/rootfs.img path_to_riscv-rust/resources/linux/opensbi/
+$ cp rootfs/rootfs.img path_to_riscv-rust/resources/linux/
 ```
 
-## Appendix : Run with QEMU
+## Appendix : Build QEMU
 
 ```sh
 $ cd riscv64-linux
@@ -91,7 +91,12 @@ $ git checkout v5.0.0
 $ ./configure --target-list=riscv64-softmmu
 $ make -j $(nproc)
 $ sudo make install
-$ cd ..
+```
+
+## Appendix : Run with QEMU
+
+```sh
+$ cd riscv64-linux
 $ qemu-system-riscv64 -nographic -machine virt \
     -kernel opensbi/build/platform/generic/firmware/fw_payload.elf \
     -append "root=/dev/vda rw console=ttyS0" \
