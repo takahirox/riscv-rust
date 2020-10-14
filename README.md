@@ -47,7 +47,7 @@ You can run Linux or xv6 on the emulator in your browser. [Online demo is here](
 
 etc...
 
-The emulator supports almost all instructions listed above but some instructions which are not used in Linux or xv6 are not implemented yet. Contribution is very welcome.
+The emulator supports almost all instructions listed above but some instructions which are not used in Linux or xv6 are not implemented yet. Your contribution is very welcome.
 
 ## How to import into your Rust project
 
