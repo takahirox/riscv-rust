@@ -11,8 +11,16 @@ pub struct Plic {
 	irq: u32,
 	enabled: u64,
 	threshold: u32,
-	priorities: [u32; 1024]
+	ips: [u8; 1024],
+	priorities: [u32; 1024],
+	needs_update_irq: bool,
+	virtio_ip_cache: bool,
+	uart_ip_cache: bool
 }
+
+// @TODO: IRQ numbers should be configurable with device tree
+const VIRTIO_IRQ: u32 = 1;
+const UART_IRQ: u32 = 10;
 
 impl Plic {
 	/// Creates a new `Plic`.
@@ -22,44 +30,84 @@ impl Plic {
 			irq: 0,
 			enabled: 0,
 			threshold: 0,
-			priorities: [0; 1024]
+			priorities: [0; 1024],
+			ips: [0; 1024],
+			needs_update_irq: false,
+			virtio_ip_cache: false,
+			uart_ip_cache: false
 		}
 	}
 
 	/// Runs one cycle. Takes interrupting signals from devices and
 	/// raises an interrupt to CPU depending on configuration.
-	/// It interrupt occurs CPU a certain bit of `mip` regiser is risen
+	/// If interrupt occurs a certain bit of `mip` regiser is risen
 	/// depending on interrupt type.
 	///
 	/// # Arguments
-	/// * `virtio_is_interrupting`
-	/// * `uart_is_interrupting`
+	/// * `virtio_ip`
+	/// * `uart_ip`
 	/// * `mip`
-	pub fn tick(&mut self, virtio_is_interrupting: bool,
-		uart_is_interrupting: bool, mip: &mut u64) {
+	pub fn tick(&mut self, virtio_ip: bool,
+		uart_ip: bool, mip: &mut u64) {
 		self.clock = self.clock.wrapping_add(1);
 
-		// @TODO: IRQ num should be configurable with dtb
-		let virtio_irq = 1;
-		let uart_irq = 10;
+		// Edge-triggered interrupt so far
+		// Note: It doesn't seem to be mentioned in UART (and VirtIO?) specification
+		// whether interrupt should be edge-triggered or level-triggered.
+		// Implementing as edge-triggered interrupt so far because
+		// it would support more drivers. I speculate some drivers could assume
+		// edge-triggered interrupt while rarely drivers rely on the behavior
+		// of level-triggered interrupt which keeps interrupting while
+		// interrupt signal is asserted.
 
-		// Which should be prioritized, local timer interrupt or global interrupts?
+		if self.virtio_ip_cache != virtio_ip {
+			match virtio_ip {
+				true => self.set_ip(VIRTIO_IRQ),
+				// @TODO: Check the specification whether we should clear or not
+				// when interrupt signal is fallen
+				false => self.clear_ip(VIRTIO_IRQ)
+			};
+			self.virtio_ip_cache = virtio_ip;
+		}
 
-		let virtio_priority = self.priorities[virtio_irq as usize];
-		let uart_priority = self.priorities[uart_irq as usize];
+		if self.uart_ip_cache != uart_ip {
+			match uart_ip {
+				true => self.set_ip(UART_IRQ),
+				false => self.clear_ip(UART_IRQ)
+			};
+			self.uart_ip_cache = uart_ip;
+		}
 
-		let virtio_enabled = ((self.enabled >> virtio_irq) & 1) == 1;
-		let uart_enabled = ((self.enabled >> uart_irq) & 1) == 1;
+		if self.needs_update_irq {
+			self.update_irq(mip);
+			self.needs_update_irq = false;
+		}
+	}
 
-		let interruptings = [virtio_is_interrupting, uart_is_interrupting];
+	fn update_irq(&mut self, mip: &mut u64) {
+		// Hardcoded VirtIO and UART
+		// @TODO: Should be configurable with device tree
+
+		let virtio_ip = ((self.ips[(VIRTIO_IRQ >> 3) as usize] >> (VIRTIO_IRQ & 7)) & 1) == 1;
+		let uart_ip = ((self.ips[(UART_IRQ >> 3) as usize] >> (UART_IRQ & 7)) & 1) == 1;
+
+		// Which should be prioritized, virtio or uart?
+
+		let virtio_priority = self.priorities[VIRTIO_IRQ as usize];
+		let uart_priority = self.priorities[UART_IRQ as usize];
+
+		let virtio_enabled = ((self.enabled >> VIRTIO_IRQ) & 1) == 1;
+		let uart_enabled = ((self.enabled >> UART_IRQ) & 1) == 1;
+
+		let ips = [virtio_ip, uart_ip];
 		let enables = [virtio_enabled, uart_enabled];
 		let priorities = [virtio_priority, uart_priority];
-		let irqs = [virtio_irq, uart_irq];
+		let irqs = [VIRTIO_IRQ, UART_IRQ];
 
 		let mut irq = 0;
 		let mut priority = 0;
 		for i in 0..2 {
-			if interruptings[i] && enables[i] &&
+			if ips[i] && enables[i] &&
 				priorities[i] > self.threshold &&
 				priorities[i] > priority {
 					irq = irqs[i];
@@ -67,11 +115,23 @@ impl Plic {
 			}
 		}
 
-		if irq != 0 {
-			self.irq = irq;
+		self.irq = irq;
+		if self.irq != 0 {
 			//println!("IRQ: {:X}", self.irq);
 			*mip |= MIP_SEIP;
 		}
+	}
+
+	fn set_ip(&mut self, irq: u32) {
+		let index = (irq >> 3) as usize;
+		self.ips[index] = self.ips[index] | (1 << irq);
+		self.needs_update_irq = true;
+	}
+
+	fn clear_ip(&mut self, irq: u32) {
+		let index = (irq >> 3) as usize;
+		self.ips[index] = self.ips[index] & !(1 << irq);
+		self.needs_update_irq = true;
 	}
 
 	/// Loads register content
@@ -86,6 +146,10 @@ impl Plic {
 				let index = ((address - 0xc000000) >> 2) as usize;
 				let pos = offset << 3;
 				(self.priorities[index] >> pos) as u8
+			},
+			0x0c001000..=0x0c00107f => {
+				let index = (address - 0xc001000) as usize;
+				self.ips[index]
 			},
 			0x0c002080 => self.enabled as u8,
 			0x0c002081 => (self.enabled >> 8) as u8,
@@ -120,9 +184,13 @@ impl Plic {
 				let index = ((address - 0xc000000) >> 2) as usize;
 				let pos = offset << 3;
 				self.priorities[index] = (self.priorities[index] & !(0xff << pos)) | ((value as u32) << pos);
+				self.needs_update_irq = true;
 			},
+			// Enable. Only first 64 interrupt sources support so far.
+			// @TODO: Implement all 1024 interrupt source enables.
 			0x0c002080 => {
 				self.enabled = (self.enabled & !0xff) | (value as u64);
+				self.needs_update_irq = true;
 			},
 			0x0c002081 => {
 				self.enabled = (self.enabled & !(0xff << 8)) | ((value as u64) << 8);
@@ -147,6 +215,7 @@ impl Plic {
 			},
 			0x0c201000 => {
 				self.threshold = (self.threshold & !0xff) | (value as u32);
+				self.needs_update_irq = true;
 			},
 			0x0c201001 => {
 				self.threshold = (self.threshold & !(0xff << 8)) | ((value as u32) << 8);
@@ -157,10 +226,11 @@ impl Plic {
 			0x0c201003 => {
 				self.threshold = (self.threshold & !(0xff << 24)) | ((value as u32) << 24);
 			},
+			// Claim
 			0x0c201004 => {
-				if self.irq as u8 == value {
-					self.irq = 0;
-				}
+				// Assuming written data is a byte so far
+				// @TODO: Should be four bytes.
+				self.clear_ip(value as u32);
 			},
 			_ => {}
 		};
