@@ -14,8 +14,7 @@ pub struct Plic {
 	ips: [u8; 1024],
 	priorities: [u32; 1024],
 	needs_update_irq: bool,
-	virtio_ip_cache: bool,
-	uart_ip_cache: bool
+	virtio_ip_cache: bool
 }
 
 // @TODO: IRQ numbers should be configurable with device tree
@@ -33,8 +32,7 @@ impl Plic {
 			priorities: [0; 1024],
 			ips: [0; 1024],
 			needs_update_irq: false,
-			virtio_ip_cache: false,
-			uart_ip_cache: false
+			virtio_ip_cache: false
 		}
 	}
 
@@ -47,35 +45,25 @@ impl Plic {
 	/// * `virtio_ip`
 	/// * `uart_ip`
 	/// * `mip`
-	pub fn tick(&mut self, virtio_ip: bool,
-		uart_ip: bool, mip: &mut u64) {
+	pub fn tick(&mut self, virtio_ip: bool, uart_ip: bool, mip: &mut u64) {
 		self.clock = self.clock.wrapping_add(1);
 
-		// Edge-triggered interrupt so far
-		// Note: It doesn't seem to be mentioned in UART (and VirtIO?) specification
-		// whether interrupt should be edge-triggered or level-triggered.
-		// Implementing as edge-triggered interrupt so far because
-		// it would support more drivers. I speculate some drivers could assume
-		// edge-triggered interrupt while rarely drivers rely on the behavior
-		// of level-triggered interrupt which keeps interrupting while
-		// interrupt signal is asserted.
+		// Handling interrupts as "Edge-triggered" interrupt so far
 
+		// Our VirtIO disk implements an interrupt as "Level-triggered" and
+		// virtio_ip is always true while interrupt pending bit is asserted.
+		// Then our Plic caches virtio_ip and detects the rise edge.
 		if self.virtio_ip_cache != virtio_ip {
-			match virtio_ip {
-				true => self.set_ip(VIRTIO_IRQ),
-				// @TODO: Check the specification whether we should clear or not
-				// when interrupt signal is fallen
-				false => self.clear_ip(VIRTIO_IRQ)
-			};
+			if virtio_ip {
+				self.set_ip(VIRTIO_IRQ);
+			}
 			self.virtio_ip_cache = virtio_ip;
 		}
 
-		if self.uart_ip_cache != uart_ip {
-			match uart_ip {
-				true => self.set_ip(UART_IRQ),
-				false => self.clear_ip(UART_IRQ)
-			};
-			self.uart_ip_cache = uart_ip;
+		// Our Uart implements an interrupt as "Edge-triggered" and
+		// uart_ip is true only at the cycle when an interrupt happens
+		if uart_ip {
+			self.set_ip(UART_IRQ);
 		}
 
 		if self.needs_update_irq {
