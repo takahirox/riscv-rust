@@ -407,8 +407,8 @@ impl VirtioBlockDisk {
 		let queue_size = self.queue_size as u64;
 
 		let _avail_flag = memory.read_halfword(base_avail_address) as u64;
-		let _avail_index = (memory.read_halfword(base_avail_address.wrapping_add(2)) as u64) % queue_size;
-		let desc_index_address = base_avail_address.wrapping_add(4).wrapping_add(self.used_ring_index as u64 * 2);
+		let _avail_index = memory.read_halfword(base_avail_address.wrapping_add(2)) as u64;
+		let desc_index_address = base_avail_address.wrapping_add(4).wrapping_add((self.used_ring_index as u64 % queue_size) * 2);
 		let desc_head_index = (memory.read_halfword(desc_index_address) as u64) % queue_size;
 
 		/*
@@ -514,9 +514,9 @@ impl VirtioBlockDisk {
 			panic!("Descript chain length should be three.");
 		}
 
-		memory.write_word(base_used_address.wrapping_add(4).wrapping_add(self.used_ring_index as u64 * 8), desc_head_index as u32);
+		memory.write_word(base_used_address.wrapping_add(4).wrapping_add((self.used_ring_index as u64 % queue_size) * 8), desc_head_index as u32);
 
-		self.used_ring_index = self.used_ring_index.wrapping_add(1) % self.queue_size as u16;
+		self.used_ring_index = self.used_ring_index.wrapping_add(1);
 		memory.write_halfword(base_used_address.wrapping_add(2), self.used_ring_index);
 	}
 }
