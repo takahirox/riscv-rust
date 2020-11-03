@@ -3551,3 +3551,15 @@ impl DecodeCacheEntry {
 		}
 	}
 }
+
+#[cfg(test)]
+
+mod test_cpu {
+	use terminal::DummyTerminal;
+	use super::*;
+
+	#[test]
+	fn initialize() {
+		let _cpu = Cpu::new(Box::new(DummyTerminal::new()));
+	}
+}
