@@ -3562,4 +3562,12 @@ mod test_cpu {
 	fn initialize() {
 		let _cpu = Cpu::new(Box::new(DummyTerminal::new()));
 	}
+
+	#[test]
+	fn test_update_pc() {
+		let mut cpu = Cpu::new(Box::new(DummyTerminal::new()));
+		assert_eq!(0, cpu.pc);
+		cpu.update_pc(1);
+		assert_eq!(1, cpu.pc);
+	}
 }
