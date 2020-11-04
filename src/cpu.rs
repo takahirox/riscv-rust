@@ -3558,16 +3558,30 @@ mod test_cpu {
 	use terminal::DummyTerminal;
 	use super::*;
 
+	fn create_cpu() -> Cpu {
+		Cpu::new(Box::new(DummyTerminal::new()))
+	}
+
 	#[test]
 	fn initialize() {
-		let _cpu = Cpu::new(Box::new(DummyTerminal::new()));
+		let _cpu = create_cpu();
 	}
 
 	#[test]
 	fn test_update_pc() {
-		let mut cpu = Cpu::new(Box::new(DummyTerminal::new()));
+		let mut cpu = create_cpu();
 		assert_eq!(0, cpu.pc);
 		cpu.update_pc(1);
 		assert_eq!(1, cpu.pc);
+	}
+
+	#[test]
+	fn test_update_xlen() {
+		let mut cpu = create_cpu();
+		assert!(matches!(cpu.xlen, Xlen::Bit64));
+		cpu.update_xlen(Xlen::Bit32);
+		assert!(matches!(cpu.xlen, Xlen::Bit32));
+		// Note: cpu.update_xlen() updates cpu.mmu.xlen, too.
+		// The test for mmu.xlen should be in Mmu?
 	}
 }
