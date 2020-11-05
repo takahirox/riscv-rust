@@ -3570,9 +3570,9 @@ mod test_cpu {
 	#[test]
 	fn test_update_pc() {
 		let mut cpu = create_cpu();
-		assert_eq!(0, cpu.pc);
+		assert_eq!(0, cpu.read_pc());
 		cpu.update_pc(1);
-		assert_eq!(1, cpu.pc);
+		assert_eq!(1, cpu.read_pc());
 	}
 
 	#[test]
