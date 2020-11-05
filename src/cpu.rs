@@ -267,7 +267,10 @@ impl Cpu {
 	/// * `reg` Register number. Must be 0-31
 	pub fn read_register(&self, reg: u8) -> i64 {
 		debug_assert!(reg <= 31, "reg must be 0-31. {}", reg);
-		self.x[reg as usize]
+		match reg {
+			0 => 0, // 0th register is hardwired zero
+			_ => self.x[reg as usize]
+		}
 	}
 
 	/// Reads Program counter content
