@@ -3576,6 +3576,8 @@ mod test_cpu {
 		assert_eq!(0, cpu.read_pc());
 		cpu.update_pc(1);
 		assert_eq!(1, cpu.read_pc());
+		cpu.update_pc(0xffffffffffffffff);
+		assert_eq!(0xffffffffffffffff, cpu.read_pc());
 	}
 
 	#[test]
@@ -3584,6 +3586,8 @@ mod test_cpu {
 		assert!(matches!(cpu.xlen, Xlen::Bit64));
 		cpu.update_xlen(Xlen::Bit32);
 		assert!(matches!(cpu.xlen, Xlen::Bit32));
+		cpu.update_xlen(Xlen::Bit64);
+		assert!(matches!(cpu.xlen, Xlen::Bit64));
 		// Note: cpu.update_xlen() updates cpu.mmu.xlen, too.
 		// The test for mmu.xlen should be in Mmu?
 	}
