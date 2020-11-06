@@ -3631,4 +3631,28 @@ mod test_cpu {
 		// @TODO: Should I test the case where the argument equals to or is
 		// greater than 32?
 	}
+
+	#[test]
+	fn test_tick() {
+		// T.B.D.
+		assert!(true);
+	}
+
+	#[test]
+	fn test_tick_operate() {
+		// T.B.D.
+		assert!(true);
+	}
+
+	#[test]
+	fn test_fetch() {
+		// T.B.D.
+		assert!(true);
+	}
+
+	#[test]
+	fn test_decode() {
+		// T.B.D.
+		assert!(true);
+	}
 }
