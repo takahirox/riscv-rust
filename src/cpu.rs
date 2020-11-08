@@ -3675,7 +3675,17 @@ mod test_cpu {
 
 	#[test]
 	fn test_decode() {
-		// T.B.D.
-		assert!(true);
+		let mut cpu = create_cpu();
+		// 0x13 is addi instruction
+		match cpu.decode(0x13) {
+			Ok(inst) => assert_eq!(inst.name, "ADDI"),
+			Err(_e) => panic!("Failed to decode")
+		};
+		// .decode() returns error for invalid word data.
+		match cpu.decode(0x0) {
+			Ok(_inst) => panic!("Unexpectedly succeeded in decoding"),
+			Err(()) => assert!(true)
+		};
+		// @TODO: Should I test all instructions?
 	}
 }
