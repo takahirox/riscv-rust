@@ -1,6 +1,6 @@
 /// DRAM base address. Offset from this base address
 /// is the address in main memory.
-const DRAM_BASE: u64 = 0x80000000;
+pub const DRAM_BASE: u64 = 0x80000000;
 
 const DTB_SIZE: usize = 0xfe0;
 

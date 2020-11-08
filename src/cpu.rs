@@ -3559,6 +3559,7 @@ impl DecodeCacheEntry {
 
 mod test_cpu {
 	use terminal::DummyTerminal;
+	use mmu::DRAM_BASE;
 	use super::*;
 
 	fn create_cpu() -> Cpu {
@@ -3646,8 +3647,30 @@ mod test_cpu {
 
 	#[test]
 	fn test_fetch() {
-		// T.B.D.
-		assert!(true);
+		// .fetch() reads four bytes from the memory
+		// at the address the program counter points to.
+		// .fetch() doesn't increment the program counter.
+		// .tick_operate() does.
+		let mut cpu = create_cpu();
+		cpu.get_mut_mmu().init_memory(4);
+		cpu.update_pc(DRAM_BASE);
+		match cpu.get_mut_mmu().store_word(DRAM_BASE, 0xaaaaaaaa) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.fetch() {
+			Ok(data) => assert_eq!(0xaaaaaaaa, data),
+			Err(_e) => panic!("Failed to fetch")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE, 0x55555555) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.fetch() {
+			Ok(data) => assert_eq!(0x55555555, data),
+			Err(_e) => panic!("Failed to fetch")
+		};
+		// @TODO: Write test cases where Trap happens
 	}
 
 	#[test]
