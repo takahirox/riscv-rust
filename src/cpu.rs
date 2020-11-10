@@ -3688,4 +3688,16 @@ mod test_cpu {
 		};
 		// @TODO: Should I test all instructions?
 	}
+
+	#[test]
+	fn test_uncompress() {
+		let mut cpu = create_cpu();
+		// .uncompress() doesn't directly return an instruction but
+		// it returns uncompressed word. Then you need to call .decode().
+		match cpu.decode(cpu.uncompress(0x20)) {
+			Ok(inst) => assert_eq!(inst.name, "ADDI"),
+			Err(_e) => panic!("Failed to decode")
+		};
+		// @TODO: Should I test all compressed instructions?
+	}
 }
