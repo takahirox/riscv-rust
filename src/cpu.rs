@@ -3641,8 +3641,29 @@ mod test_cpu {
 
 	#[test]
 	fn test_tick_operate() {
-		// T.B.D.
-		assert!(true);
+		let mut cpu = create_cpu();
+		cpu.get_mut_mmu().init_memory(4);
+		cpu.update_pc(DRAM_BASE);
+		// write non-compressed "addi a0, a0, 12" instruction
+		match cpu.get_mut_mmu().store_word(DRAM_BASE, 0xc50513) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		assert_eq!(DRAM_BASE, cpu.read_pc());
+		assert_eq!(0, cpu.read_register(10));
+		match cpu.tick_operate() {
+			Ok(()) => {},
+			Err(_e) => panic!("tick_operate() unexpectedly did panic")
+		};
+		// .tick_operate() increments the program counter by 4 for
+		// non-compressed instruction.
+		assert_eq!(DRAM_BASE + 4, cpu.read_pc());
+		// "addi a0, a0, a12" instruction writes 12 to a0 register.
+		assert_eq!(12, cpu.read_register(10));
+		// @TODO: Test compressed instruction operation
+		// @TODO: Test WFI
+		// @TODO: Test hardcoded-zero 0th register
+		// @TODO: Test trap
 	}
 
 	#[test]
