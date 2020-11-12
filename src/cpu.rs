@@ -3661,9 +3661,6 @@ mod test_cpu {
 		// "addi a0, a0, a12" instruction writes 12 to a0 register.
 		assert_eq!(12, cpu.read_register(10));
 		// @TODO: Test compressed instruction operation
-		// @TODO: Test WFI
-		// @TODO: Test hardcoded-zero 0th register
-		// @TODO: Test trap
 	}
 
 	#[test]
@@ -3720,5 +3717,29 @@ mod test_cpu {
 			Err(_e) => panic!("Failed to decode")
 		};
 		// @TODO: Should I test all compressed instructions?
+	}
+
+	#[test]
+	fn test_wfi() {
+		// T.B.D.
+		assert!(true);
+	}
+
+	#[test]
+	fn test_interrupt() {
+		// T.B.D.
+		assert!(true);
+	}
+
+	#[test]
+	fn test_trap() {
+		// T.B.D.
+		assert!(true);
+	}
+
+	#[test]
+	fn test_hardocded_zero() {
+		// T.B.D.
+		assert!(true);
 	}
 }
