@@ -299,10 +299,10 @@ impl Cpu {
 	fn tick_operate(&mut self) -> Result<(), Trap> {
 		if self.wfi {
 			if (self.read_csr_raw(CSR_MIE_ADDRESS) &
-				self.read_csr_raw(CSR_MIP_ADDRESS)) == 0{
-				return Ok(());
+				self.read_csr_raw(CSR_MIP_ADDRESS)) != 0{
+				self.wfi = false;
 			}
-			self.wfi = false;
+			return Ok(());
 		}
 
 		let original_word = match self.fetch() {
