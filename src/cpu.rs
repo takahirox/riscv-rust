@@ -3721,8 +3721,36 @@ mod test_cpu {
 
 	#[test]
 	fn test_wfi() {
-		// T.B.D.
-		assert!(true);
+		let wfi_instruction = 0x10500073;
+		let mut cpu = create_cpu();
+		// Just in case
+		match cpu.decode(wfi_instruction) {
+			Ok(inst) => assert_eq!(inst.name, "WFI"),
+			Err(_e) => panic!("Failed to decode")
+		};
+		cpu.get_mut_mmu().init_memory(4);
+		cpu.update_pc(DRAM_BASE);
+		// write WFI instruction
+		match cpu.get_mut_mmu().store_word(DRAM_BASE, wfi_instruction) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		cpu.tick();
+		assert_eq!(DRAM_BASE + 4, cpu.read_pc());
+		for _i in 0..10 {
+			// Until interrupt happens, .tick() does nothing
+			// @TODO: Check accurately that the state is unchanged
+			cpu.tick();
+			assert_eq!(DRAM_BASE + 4, cpu.read_pc());
+		}
+		// Machine timer interrupt
+		cpu.write_csr_raw(CSR_MIE_ADDRESS, MIP_MTIP);
+		cpu.write_csr_raw(CSR_MIP_ADDRESS, MIP_MTIP);
+		cpu.write_csr_raw(CSR_MSTATUS_ADDRESS, 0x8);
+		cpu.write_csr_raw(CSR_MTVEC_ADDRESS, 0x0);
+		cpu.tick();
+		// Interrupt happened and moved to handler
+		assert_eq!(0, cpu.read_pc());
 	}
 
 	#[test]
