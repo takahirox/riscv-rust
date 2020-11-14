@@ -3767,7 +3767,31 @@ mod test_cpu {
 
 	#[test]
 	fn test_hardocded_zero() {
-		// T.B.D.
-		assert!(true);
+		let mut cpu = create_cpu();
+		cpu.get_mut_mmu().init_memory(8);
+		cpu.update_pc(DRAM_BASE);
+
+		// Write non-compressed "addi x0, x0, 1" instruction
+		match cpu.get_mut_mmu().store_word(DRAM_BASE, 0x00100013) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		// Write non-compressed "addi x1, x1, 1" instruction
+		match cpu.get_mut_mmu().store_word(DRAM_BASE + 4, 0x00108093) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+
+		// Test x0
+		assert_eq!(0, cpu.read_register(0));
+		cpu.tick(); // Execute  "addi x0, x0, 1"
+		// x0 is still zero because it's hardcoded zero
+		assert_eq!(0, cpu.read_register(0));
+
+		// Test x1
+		assert_eq!(0, cpu.read_register(1));
+		cpu.tick(); // Execute  "addi x1, x1, 1"
+		// x1 is not hardcoded zero
+		assert_eq!(1, cpu.read_register(1));
 	}
 }
