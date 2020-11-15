@@ -3755,8 +3755,26 @@ mod test_cpu {
 
 	#[test]
 	fn test_interrupt() {
-		// T.B.D.
-		assert!(true);
+		let handler_vector = 0x10000000;
+		let mut cpu = create_cpu();
+		cpu.get_mut_mmu().init_memory(4);
+		// Write non-compressed "addi x0, x0, 1" instruction
+		match cpu.get_mut_mmu().store_word(DRAM_BASE, 0x00100013) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		cpu.update_pc(DRAM_BASE);
+
+		// Machine timer interrupt
+		cpu.write_csr_raw(CSR_MIE_ADDRESS, MIP_MTIP);
+		cpu.write_csr_raw(CSR_MIP_ADDRESS, MIP_MTIP);
+		cpu.write_csr_raw(CSR_MSTATUS_ADDRESS, 0x8);
+		cpu.write_csr_raw(CSR_MTVEC_ADDRESS, handler_vector);
+
+		cpu.tick();
+
+		// Interrupt happened and moved to handler
+		assert_eq!(handler_vector, cpu.read_pc());
 	}
 
 	#[test]
