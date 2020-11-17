@@ -3779,8 +3779,21 @@ mod test_cpu {
 
 	#[test]
 	fn test_trap() {
-		// T.B.D.
-		assert!(true);
+		let handler_vector = 0x10000000;
+		let mut cpu = create_cpu();
+		cpu.get_mut_mmu().init_memory(4);
+		// Write ECALL instruction
+		match cpu.get_mut_mmu().store_word(DRAM_BASE, 0x00000073) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		cpu.write_csr_raw(CSR_MTVEC_ADDRESS, handler_vector);
+		cpu.update_pc(DRAM_BASE);
+
+		cpu.tick();
+
+		// Interrupt happened and moved to handler
+		assert_eq!(handler_vector, cpu.read_pc());
 	}
 
 	#[test]
