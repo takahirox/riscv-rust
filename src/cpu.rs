@@ -3765,11 +3765,19 @@ mod test_cpu {
 		};
 		cpu.update_pc(DRAM_BASE);
 
-		// Machine timer interrupt
+		// Machine timer interrupt but mie in mstatus is not enabled yet
 		cpu.write_csr_raw(CSR_MIE_ADDRESS, MIP_MTIP);
 		cpu.write_csr_raw(CSR_MIP_ADDRESS, MIP_MTIP);
-		cpu.write_csr_raw(CSR_MSTATUS_ADDRESS, 0x8);
 		cpu.write_csr_raw(CSR_MTVEC_ADDRESS, handler_vector);
+
+		cpu.tick();
+
+		// Interrupt isn't caught because mie is disabled
+		assert_eq!(DRAM_BASE + 4, cpu.read_pc());
+
+		cpu.update_pc(DRAM_BASE);
+		// Enable mie in mstatus
+		cpu.write_csr_raw(CSR_MSTATUS_ADDRESS, 0x8);
 
 		cpu.tick();
 
