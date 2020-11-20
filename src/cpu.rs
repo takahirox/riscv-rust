@@ -3635,8 +3635,30 @@ mod test_cpu {
 
 	#[test]
 	fn test_tick() {
-		// T.B.D.
-		assert!(true);
+		let mut cpu = create_cpu();
+		cpu.get_mut_mmu().init_memory(4);
+		cpu.update_pc(DRAM_BASE);
+
+		// Write non-compressed "addi x1, x1, 1" instruction
+		match cpu.get_mut_mmu().store_word(DRAM_BASE, 0x00108093) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		// Write compressed "addi x8, x0, 8" instruction
+		match cpu.get_mut_mmu().store_word(DRAM_BASE + 4, 0x20) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+
+		cpu.tick();
+
+		assert_eq!(DRAM_BASE + 4, cpu.read_pc());
+		assert_eq!(1, cpu.read_register(1));
+
+		cpu.tick();
+
+		assert_eq!(DRAM_BASE + 6, cpu.read_pc());
+		assert_eq!(8, cpu.read_register(8));
 	}
 
 	#[test]
