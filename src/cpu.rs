@@ -3556,7 +3556,6 @@ impl DecodeCacheEntry {
 }
 
 #[cfg(test)]
-
 mod test_cpu {
 	use terminal::DummyTerminal;
 	use mmu::DRAM_BASE;
@@ -3572,7 +3571,7 @@ mod test_cpu {
 	}
 
 	#[test]
-	fn test_update_pc() {
+	fn update_pc() {
 		let mut cpu = create_cpu();
 		assert_eq!(0, cpu.read_pc());
 		cpu.update_pc(1);
@@ -3582,7 +3581,7 @@ mod test_cpu {
 	}
 
 	#[test]
-	fn test_update_xlen() {
+	fn update_xlen() {
 		let mut cpu = create_cpu();
 		assert!(matches!(cpu.xlen, Xlen::Bit64));
 		cpu.update_xlen(Xlen::Bit32);
@@ -3594,7 +3593,7 @@ mod test_cpu {
 	}
 
 	#[test]
-	fn test_read_register() {
+	fn read_register() {
 		let mut cpu = create_cpu();
 		// Initial register values are 0 other than 0xb th register.
 		// Initial value of 0xb th register is temporal for Linux boot and
@@ -3634,7 +3633,7 @@ mod test_cpu {
 	}
 
 	#[test]
-	fn test_tick() {
+	fn tick() {
 		let mut cpu = create_cpu();
 		cpu.get_mut_mmu().init_memory(4);
 		cpu.update_pc(DRAM_BASE);
@@ -3662,7 +3661,7 @@ mod test_cpu {
 	}
 
 	#[test]
-	fn test_tick_operate() {
+	fn tick_operate() {
 		let mut cpu = create_cpu();
 		cpu.get_mut_mmu().init_memory(4);
 		cpu.update_pc(DRAM_BASE);
@@ -3686,7 +3685,7 @@ mod test_cpu {
 	}
 
 	#[test]
-	fn test_fetch() {
+	fn fetch() {
 		// .fetch() reads four bytes from the memory
 		// at the address the program counter points to.
 		// .fetch() doesn't increment the program counter.
@@ -3714,7 +3713,7 @@ mod test_cpu {
 	}
 
 	#[test]
-	fn test_decode() {
+	fn decode() {
 		let mut cpu = create_cpu();
 		// 0x13 is addi instruction
 		match cpu.decode(0x13) {
@@ -3730,7 +3729,7 @@ mod test_cpu {
 	}
 
 	#[test]
-	fn test_uncompress() {
+	fn uncompress() {
 		let mut cpu = create_cpu();
 		// .uncompress() doesn't directly return an instruction but
 		// it returns uncompressed word. Then you need to call .decode().
@@ -3742,7 +3741,7 @@ mod test_cpu {
 	}
 
 	#[test]
-	fn test_wfi() {
+	fn wfi() {
 		let wfi_instruction = 0x10500073;
 		let mut cpu = create_cpu();
 		// Just in case
@@ -3776,7 +3775,7 @@ mod test_cpu {
 	}
 
 	#[test]
-	fn test_interrupt() {
+	fn interrupt() {
 		let handler_vector = 0x10000000;
 		let mut cpu = create_cpu();
 		cpu.get_mut_mmu().init_memory(4);
@@ -3808,7 +3807,7 @@ mod test_cpu {
 	}
 
 	#[test]
-	fn test_trap() {
+	fn trap() {
 		let handler_vector = 0x10000000;
 		let mut cpu = create_cpu();
 		cpu.get_mut_mmu().init_memory(4);
@@ -3827,7 +3826,7 @@ mod test_cpu {
 	}
 
 	#[test]
-	fn test_hardocded_zero() {
+	fn hardocded_zero() {
 		let mut cpu = create_cpu();
 		cpu.get_mut_mmu().init_memory(8);
 		cpu.update_pc(DRAM_BASE);
