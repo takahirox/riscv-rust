@@ -3855,3 +3855,38 @@ mod test_cpu {
 		assert_eq!(1, cpu.read_register(1));
 	}
 }
+
+#[cfg(test)]
+
+mod test_decode_cache {
+	use super::*;
+
+	#[test]
+	fn initialize() {
+		let _cache = DecodeCache::new();
+	}
+
+	#[test]
+	fn insert() {
+		let mut cache = DecodeCache::new();
+		cache.insert(0, 0);
+	}
+
+	#[test]
+	fn get() {
+		let mut cache = DecodeCache::new();
+		cache.insert(1, 2);
+
+		// Cache hit test
+		match cache.get(1) {
+			Some(index) => assert_eq!(2, index),
+			None => panic!("Unexpected cache miss")
+		};
+
+		// Cache miss test
+		match cache.get(2) {
+			Some(index) => panic!("Unexpected cache hit"),
+			None => {}
+		};
+	}
+}
