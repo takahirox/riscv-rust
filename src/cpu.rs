@@ -3885,7 +3885,28 @@ mod test_decode_cache {
 
 		// Cache miss test
 		match cache.get(2) {
-			Some(index) => panic!("Unexpected cache hit"),
+			Some(_index) => panic!("Unexpected cache hit"),
+			None => {}
+		};
+	}
+
+	#[test]
+	fn overlow() {
+		let mut cache = DecodeCache::new();
+		cache.insert(0, 0);
+
+		match cache.get(0) {
+			Some(index) => assert_eq!(0, index),
+			None => panic!("Unexpected cache miss")
+		};
+
+		for i in 1..DECODE_CACHE_ENTRY_NUM + 1 {
+			cache.insert(i as u32, 0);
+		}
+
+		// The oldest entry should have been removed because of the overflow
+		match cache.get(0) {
+			Some(_index) => panic!("Unexpected cache hit"),
 			None => {}
 		};
 	}
