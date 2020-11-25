@@ -3893,19 +3893,34 @@ mod test_decode_cache {
 	#[test]
 	fn overlow() {
 		let mut cache = DecodeCache::new();
-		cache.insert(0, 0);
+		cache.insert(0, 1);
 
 		match cache.get(0) {
-			Some(index) => assert_eq!(0, index),
+			Some(index) => assert_eq!(1, index),
 			None => panic!("Unexpected cache miss")
 		};
 
 		for i in 1..DECODE_CACHE_ENTRY_NUM + 1 {
-			cache.insert(i as u32, 0);
+			cache.insert(i as u32, i + 1);
 		}
 
 		// The oldest entry should have been removed because of the overflow
 		match cache.get(0) {
+			Some(_index) => panic!("Unexpected cache hit"),
+			None => {}
+		};
+
+		// With this .get(), the entry with the word "1" moves to the tail of the list
+		// and the entry with the word "2" becomes the oldest entry.
+		match cache.get(1) {
+			Some(index) => assert_eq!(2, index),
+			None => {}
+		};
+
+		// The oldest entry with the word "2" will be removed due to the overflow
+		cache.insert(DECODE_CACHE_ENTRY_NUM as u32 + 1, DECODE_CACHE_ENTRY_NUM + 2);
+
+		match cache.get(2) {
 			Some(_index) => panic!("Unexpected cache hit"),
 			None => {}
 		};
