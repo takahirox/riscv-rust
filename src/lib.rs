@@ -317,3 +317,76 @@ impl Emulator {
 		}
 	}
 }
+
+#[cfg(test)]
+mod test_emulator {
+	use terminal::DummyTerminal;
+	use super::*;
+
+	fn create_emu() -> Emulator {
+		Emulator::new(
+			Box::new(DummyTerminal::new())
+		)
+	}
+
+	#[test]
+	#[ignore]
+	fn initialize() {
+		let _emu = create_emu();
+	}
+
+	#[test]
+	#[ignore]
+	fn run() {
+	}
+
+	#[test]
+	#[ignore]
+	fn run_program() {
+	}
+
+	#[test]
+	#[ignore]
+	fn run_test() {
+	}
+
+	#[test]
+	#[ignore]
+	fn tick() {
+	}
+
+	#[test]
+	#[ignore]
+	fn setup_program() {
+	}
+
+	#[test]
+	#[ignore]
+	fn load_program_for_symbols() {
+	}
+
+	#[test]
+	#[ignore]
+	fn setup_filesystem() {
+	}
+
+	#[test]
+	#[ignore]
+	fn setup_dtb() {
+	}
+
+	#[test]
+	#[ignore]
+	fn update_xlen() {
+	}
+
+	#[test]
+	#[ignore]
+	fn enable_page_cache() {
+	}
+
+	#[test]
+	#[ignore]
+	fn get_addredd_of_symbol() {
+	}
+}
