@@ -3803,10 +3803,19 @@ mod test_cpu {
 
 		// Interrupt happened and moved to handler
 		assert_eq!(handler_vector, cpu.read_pc());
+
+		// CSR Cause register holds the reason what caused the interrupt
+		assert_eq!(0x8000000000000007, cpu.read_csr_raw(CSR_MCAUSE_ADDRESS));
+
+		// @TODO: Test post CSR status register
+		// @TODO: Test xIE bit in CSR status register
+		// @TODO: Test privilege levels
+		// @TODO: Test delegation
+		// @TODO: Test vector type handlers
 	}
 
 	#[test]
-	fn trap() {
+	fn exception() {
 		let handler_vector = 0x10000000;
 		let mut cpu = create_cpu();
 		cpu.get_mut_mmu().init_memory(4);
@@ -3822,6 +3831,14 @@ mod test_cpu {
 
 		// Interrupt happened and moved to handler
 		assert_eq!(handler_vector, cpu.read_pc());
+
+		// CSR Cause register holds the reason what caused the trap
+		assert_eq!(0xb, cpu.read_csr_raw(CSR_MCAUSE_ADDRESS));
+
+		// @TODO: Test post CSR status register
+		// @TODO: Test privilege levels
+		// @TODO: Test delegation
+		// @TODO: Test vector type handlers
 	}
 
 	#[test]
