@@ -3854,6 +3854,25 @@ mod test_cpu {
 		// x1 is not hardcoded zero
 		assert_eq!(1, cpu.read_register(1));
 	}
+
+	#[test]
+	fn disassemble_next_instruction() {
+		let mut cpu = create_cpu();
+		cpu.get_mut_mmu().init_memory(4);
+		cpu.update_pc(DRAM_BASE);
+
+		// Write non-compressed "addi x0, x0, 1" instruction
+		match cpu.get_mut_mmu().store_word(DRAM_BASE, 0x00100013) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+
+		assert_eq!("PC:0000000080000000 00100013 ADDI zero:0,zero:0,1",
+			cpu.disassemble_next_instruction());
+
+		// No effect to PC
+		assert_eq!(DRAM_BASE, cpu.read_pc());
+	}
 }
 
 #[cfg(test)]
