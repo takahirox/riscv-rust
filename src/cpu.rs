@@ -3396,7 +3396,6 @@ const NULL_ENTRY: usize = DECODE_CACHE_ENTRY_NUM;
 ///
 // @TODO: Write performance benchmark test to confirm this cache actually
 //        improves the speed.
-// @TODO: Write unit test.
 struct DecodeCache {
 	/// Holds mappings from word instruction data to an index of `entries`
 	/// pointing to the entry having the decoding result. Containing the word
@@ -3910,7 +3909,7 @@ mod test_decode_cache {
 	}
 
 	#[test]
-	fn overlow() {
+	fn lru() {
 		let mut cache = DecodeCache::new();
 		cache.insert(0, 1);
 
