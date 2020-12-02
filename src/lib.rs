@@ -330,7 +330,6 @@ mod test_emulator {
 	}
 
 	#[test]
-	#[ignore]
 	fn initialize() {
 		let _emu = create_emu();
 	}
