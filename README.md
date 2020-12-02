@@ -23,6 +23,7 @@ You can run Linux or xv6 on the emulator in your browser. [Online demo is here](
 
 - Emulate RISC-V processor and peripheral devices
 - Stable as [Linux](https://risc-v-getting-started-guide.readthedocs.io/en/latest/linux-qemu.html) and [xv6-riscv](https://github.com/mit-pdos/xv6-riscv) run on it
+- Linux OpenSBI and legacy BBL boot support
 - Runnable locally
 - Also runnable in browser with WebAssembly
 - Debugger
