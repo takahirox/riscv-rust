@@ -75,7 +75,7 @@ $ cargo build --release
 ```sh
 $ cd riscv-rust/cli
 # Run Linux
-$ cargo run --release ../resources/linux/opensbi/fw_payloag.elf -f ../resources/linux/rootfs.img
+$ cargo run --release ../resources/linux/opensbi/fw_payload.elf -f ../resources/linux/rootfs.img
 # Run xv6
 $ cargo run --release ../resources/xv6/kernel -f ../resources/xv6/fs.img
 ```
