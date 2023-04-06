@@ -2,13 +2,13 @@ extern crate getopts;
 extern crate riscv_emu_rust;
 
 mod popup_terminal;
-mod dummy_terminal;
+mod raw_terminal;
 
 use riscv_emu_rust::Emulator;
 use riscv_emu_rust::cpu::Xlen;
 use riscv_emu_rust::terminal::Terminal;
 use popup_terminal::PopupTerminal;
-use dummy_terminal::DummyTerminal;
+use raw_terminal::RawTerminal;
 
 use std::env;
 use std::fs::File;
@@ -18,7 +18,7 @@ use getopts::Options;
 
 enum TerminalType {
 	PopupTerminal,
-	DummyTerminal
+        RawTerminal,
 }
 
 fn print_usage(program: &str, opts: Options) {
@@ -29,7 +29,7 @@ fn print_usage(program: &str, opts: Options) {
 fn get_terminal(terminal_type: TerminalType) -> Box<dyn Terminal> {
 	match terminal_type {
 		TerminalType::PopupTerminal => Box::new(PopupTerminal::new()),
-		TerminalType::DummyTerminal => Box::new(DummyTerminal::new()),
+		TerminalType::RawTerminal => Box::new(RawTerminal::new()),
 	}
 }
 
@@ -41,7 +41,7 @@ fn main () -> std::io::Result<()> {
 	opts.optopt("x", "xlen", "Set bit mode. Default is auto detect from elf file", "32|64");
 	opts.optopt("f", "fs", "File system image file", "xv6/fs.img");
 	opts.optopt("d", "dtb", "Device tree file", "linux/dtb");
-	opts.optflag("n", "no_terminal", "No popup terminal");
+	opts.optflag("r", "raw_terminal", "Use a raw terminal");
 	opts.optflag("h", "help", "Show this help menu");
 	opts.optflag("p", "page_cache", "Enable experimental page cache optimization");
 
@@ -93,10 +93,10 @@ fn main () -> std::io::Result<()> {
 	let mut elf_contents = vec![];
 	elf_file.read_to_end(&mut elf_contents)?;
 
-	let terminal_type = match matches.opt_present("n") {
+	let terminal_type = match matches.opt_present("r") {
 		true => {
-			println!("No popup terminal mode. Output will be flushed on your terminal but you can not input.");
-			TerminalType::DummyTerminal
+			println!("Raw terminal mode.");
+			TerminalType::RawTerminal
 		},
 		false => TerminalType::PopupTerminal
 	};
